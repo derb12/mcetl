@@ -1,0 +1,6 @@
+# Auto detect text files and perform LF normalization
+
+* text=auto
+# Make it ignore all files except .py so the language is recognized as Python.
+* linguist-vendored
+*.py linguist-vendored=false
