@@ -478,7 +478,7 @@ def save_image_options(figure):
                     window_1.un_hide()
 
             else:
-                sg.Popup('Please select a file name.\n', title='Select a file name')
+                sg.popup('Please select a file name.\n', title='Select a file name')
 
     window_1.close()
     del window_1
@@ -1897,7 +1897,7 @@ def plot_data(data, axes, old_axes=None, **kwargs):
 
 
     except Exception as e:
-        sg.Popup('Error creating plot:\n\n    '+repr(e)+'\n')
+        sg.popup('Error creating plot:\n\n    '+repr(e)+'\n')
 
 
 def add_remove_dataset(current_data, plot_details, data_list=None,

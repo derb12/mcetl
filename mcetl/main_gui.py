@@ -14,10 +14,9 @@ import traceback
 import pandas as pd
 import xlwings as xw
 import PySimpleGUI as sg
-import matplotlib.pyplot as plt
-from file_organizer import file_finder, file_mover
 from . import utils
-from .classes import DataSource
+from .file_organizer import file_finder, file_mover
+from .datasource import DataSource
 from .peak_fitting_gui import fit_dataframe, fit_to_excel
 from .plotting_gui import configure_plots
 
@@ -26,51 +25,45 @@ from .plotting_gui import configure_plots
 _HERE = Path(__file__).parent.resolve()
 
 
-#TODO split this up; first process excel_formulas, then generate_excel(if saving), then process python_formulas
-#pass the entire df list into process excel_formulas, with each formula returning a dataframe
 def generate_excel(dataframe, sample_names, data_source, subheader_names,
-                   excel_writer, sheet_name=None, plot_excel=False, plot_options=None):
+                   excel_writer, plot_options, sheet_name=None, plot_excel=False):
     """Creates an Excel sheet from data within a list of dataframes
 
     Parameters
     ----------
     dataframe : pd.DataFrame
         The dataframe containing all the raw data to put on one sheet in Excel.
-    sample_names : a list of sample names, one for each dataset in the dataframe
-    data_source : the DataSource object
-    subheader_names : a list of subheader names that will repeat for each dataset,
-                      typically the x and y data titles
-    excel_writer : the pandas ExcelWriter object that contains all of the
-                   information about the Excel file being created
-    sheet_name a string for the Excel sheet name
-    plot_excel : if True, will create a simple plot in Excel using the data_source's
-                 x_plot_index and y_plot_index
-    plot_options : a dictionary of options used to create the Excel plot if plot_excel is True
+    sample_names : list
+        A list of sample names, one for each sample in the dataframe.
+    data_source : DataSource
+        The selected DataSource.
+    subheader_names : list
+        A list of subheader names that will repeat for each dataset,
+        typically the x and y data titles.
+    excel_writer : pd.ExcelWriter
+        The pandas ExcelWriter object that contains all of the
+        information about the Excel file being created.
+    plot_options : dict
+        A dictionary of options used to create the Excel plot if plot_excel is True.
+    sheet_name: str, optional
+        The Excel sheet name.
+    plot_excel : bool, optional
+        If True, will create a simple plot in Excel using the data_source's
+        x_plot_index and y_plot_index.
 
     """
 
     excel_book = excel_writer.book
+    first_row = data_source.excel_row_offset
+    first_col = data_source.excel_column_offset
     
     if len(excel_book.formats) == 2: # a new writer object
         #Formatting styles for the Excel workbook
-        odd_header_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'DBEDFF', 'font_size':12, 'bottom': True
-        })
-        even_header_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'FFEAD6', 'font_size':12, 'bottom': True
-        })
-        odd_colnum_format = excel_book.add_format({
-            'num_format': '0.00', 'bg_color':'DBEDFF', 'text_v_align': 2,
-            'text_h_align': 2
-        })
-        even_colnum_format = excel_book.add_format({
-            'num_format': '0.00', 'bg_color':'FFEAD6', 'text_v_align': 2,
-            'text_h_align': 2
-        })
-    else:
-        odd_header_format, even_header_format, odd_colnum_format, even_colnum_format = excel_book.formats[2:6]
+        for excel_format in data_source.excel_formats:
+            excel_book.add_format(excel_format)
+    
+    (odd_header_format, even_header_format, odd_colnum_format,
+     even_colnum_format) = excel_book.formats[2:6]
     
     #Ensures that the sheet name is unique so it does not overwrite data
     num = 1
@@ -92,8 +85,10 @@ def generate_excel(dataframe, sample_names, data_source, subheader_names,
     #TODO look at using pandas Styler to set style, would be independent of
     #excelwriting engine, but seems a lot slower...?
     #write to excel as: dataFrame.style.set_properties(**{properties}).to_excel(writer, sheetname, index, etc...)
-    dataframe.to_excel(excel_writer, sheet_name=sheet_name, index=False,
-                       startrow=2, header=False)
+    dataframe.to_excel(
+        excel_writer, sheet_name=sheet_name, index=False, startrow=2 + first_row,
+        startcol=first_col, header=False
+    )
     worksheet = excel_writer.sheets[sheet_name]
 
     #Modifies the formatting to look good in Excel
@@ -103,12 +98,12 @@ def generate_excel(dataframe, sample_names, data_source, subheader_names,
         else:
             formats = [odd_header_format, odd_colnum_format]
         worksheet.merge_range(
-            0, i * len(subheader_names), 0, (i+1) * len(subheader_names) - 1,
+            first_row, i * len(subheader_names), first_row, (i+1) * len(subheader_names) - 1,
             sample_names[i], formats[0]
         )
         for j, subheader_name in enumerate(subheader_names):
             worksheet.write(
-                1, i * len(subheader_names) + j, subheader_name, formats[0]
+                first_row + 1, i * len(subheader_names) + j, subheader_name, formats[0]
             )
         worksheet.set_column(
             i * len(subheader_names), (i + 1) * len(subheader_names) - 1,
@@ -116,8 +111,8 @@ def generate_excel(dataframe, sample_names, data_source, subheader_names,
         )
 
     #changes row height in Excel
-    worksheet.set_row(0, 18)
-    worksheet.set_row(1, 44)
+    worksheet.set_row(first_row, 18)
+    worksheet.set_row(first_row + 1, 44)
 
     if plot_excel:
 
@@ -146,17 +141,19 @@ def generate_excel(dataframe, sample_names, data_source, subheader_names,
                                       'subtype':'straight'})
 
         for i in range(len(input_dataframes)):
-            df_xcol = dataFrame.columns[i*len(subheader_names) + x_col]
+            df_xcol = dataframe.columns[i*len(subheader_names) + x_col]
 
             #categories is the x column and values is the y column
             chart.add_series({
-                'name': [sheet_name, 0, i*len(subheader_names)],
-                'categories':[sheet_name, 2, i*len(subheader_names) + x_col,
-                              dataFrame[df_xcol].count() + 1,
-                              i*len(subheader_names) + x_col],
-                'values':[sheet_name, 2, i*len(subheader_names) + y_col,
-                          dataFrame[df_xcol].count() + 1,
-                          i*len(subheader_names) + y_col],
+                'name': [sheet_name, first_row, i*len(subheader_names)],
+                'categories':[
+                    sheet_name, first_row + 2, i*len(subheader_names) + x_col,
+                    dataframe[df_xcol].count() + 1, i*len(subheader_names) + x_col
+                ],
+                'values':[
+                    sheet_name, first_row + 2, i*len(subheader_names) + y_col,
+                    dataframe[df_xcol].count() + 1, i*len(subheader_names) + y_col
+                ],
                 'line': {'width':2}
             })
 
@@ -176,27 +173,6 @@ def generate_excel(dataframe, sample_names, data_source, subheader_names,
             'crossing': y_crossing
         })
         worksheet.insert_chart('D8', chart)
-
-
-def create_plot_python(dataframe, repeat_length, plot_options, sample_names):
-    """Creates a plot from a dataframe with multiple datasets. Just a placeholder for now.
-    """
-
-    ##Use plot options instead of data_source.x_plot_index
-
-    num_samples = int(len(dataframe.columns) / repeat_length)
-    plt.figure()
-
-    for i in range(num_samples):
-        x_index = plot_options['x_plot_index'] + i * repeat_length
-        y_index = plot_options['y_plot_index'] + i * repeat_length
-
-        x_data = dataframe[dataframe.columns[x_index]].astype(float)
-        y_data = dataframe[dataframe.columns[y_index]].astype(float)
-        plt.plot(x_data, y_data, label=sample_names[i])
-    plt.legend()
-    plt.show(block=False)
-    plt.pause(0.01)
 
 
 #TODO split this up into multiple function; maybe allow going back?
@@ -327,19 +303,19 @@ def launch_main_gui(data_sources):
                             if values['file_name'] != 'Choose a filename':
                                 break
                             else:
-                                sg.Popup('Please select a filename for the output Excel file.',
+                                sg.popup('Please select a filename for the output Excel file.',
                                          title='Error')
                         else:
                             break
                     else:
-                        sg.Popup('Please select a data source.',
+                        sg.popup('Please select a data source.',
                                  title='Error')
 
                 elif values['move_files']:
                     break
 
                 else:
-                    sg.Popup('Please select a data processing option.',
+                    sg.popup('Please select a data processing option.',
                              title='Error')
 
             if values['tab'] == 'tab1':
@@ -624,7 +600,7 @@ def launch_main_gui(data_sources):
                 while True:
                     event, values = window.Read()
                     if event == 'Unicode Help':
-                        sg.Popup(
+                        sg.popup(
                             '"\\u00B2": \u00B2 \n"\\u03B8": \u03B8 \n"\\u00B0": \u00B0'\
                             '\nFor example, Acceleration (m/s\\u00B2) creates Acceleration (m/s\u00B2)',
                             title='Common Unicode'
@@ -670,7 +646,6 @@ def launch_main_gui(data_sources):
         if any((save_excel, fit_peaks, plot_python)):
             writer = pd.ExcelWriter(excel_filename, engine='xlsxwriter')
             
-            
             #perform separation calcs
             data_source.separate_data(dataframes, import_vals)
             #assign reference indices for all relevant columns
@@ -693,7 +668,6 @@ def launch_main_gui(data_sources):
             #if process_data:
             data_source.do_python_functions(merged_dataframes)
     
-            #ensure column headers are all unique here
             #split data back into individual dataframes
             dataframes = data_source.split_into_measurements(merged_dataframes)
             del merged_dataframes
@@ -835,7 +809,7 @@ def launch_main_gui(data_sources):
                     for i in range(len(files)):
                         if values[f'folder_{i}'] == '':
                             close = False
-                            sg.Popup('Please enter folders for all datasets',
+                            sg.popup('Please enter folders for all datasets',
                                      title='Error')
                             break
                     if close:

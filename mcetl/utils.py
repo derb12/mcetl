@@ -437,8 +437,7 @@ def select_file_gui(data_source=None, file=None):
         default_separator = data_source.separator if data_source.separator is not None else ''
         default_columns = ', '.join([str(elem) for elem in data_source.column_numbers])
         default_indices = data_source.column_numbers
-        default_x_index = data_source.x_index
-        default_y_index = data_source.y_index
+        default_var_indices = [index for index in data_source.unique_variable_indices]
 
     else:
         default_row_start = 0
@@ -487,8 +486,6 @@ def select_file_gui(data_source=None, file=None):
             default_row_start = 0
             default_row_end = 0
             default_indices = [num for num in range(sheet_0_len)]
-            default_x_index = 0
-            default_y_index = 1
 
         else:
             disable_excel = True
@@ -505,8 +502,6 @@ def select_file_gui(data_source=None, file=None):
         initial_row_start = default_row_start
         initial_row_end = default_row_end
         initial_indices = default_indices
-        initial_x_index = default_indices[default_x_index]
-        initial_y_index = default_indices[default_y_index]
 
     file_layout = [
         [sg.Text('Excel Workbook Options', relief='ridge', size=(38,1),
@@ -561,16 +556,14 @@ def select_file_gui(data_source=None, file=None):
                                        ("Text Files", "*.txt")))]
         )
     if data_source is not None: #TODO change this for when DataSource can have more than two unique variables
-        file_layout.extend([
-            [sg.Text('Column of x data:'),
-             sg.InputCombo(initial_indices, default_value=initial_x_index,
-                           key='x_index', readonly=True, size=(3, 1),
-                           disabled=disable_bottom)],
-            [sg.Text('Column of y data:'),
-             sg.InputCombo(initial_indices, default_value=initial_y_index,
-                           key='y_index', readonly=True, size=(3, 1),
-                           disabled=disable_bottom)]
-        ])
+        for variable in data_source.unique_variables:
+            
+            file_layout.extend([
+                [sg.Text(f'Column of {variable} data:'),
+                 sg.InputCombo(initial_indices, default_value=initial_x_index,
+                               key='x_index', readonly=True, size=(3, 1),
+                               disabled=disable_bottom)]
+            ])
 
     file_layout.extend([
         [sg.Button('Next', bind_return_key=True, pad=(5, (15, 5)),

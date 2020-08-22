@@ -17,12 +17,20 @@ from . import utils
 
 
 def show_fit_plot(dataframe, gui_values):
-    """Shows a plot of data with the fit range, background range, and possible peaks marked
+    """
+    Shows a plot of data with the fit range, background range, and possible peaks marked.
 
     Parameters
     ----------
-    dataframe : a pandas dataframe that contains the x and y data
-    gui_values a dictionary of values needed for plotting
+    dataframe : pd.DataFrame
+        The dataframe that contains the x and y data.
+    gui_values: dict
+        A dictionary of values needed for plotting.
+        
+    Returns
+    -------
+    None
+
     """
 
     try:
@@ -77,70 +85,89 @@ def show_fit_plot(dataframe, gui_values):
         for peak in peaks[1]:
             if peak not in additional_peaks:
                 other_peaks = True
-                found_peaks = ax.vlines(peak, ax_y[0] - (0.01*y_diff),
-                                        ax_y[1] + (0.03*y_diff),
-                                        color='green', linestyle='-.',
-                                        lw=2)
+                found_peaks = ax.vlines(
+                    peak, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                    color='green', linestyle='-.', lw=2
+                )
         for peak in additional_peaks:
-            user_peaks = ax.vlines(peak, ax_y[0] - (0.01*y_diff),
-                                   ax_y[1] + (0.03*y_diff), color='blue',
-                                   linestyle=':', lw=2)
-        ax.annotate("", xy=(x_max, ax_y[1] + (0.03*y_diff)),
-                    xytext=(x_mid, ax_y[1] + (0.03*y_diff)),
-                    annotation_clip=False, arrowprops=dict(width=1.2,
-                    headwidth=5, headlength=5, color='black'))
-        ax.annotate("", xy=(x_min, ax_y[1] + (0.03*y_diff)),
-                    xytext=(x_mid, ax_y[1] + (0.03*y_diff)),
-                    annotation_clip=False, arrowprops=dict(width=1.2,
-                    headwidth=5, headlength=5, color='black'))
-        ax.annotate('Fitting range', xy=(x_mid,
-                    ax_y[1] + (0.063*y_diff)), ha='center')
-        ax.vlines(x_min, ax_y[0] - (0.01*y_diff),
-                  ax_y[1] + (0.03*y_diff), color='black',
-                  linestyle='-', lw=2)
-        ax.vlines(x_max, ax_y[0] - (0.01*y_diff),
-                  ax_y[1] + (0.03*y_diff), color='black',
-                  linestyle='-', lw=2)
+            user_peaks = ax.vlines(
+                peak, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                color='blue', linestyle=':', lw=2
+                )
+        ax.annotate(
+            "", (x_max, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+            annotation_clip=False, 
+        )
+        ax.annotate(
+            "", (x_min, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+            annotation_clip=False, 
+        )
+        ax.annotate(
+            'Fitting range', (x_mid, ax_y[1] + (0.063*y_diff)), ha='center'
+        )
+        ax.vlines(
+            x_min, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+            color='black', linestyle='-', lw=2
+        )
+        ax.vlines(
+            x_max, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+            color='black', linestyle='-', lw=2
+        )
 
         if gui_values['subtract_bkg']:
-            ax.annotate("", xy=(bkg_max, ax_y[0] - (0.01*y_diff)),
-                        xytext=(bkg_mid, ax_y[0] - (0.01*y_diff)),
-                        annotation_clip=False, arrowprops=dict(width=1.2,
-                        headwidth=5, headlength=5, color='red'))
-            ax.annotate("", annotation_clip=False, arrowprops=dict(width=1.2,
-                        headwidth=5, headlength=5, color='red'),
-                        xy=(bkg_min, ax_y[0] - (0.01*y_diff)),
-                        xytext=(bkg_mid, ax_y[0] - (0.01*y_diff)))
-            ax.annotate('Background range', color='red', ha='center',
-                        xy=(bkg_mid, ax_y[0] - (0.085*y_diff)))
-            ax.vlines(bkg_min, ax_y[0] - (0.01*y_diff),
-                      ax_y[1] + (0.03*y_diff), color='red',
-                      linestyle='--', lw=2)
-            ax.vlines(bkg_max, ax_y[0] - (0.01*y_diff),
-                      ax_y[1] + (0.03*y_diff), color='red',
-                      linestyle='--', lw=2)
+            ax.annotate(
+                "", (bkg_max, ax_y[0] - (0.01*y_diff)), 
+                (bkg_mid, ax_y[0] - (0.01*y_diff)), annotation_clip=False,
+                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
+            )
+            ax.annotate(
+                "", (bkg_min, ax_y[0] - (0.01*y_diff)),
+                (bkg_mid, ax_y[0] - (0.01*y_diff)),
+                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
+                annotation_clip=False
+            )
+            ax.annotate(
+                'Background range', (bkg_mid, ax_y[0] - (0.085*y_diff)),
+                color='red', ha='center'
+            )
+            ax.vlines(
+                bkg_min, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                color='red',linestyle='--', lw=2
+            )
+            ax.vlines(
+                bkg_max, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                color='red', linestyle='--', lw=2
+            )
 
         ax.set_ylim(ax_y[0] - (0.15*y_diff), ax_y[1] + (0.15*y_diff))
 
         if (additional_peaks.size > 0) and (other_peaks):
-            ax.legend([found_peaks, user_peaks], ['Found peaks', 'User input peaks'],
-                      ncol=2, frameon=False, bbox_to_anchor=(0, 1.01,1,1.01),
-                      loc='lower left', borderaxespad=0, mode='expand')
+            ax.legend(
+                [found_peaks, user_peaks], ['Found peaks', 'User input peaks'],
+                ncol=2, frameon=False, bbox_to_anchor=(0, 1.01,1,1.01),
+                loc='lower left', borderaxespad=0, mode='expand'
+            )
 
         elif (additional_peaks.size > 0):
-            ax.legend([user_peaks], ['User input peaks'],
-                      ncol=2, frameon=False, bbox_to_anchor=(0, 1.01,1,1.01),
-                      loc='lower left', borderaxespad=0, mode='expand')
+            ax.legend(
+                [user_peaks], ['User input peaks'], ncol=2, frameon=False,
+                bbox_to_anchor=(0, 1.01,1,1.01), loc='lower left',
+                borderaxespad=0, mode='expand'
+            )
         elif peaks[1]:
-            ax.legend([found_peaks], ['Found peaks'], frameon=False,
-                      bbox_to_anchor=(0.0,1.01,1,1.01), loc='lower left',
-                      borderaxespad=0, mode='expand')
+            ax.legend(
+                [found_peaks], ['Found peaks'], frameon=False,
+                bbox_to_anchor=(0.0,1.01,1,1.01), loc='lower left',
+                borderaxespad=0, mode='expand'
+            )
 
         fig.set_tight_layout(True)
         plt.show(block=False)
 
     except Exception as e:
-        sg.Popup('Error creating plot:\n    '+repr(e))
+        sg.popup('Error creating plot:\n    ' + repr(e))
 
 
 def fit_dataframe(dataframe, user_inputs=None):
@@ -149,24 +176,33 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     Parameters
     ----------
-    dataframe : a pandas dataframe object
-    user_inputs : dictionary; values to use as the default inputs in the GUI
+    dataframe : pd.DataFrame
+        A pandas dataframe.
+    user_inputs : dict
+        Values to use as the default inputs in the GUI.
 
     Returns
     -------
-    fit_result : a list of lmfit ModelResults, which gives information for each
-                 of the fits done on the dataset
-    peaks_df : a dataframe that contains the x and y data points, the data
-               points for every peak, the background data points if applicable,
-               and the the sum of all peaks and potentially the background
-    params_df : a dataframe that contains the lmfit model type and all of the
-                values and standard deviations for the parameters for each peak
-                and the background, if there is one
-    descriptors_df : a dataframe that contains the adjusted r^2 and Bayesian
-                     information criteria (B.I.C.) of the fitting, as well as
-                     the minimization method used for the fitting
-    gui_values : the values selected in the GUI for all of the various fields;
-                 can be used to reuse the values from a past interation
+    fit_result : list
+        A list of lmfit ModelResults, which gives information for each
+        of the fits done on the dataset.
+    peaks_df : pd.DataFrame
+        The dataframe containing the x and y data, the y data
+        for every individual peak, the summed y data of all peaks,
+        and the background, if present.
+    params_df : pd.DataFrame
+        The dataframe containing the value and standard error
+        associated with all of the parameters in the fitting
+        (eg. coefficients for the baseline, areas and sigmas for each peak).
+    descriptors_df : pd.DataFrame
+        The dataframe which contains some additional information about the fitting.
+        Currently has the adjusted r squared, reduced chi squared, the Akaike
+        information criteria, the Bayesian information criteria, and the minimization
+        method used for fitting.
+    gui_values : dict
+        The values selected in the GUI for all of the various fields, which
+        can be used to reuse the values from a past interation.
+
     """
 
     default_inputs = {
@@ -462,7 +498,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     bkg_points = peak_fitting.background_selector(x_data, y_data,
                                                                    bkg_points)
                 except Exception as e:
-                    sg.Popup('Error creating plot:\n    '+repr(e))
+                    sg.popup('Error creating plot:\n    '+repr(e))
 
             elif event == 'Launch Peak Selector':
                 plt.close('Peak Selector')
@@ -523,7 +559,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                                                                background_type, poly_n,
                                                                bkg_min, bkg_max, default_model)
                     except Exception as e:
-                        sg.Popup('Error creating plot:\n    '+repr(e))
+                        sg.popup('Error creating plot:\n    '+repr(e))
 
             elif event in ('automatic', 'manual'):
                 if event == 'automatic':
@@ -593,7 +629,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     close = utils.validate_inputs(gui_values, integers, floats,
                                                   strings, user_inputs)
                 else:
-                    sg.Popup('Please close the Peak and/or Background Selection plots.')
+                    sg.popup('Please close the Peak and/or Background Selection plots.')
                     continue
 
                 if close:
@@ -603,7 +639,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     for entry in model_list:
                         if entry not in available_models:
                             close = False
-                            sg.Popup(f'Need to correct the term "{entry}" in the model list',
+                            sg.popup(f'Need to correct the term "{entry}" in the model list',
                                      title='Error')
                             break
                 else:
@@ -640,7 +676,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                         if peak_list:
                             break
                         else:
-                            sg.Popup('Please manually select peaks or change peak finding to automatic')
+                            sg.popup('Please manually select peaks or change peak finding to automatic')
 
         window.close()
         del window
@@ -795,7 +831,6 @@ def fit_dataframe(dataframe, user_inputs=None):
     return fit_result, peaks_df, params_df, descriptors_df, gui_values
 
 
-#TODO allow the formatters to be overridden.
 def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
                  excel_writer, sheet_name=None, plot_excel=False):
     """
@@ -803,25 +838,30 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
 
     Parameters
     ----------
-    peaks_dataframe : the dataframe containing the x and y data, the y data
-                      for every individual peak, the summed y data of all peaks,
-                      and the background, if present
-    params_dataframe : the dataframe containing the value and standard error
-                       associated with all of the parameters in the fitting
-                       (eg. coefficients for the baseline, areas and sigmas for
-                       each peak)
-    descriptors_dataframe : the dataframe which contains some additional information
-                            about the fitting; currently has the adjusted r squared,
-                            reduced chi squared, the Akaike information criteria,
-                            the Bayesian information criteria, and the minimization
-                            method used for fitting
-    excel_writer : the pandas ExcelWriter object that contains all of the
-                   information about the Excel file being created
-    excel_book : the xlsxwriter book object corresponding to the Excel file being created
-    sheet_name a string for the Excel sheet name
-    plot_excel : if True, will create a simple plot in Excel that plots the raw x and
-                 y data, the data for each peak, the total of all peaks, and
-                 the background if it is present
+    peaks_dataframe : pd.DataFrame
+        The dataframe containing the x and y data, the y data
+        for every individual peak, the summed y data of all peaks,
+        and the background, if present.
+    params_dataframe : pd.DataFrame
+        The dataframe containing the value and standard error
+        associated with all of the parameters in the fitting
+        (eg. coefficients for the baseline, areas and sigmas for each peak).
+    descriptors_dataframe : pd.DataFrame
+        The dataframe which contains some additional information about the fitting.
+        Currently has the adjusted r squared, reduced chi squared, the Akaike
+        information criteria, the Bayesian information criteria, and the minimization
+        method used for fitting.
+    excel_writer : pd.ExcelWriter
+        The pandas ExcelWriter object that contains all of the
+        information about the Excel file being created.
+    excel_book : xlsxwriter.WorkBook
+        The xlsxwriter book object corresponding to the Excel file being created.
+    sheet_name: str
+        The Excel sheet name.
+    plot_excel : bool
+        If True, will create a simple plot in Excel that plots the raw x and
+        y data, the data for each peak, the total of all peaks, and
+        the background if it is present.
 
     Returns
     -------
