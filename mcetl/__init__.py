@@ -10,10 +10,8 @@ Created on Wed Jul 15 23:48:02 2020
 """
 
 __author__ = """Donald Erb"""
-__email__ = 'donnie.erb@gmail.com'
 __version__ = '0.1.0'
 
 
-from utils import *
-from file_organizer import *
-from generate_raw_data import *
+from .generate_raw_data import generate_raw_data
+from .main_gui import launch_main_gui

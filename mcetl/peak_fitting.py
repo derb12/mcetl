@@ -11,10 +11,10 @@ import itertools
 from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import TextBox, RadioButtons
-from matplotlib.patches import Ellipse
 from scipy import signal
 from lmfit import models, Parameters
+from matplotlib.widgets import TextBox, RadioButtons
+from matplotlib.patches import Ellipse
 
 
 def peak_transformer():

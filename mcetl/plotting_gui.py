@@ -23,9 +23,8 @@ from matplotlib.ticker import MaxNLocator
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
 import PySimpleGUI as sg
-from utils import (WindowCloseError, safely_close_window,
-                   string_to_unicode, validate_inputs, show_dataframes,
-                   PROCEED_COLOR)
+from . import utils
+
 
 LINE_MAPPING = {
     'None': '',
@@ -849,7 +848,7 @@ def create_advanced_layout(input_values, canvas, fig):
          sg.Text('Width Ratios')],
         [sg.Text('')],
         [sg.Button('Preview'),
-         sg.Button('Submit', bind_return_key=True, button_color=PROCEED_COLOR)]
+         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
     window = sg.Window('Table', layout, finalize=True)
@@ -864,7 +863,7 @@ def create_advanced_layout(input_values, canvas, fig):
 
         if event in ('Preview', 'Submit'):
             window.TKroot.grab_release()
-            proceed = validate_inputs(values, **validations)
+            proceed = utils.validate_inputs(values, **validations)
             if proceed:
                 fig, axes = create_figure_components(**input_values)
 
@@ -967,7 +966,7 @@ def set_twin_axes(gridspec_layout, user_inputs, canvas):
     layout.extend([
         [sg.Text('')],
         [sg.Button('Preview'),
-         sg.Button('Submit', button_color=PROCEED_COLOR,
+         sg.Button('Submit', button_color=utils.PROCEED_COLOR,
                    bind_return_key=True)]
     ])
     window = sg.Window('Twin Axes', layout, finalize=True)
@@ -1083,7 +1082,7 @@ def select_plot_type(user_inputs=None):
             [sg.Text('')],
             [sg.Button('Preview'),
              sg.Button('Next', bind_return_key=True, size=(6, 1),
-                       button_color=PROCEED_COLOR)]
+                       button_color=utils.PROCEED_COLOR)]
          ]),
          sg.Column([
              [sg.Canvas(key='example_canvas', size=CANVAS_SIZE, pad=(0, 0))]
@@ -1106,11 +1105,11 @@ def select_plot_type(user_inputs=None):
 
         if event == sg.WIN_CLOSED:
             plt.close('example')
-            safely_close_window(window)
+            utils.safely_close_window(window)
             break
         elif event in ('Advanced Options', 'Next', 'Preview', 'Add Twin Axes'):
             fig_kwargs.update(values)
-            proceed = validate_inputs(values, **validations)
+            proceed = utils.validate_inputs(values, **validations)
             if proceed:
                 fig_kwargs = create_gridspec_labels(fig_kwargs)
                 fig = create_figure(fig_kwargs)
@@ -1781,20 +1780,20 @@ def plot_data(data, axes, old_axes=None, **kwargs):
 
                         axis.plot(
                             x, y,
-                            marker=string_to_unicode(kwargs[f'marker_style_{i}{j}{k}'].split(' ')[0]),
+                            marker=utils.string_to_unicode(kwargs[f'marker_style_{i}{j}{k}'].split(' ')[0]),
                             markersize=float(kwargs[f'marker_size_{i}{j}{k}']),
                             color=kwargs[f'line_color_{i}{j}{k}'],
                             linewidth=float(kwargs[f'line_size_{i}{j}{k}']),
-                            label=string_to_unicode(kwargs[f'label_{i}{j}{k}']),
+                            label=utils.string_to_unicode(kwargs[f'label_{i}{j}{k}']),
                             linestyle=LINE_MAPPING[kwargs[f'line_style_{i}{j}{k}']],
                             **marker_kws
                         )
 
                 if kwargs[f'show_x_label_{i}{j}']:
-                    axis.set_xlabel(string_to_unicode(kwargs[f'x_label_{i}{j}']),
+                    axis.set_xlabel(utils.string_to_unicode(kwargs[f'x_label_{i}{j}']),
                                     labelpad=float(kwargs[f'x_label_offset_{i}{j}']))
                 if kwargs[f'show_y_label_{i}{j}']:
-                    axis.set_ylabel(string_to_unicode(kwargs[f'y_label_{i}{j}']),
+                    axis.set_ylabel(utils.string_to_unicode(kwargs[f'y_label_{i}{j}']),
                                     labelpad=float(kwargs[f'y_label_offset_{i}{j}']))
 
                 axis.grid(kwargs[f'x_major_grid_{i}{j}'], which='major', axis='x')
@@ -1852,7 +1851,7 @@ def plot_data(data, axes, old_axes=None, **kwargs):
 
                     sec_x_axis = axis.secondary_xaxis('top', functions=functions)
                     sec_x_axis.set_xlabel(
-                        string_to_unicode(kwargs[f'secondary_x_label_{i}{j}']),
+                        utils.string_to_unicode(kwargs[f'secondary_x_label_{i}{j}']),
                         labelpad=float(kwargs[f'secondary_x_label_offset_{i}{j}'])
                     )
                     sec_x_axis.xaxis.set_major_locator(
@@ -1876,7 +1875,7 @@ def plot_data(data, axes, old_axes=None, **kwargs):
 
                     sec_y_axis = axis.secondary_yaxis('right', functions=functions)
                     sec_y_axis.set_ylabel(
-                        string_to_unicode(kwargs[f'secondary_y_label_{i}{j}']),
+                        utils.string_to_unicode(kwargs[f'secondary_y_label_{i}{j}']),
                         labelpad=float(kwargs[f'secondary_y_label_offset_{i}{j}'])
                     )
                     sec_y_axis.yaxis.set_major_locator(
@@ -1973,7 +1972,7 @@ def add_remove_dataset(current_data, plot_details, data_list=None,
             break
 
         elif event == 'Show Data':
-            data_window = show_dataframes(data_list)
+            data_window = utils.show_dataframes(data_list)
             data_window.read()
             data_window.close()
             data_window = None
@@ -2297,13 +2296,13 @@ def add_remove_annotations(axis, add_annotation=True):
 
             if add_annotation:
                 if values['radio_text']:
-                    close = validate_inputs(values, **validations['text'])
+                    close = utils.validate_inputs(values, **validations['text'])
                 else:
-                    close = validate_inputs(values, **validations['arrows'])
+                    close = utils.validate_inputs(values, **validations['arrows'])
 
             elif add_annotation is None:
-                close = (validate_inputs(values, **validations['text']) and
-                         validate_inputs(values, **validations['arrows']))
+                close = (utils.validate_inputs(values, **validations['text']) and
+                         utils.validate_inputs(values, **validations['arrows']))
 
             else:
                 close = values['text_listbox'] or values['arrows_listbox']
@@ -2319,7 +2318,7 @@ def add_remove_annotations(axis, add_annotation=True):
     if add_annotation:
         if values['radio_text']:
             axis.annotate(
-                string_to_unicode(values['text']),
+                utils.string_to_unicode(values['text']),
                 xy=(float(values['x']), float(values['y'])),
                 fontsize=float(values['fontsize']), rotation=float(values['rotation']),
                 color=values['text_color_'], annotation_clip=False, in_layout=False
@@ -2391,16 +2390,16 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
         The default is None.
     input_fig_kwargs : dict, optional
         The fig_kwargs from a previous session. Only used if reloading a figure.
-    input_fig : matplotlib Figure, optional
+    input_fig : matplotlib.Figure.figure, optional
         The figure from a reloaded session.
     input_axes : dict, optional
-        A dictionary of axes from a reloaded session.
+        A dictionary of matplotlib.Axes.axes from a reloaded session.
 
     Returns
     -------
     figures : list
-        A nested list of lists, with each entry containing the matplotlib figure,
-        and a dictionary containing the axes.
+        A nested list of lists, with each entry containing the matplotlib Figure,
+        and a dictionary containing the Axes.
 
     """
     #global values
@@ -2434,7 +2433,7 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                 event, values = window.read()
                 #close
                 if event == sg.WIN_CLOSED:
-                    safely_close_window(window)
+                    utils.safely_close_window(window)
                 #finish changing the plot
                 elif event == 'Continue':
                     plt.close(PREVIEW_NAME)
@@ -2478,7 +2477,7 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
 
                 #show tables of data
                 elif event == 'Show Data':
-                    data_window = show_dataframes(data)
+                    data_window = utils.show_dataframes(data)
                     data_window.read()
                     data_window.close()
                     data_window = None
@@ -2600,7 +2599,7 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
             window.close()
             window = None
 
-    except WindowCloseError:
+    except utils.WindowCloseError:
         pass
     except KeyboardInterrupt:
         pass
@@ -2622,8 +2621,6 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
 
 
 if __name__ == '__main__':
-
-    import excel_gui
 
     #changes some defaults for the plot formatting
     changes = {
@@ -2655,13 +2652,13 @@ if __name__ == '__main__':
             dataframes = []
             for _ in range(int(num_files)):
             #gets the values needed to import a datafile, and then imports the data to a dataframe
-                import_values = excel_gui.select_file_gui()
+                import_values = utils.select_file_gui()
                 dataframes.append(
-                    excel_gui.raw_data_import(import_values, import_values['file'], False)
+                    utils.raw_data_import(import_values, import_values['file'], False)
                 )
             figures = configure_plots(dataframes, changes)
 
-    except WindowCloseError:
+    except utils.WindowCloseError:
         pass
     except KeyboardInterrupt:
         pass
