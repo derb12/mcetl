@@ -10,30 +10,42 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = [
+    'lmfit',
+    'matplotlib>=3.1',
+    'numpy',
+    'pandas>=1.0',
+    'pysimplegui>=4.28',
+    'scipy',
+    'sympy',
+    'xlsxwriter', # eventually replace with openpyxl
+    'xlwings '# eventually replace with openpyxl
+]
 
-setup_requirements = ['pytest-runner', ]
+setup_requirements = [
+    'pytest-runner',
+]
 
-test_requirements = ['pytest>=3', ]
+test_requirements = [
+    'pytest>=3',
+]
 
 setup(
     author="Donald Erb",
     author_email='donnie.erb@gmail.com',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Topic :: Scientific/Engineering :: Chemistry',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Topic :: Scientific/Engineering :: Physics',
-        'Topic :: Scientific/Engineering :: Visualization'    ,
-        'Topic :: Software Development :: Libraries :: Python Modules'
+        'Topic :: Scientific/Engineering :: Visualization'
     ],
     description="A simple Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,

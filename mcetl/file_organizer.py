@@ -11,20 +11,22 @@ from pathlib import Path
 import shutil
 import itertools
 import PySimpleGUI as sg
-from utils import safely_close_window, WindowCloseError, validate_inputs
+from .utils import safely_close_window, WindowCloseError, validate_inputs
 
 
 __all__ = ['file_finder', 'file_mover']
 
-HELP_TEXT = 'For example, consider the following files:\n\n'\
-            '    Ti-10Ni-700, Ti-20Ni-700, Ti-10Ni-800, Ti-20Ni-800,\n'\
-            '    Ti-10Fe-700, Ti-20Fe-700, Ti-10Fe-800, Ti-20Fe-800,\n'\
-            '    Co-10Ni-700, Co-20Ni-700, Co-10Ni-800, Co-20Ni-800,\n'\
-            '    Co-10Fe-700, Co-20Fe-700, Co-10Fe-800, Co-20Fe-800\n\n'\
-            'If only the files for the 700 samples were wanted, then one possible search could be \n'\
-            'two main keywords ("Ti, 700" and "Co, 700") and four secondary \n'\
-            'keywords ("10Ni", "20Ni", "10Fe", "20Fe").\n\nLeave all entries blank to find all '\
-            'files with the given file extension under the specified folder.\n'
+HELP_TEXT = (
+    'For example, consider the following files:\n\n'
+    '    Ti-10Ni-700, Ti-20Ni-700, Ti-10Ni-800, Ti-20Ni-800,\n'
+    '    Ti-10Fe-700, Ti-20Fe-700, Ti-10Fe-800, Ti-20Fe-800,\n'
+    '    Co-10Ni-700, Co-20Ni-700, Co-10Ni-800, Co-20Ni-800,\n'
+    '    Co-10Fe-700, Co-20Fe-700, Co-10Fe-800, Co-20Fe-800\n\n'
+    'If only the files for the 700 samples were wanted, then one possible search could be \n'
+    'two main keywords ("Ti, 700" and "Co, 700") and four secondary \n'
+    'keywords ("10Ni", "20Ni", "10Fe", "20Fe").\n\nLeave all entries blank to find all '
+    'files with the given file extension under the specified folder.\n'
+)
 
 
 def _prepare_for_search(input_str):
