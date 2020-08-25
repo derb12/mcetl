@@ -9,7 +9,6 @@ Created on Tue May 5 17:08:53 2020
 import os #eventually replace os with pathlib
 from pathlib import Path
 import json
-import time
 import traceback
 import pandas as pd
 import xlwings as xw
@@ -413,9 +412,9 @@ def launch_main_gui(data_sources):
                 if files[0][0][0].endswith('.xlsx'):
                     for i, file_list in enumerate(files):
                         for j, file in enumerate(file_list):
-                            disable_blank_col = not (i == 0 and j == 0)
+                            #disable_blank_col = not (i == 0 and j == 0) #TODO use this later to lock out changing the number of columns
                             import_values = utils.select_file_gui(
-                                data_source, file[0], disable_blank_col
+                                data_source, file[0]
                             )
                             dataframes[i].extend(
                                 [*utils.raw_data_import(import_values, file[0], False)]
@@ -830,30 +829,26 @@ def launch_main_gui(data_sources):
         #Handles saving the Excel file and transferring sheets if appending to an existing file
         if save_excel:
 
-            tries = 0
-            while True:
-                if tries < 10:
-                    try:
-                        if os.path.exists(excel_filename):
-                            #os.rename will throw an exception if the file is open
-                            os.rename(excel_filename, excel_filename)
-                        writer.save()
+            try_to_save = True
+            while try_to_save:
+                try:
+                    if os.path.exists(excel_filename):
+                        #os.rename will throw an exception if the file is open
+                        os.rename(excel_filename, excel_filename)
+                    writer.save()
 
-                        if append_excel_file:
-                            print('\nSaved temporary file...')
-                        else:
-                            print('\nSaved Excel file.')
-                        break
-
-                    except PermissionError:
-                        print('\nTrying to overwrite Excel file. Please close the file.')
-                        tries += 1
-                        time.sleep(6)
-                else:
-                    print('\nThe saving process took too long and was abandoned.')
+                    if append_excel_file:
+                        print('\nSaved temporary file...')
+                    else:
+                        print('\nSaved Excel file.')
                     break
 
-            if append_excel_file and (tries < 10):
+                except PermissionError:
+                    try_to_save = sg.popup_ok(
+                        '\nTrying to overwrite Excel file. Please close the file.\n'
+                    )
+
+            if append_excel_file and try_to_save:
                 if os.name == 'nt': #will only do this in Windows (os.name=='nt' for windows)
                     try:
                         #checks if the file is open; raises PermissionError if so
@@ -918,8 +913,10 @@ def launch_main_gui(data_sources):
                                 workbook_2.close()
                                 app.kill()
                 else:
-                    print('\nAppending not supported for this os system. Please manually '\
-                          f'copy the sheets from "{excel_filename}"')
+                    print(
+                        '\nAppending not supported for this os system. Please manually '\
+                          f'copy the sheets from "{excel_filename}"'
+                    )
 
     except utils.WindowCloseError:
         pass
