@@ -21,7 +21,7 @@ class DataSource:
     ----------
     lengths : list
         A list of lists of lists of integers, corresponding to the number of columns
-        in each individual measurement in the total dataframes for the DataSource.
+        in each individual entry in the total dataframes for the DataSource.
         Used to split the concatted dataframe back into individual dataframes for
         each dataset.
     references : list
@@ -83,6 +83,8 @@ class DataSource:
         ------
         TypeError
             DESCRIPTION.
+        IndexError
+            DESCRIPTION.
 
         """
 
@@ -90,7 +92,6 @@ class DataSource:
 
         self.lengths = None
         self.name = name
-        self.column_numbers = column_numbers if column_numbers is not None else [0, 1]
         self.start_row = start_row
         self.end_row = end_row
         self.separator = separator
@@ -109,7 +110,19 @@ class DataSource:
             self.unique_variables = [unique_variables]
         else:
             self.unique_variables = unique_variables
+            
+        self.column_numbers = column_numbers if column_numbers is not None else [
+            *range(len(self.unique_variables))
+        ]
+        
+        #ensures the number of columns can correctly accomodate the variables
+        if len(self.column_numbers) < len(self.unique_variables):
+            raise IndexError((
+                f'The number of columns specified for DataSouce "{self.name}" must \n'
+                'be greater or equal to the number of unique variables, not less than.'
+            ))
 
+        # sorts the functions by their usage
         self.separation_functions = []
         self.calculation_functions = []
         self.sample_summary_functions = []
@@ -133,12 +146,15 @@ class DataSource:
         self._validate_target_columns()
 
         #indices for each unique variable for data processing
-        if (isinstance(unique_variable_indices, (list, tuple))
-            and len(unique_variable_indices) == len(unique_variables)):
-
-            self.unique_variable_indices = unique_variable_indices
-        else:
+        if unique_variable_indices is None:
             self.unique_variable_indices = [*range(len(self.unique_variables))]
+        elif isinstance(unique_variable_indices, str):
+            self.unique_variable_indices = [unique_variable_indices]
+        else:
+            self.unique_variable_indices = unique_variable_indices
+            
+        while len(self.unique_variables) > len(self.unique_variable_indices):
+            self.unique_variable_indices.append(max(self.unique_variable_indices) + 1)
 
         #x and y indices for plotting
         if isinstance(xy_plot_indices, (list, tuple)) and len(xy_plot_indices) >= 2:
