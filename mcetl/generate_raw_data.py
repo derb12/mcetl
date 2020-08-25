@@ -725,7 +725,7 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
     
         window = sg.Window('Folder Selection', layout)
         while True:
-            event, values = window.Read()
+            event, values = window.read()
             if event == sg.WIN_CLOSED:
                 values['folder'] = False
                 break

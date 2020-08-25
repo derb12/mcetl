@@ -144,9 +144,10 @@ def save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     extension = THEME_EXTENSION if data is None else FIGURE_EXTENSION
     file_types = f'Theme Files ({THEME_EXTENSION})' if data is None else f'Figure Files ({FIGURE_EXTENSION})'
 
-    filename = sg.popup_get_file('Select the filename.', title='Save Figure Options',
-                                 file_types=((file_types, f"*{extension}"),),
-                                 save_as=True)
+    filename = sg.popup_get_file(
+        'Select the filename.', title='Save Figure Options',
+        file_types=((file_types, f"*{extension}"),), save_as=True
+    )
 
     if filename:
         try:
@@ -178,12 +179,16 @@ def save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 with open(filename, 'w') as f:
                     pd.concat(saved_data, axis=1).to_csv(filename, index=False)
 
-            sg.popup(f'Successfully saved to {filename.replace(extension, "").replace(".csv", "")}\n',
-                     title='Save Successful')
+            sg.popup(
+                f'Successfully saved to {filename.replace(extension, "").replace(".csv", "")}\n',
+                title='Save Successful'
+            )
 
         except PermissionError:
-            sg.popup('Designated file is currently open. Please close and try to save again.\n',
-                     title='Save Failed')
+            sg.popup(
+                'Designated file is currently open. Please close and try to save again.\n',
+                title='Save Failed'
+            )
 
 
 def load_previous_figure(filename=None, new_rc_changes=None):
@@ -386,7 +391,7 @@ def save_image_options(figure):
                 if file_extension:
                     file_extension = file_extension[1:]
                     if file_extension in extension_mapping.keys():
-                        window_1['extension'].Update(
+                        window_1['extension'].update(
                             value=extension_displays[extension_mapping[file_extension]]
                         )
 
@@ -1351,7 +1356,7 @@ def plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None, **kwar
 
             for k, dataset in enumerate(data):
                 plot_details.extend([[
-                    sg.Frame(f'Dataset {k + 1}', [[
+                    sg.Frame(f'Entry {k + 1}', [[
                         sg.Column([
                             [sg.Check('Show', enable_events=True,
                                       default=default_inputs[f'plot_boolean_{i}{j}{k}'],
@@ -1980,7 +1985,7 @@ def add_remove_dataset(current_data, plot_details, data_list=None,
         elif event == 'group':
             index = int(values['group'].split(' ')[-1]) - 1
             datasets = [f'Dataset {i + 1}' for i in range(len(data_list[index]))]
-            window['data_list'].Update(values=datasets, value=datasets[0],
+            window['data_list'].update(values=datasets, value=datasets[0],
                                        readonly=True)
         elif event == button_text:
             if values['data_list']:
@@ -2555,12 +2560,12 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                     if values[event]:
                         for prop in properties:
                             try:
-                                window[f'legend_{prop}_{index}'].Update(readonly=window[f'legend_{prop}_{index}'].Readonly)
+                                window[f'legend_{prop}_{index}'].update(readonly=window[f'legend_{prop}_{index}'].Readonly)
                             except AttributeError:
-                                window[f'legend_{prop}_{index}'].Update(disabled=False)
+                                window[f'legend_{prop}_{index}'].update(disabled=False)
                     else:
                         for prop in properties:
-                            window[f'legend_{prop}_{index}'].Update(disabled=True)
+                            window[f'legend_{prop}_{index}'].update(disabled=True)
                 #toggles secondary axis options
                 elif 'secondary' in event:
                     properties = ('label', 'label_offset', 'expr')
@@ -2583,12 +2588,12 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                     if values[event]:
                         for prop in properties:
                             try:
-                                window[f'{prop}_{index}'].Update(readonly=window[f'{prop}_{index}'].Readonly)
+                                window[f'{prop}_{index}'].update(readonly=window[f'{prop}_{index}'].Readonly)
                             except AttributeError:
-                                window[f'{prop}_{index}'].Update(disabled=False)
+                                window[f'{prop}_{index}'].update(disabled=False)
                     else:
                         for prop in properties:
-                            window[f'{prop}_{index}'].Update(disabled=True)
+                            window[f'{prop}_{index}'].update(disabled=True)
                 #color chooser button
                 elif 'chooser' in event:
                     if values[event] != 'None':
@@ -2646,6 +2651,7 @@ if __name__ == '__main__':
         'legend.frameon': False
     }
 
+    #TODO make this into a convenience function to put in the main namespace
     try:
         num_files = sg.popup_get_text('Enter number of files to open', 'Get Files', '1')
         if num_files:

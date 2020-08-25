@@ -568,15 +568,3 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
                 shutil.copy(file, new_folder.joinpath(new_file_name))
 
     return str(new_folder)
-
-
-if __name__ == '__main__':
-
-    try:
-        #launches a GUI to find files using a set of keywords
-        files = file_finder()
-        for file_list in files:
-            file_mover(file_list, new_folder=None, skip_same_files=False)
-
-    except WindowCloseError:
-        pass

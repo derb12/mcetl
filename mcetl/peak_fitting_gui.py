@@ -481,12 +481,12 @@ def fit_dataframe(dataframe, user_inputs=None):
                 sorted_centers = ', '.join([str(center) for model, center in sorted_peaks])
                 tmp_model_list = [model for model, center in sorted_peaks]
                 model_list = ', '.join(tmp_model_list)
-                window['peak_list'].Update(value=sorted_centers)
-                window['model_list'].Update(value=model_list)
+                window['peak_list'].update(value=sorted_centers)
+                window['model_list'].update(value=model_list)
                 if any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list):
-                    window['vary_Voigt'].Update(disabled=False)
+                    window['vary_Voigt'].update(disabled=False)
                 elif gui_values['default_model'] not in ('VoigtModel', 'SkewedVoigtModel'):
-                    window['vary_Voigt'].Update(disabled=True, value=False)
+                    window['vary_Voigt'].update(disabled=True, value=False)
 
             elif event == 'bkg_selector':
                 plt.close('Background Selector')
@@ -563,64 +563,64 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             elif event in ('automatic', 'manual'):
                 if event == 'automatic':
-                    window['automatic_tab'].Update(visible=True)
+                    window['automatic_tab'].update(visible=True)
                     window['automatic_tab'].Select()
-                    window['manual_tab'].Update(visible=False)
+                    window['manual_tab'].update(visible=False)
 
                 else:
-                    window['automatic_tab'].Update(visible=False)
-                    window['manual_tab'].Update(visible=True)
+                    window['automatic_tab'].update(visible=False)
+                    window['manual_tab'].update(visible=True)
                     window['manual_tab'].Select()
 
             elif event in ('automatic_bkg', 'manual_bkg'):
                 if event == 'automatic_bkg':
-                    window['auto_bkg_tab'].Update(visible=True)
+                    window['auto_bkg_tab'].update(visible=True)
                     window['auto_bkg_tab'].Select()
-                    window['manual_bkg_tab'].Update(visible=False)
+                    window['manual_bkg_tab'].update(visible=False)
                 else:
-                    window['manual_bkg_tab'].Update(visible=True)
+                    window['manual_bkg_tab'].update(visible=True)
                     window['manual_bkg_tab'].Select()
-                    window['auto_bkg_tab'].Update(visible=False)
+                    window['auto_bkg_tab'].update(visible=False)
 
             elif event == 'subtract_bkg':
                 if gui_values['subtract_bkg']:
-                    window['bkg_type'].Update(visible=True)
-                    window['poly_n'].Update(visible=True)
-                    window['bkg_x_min'].Update(visible=True)
-                    window['bkg_x_max'].Update(visible=True)
-                    window['automatic_bkg'].Update(disabled=False)
-                    window['manual_bkg'].Update(disabled=False)
-                    window['bkg_selector'].Update(disabled=False)
+                    window['bkg_type'].update(visible=True)
+                    window['poly_n'].update(visible=True)
+                    window['bkg_x_min'].update(visible=True)
+                    window['bkg_x_max'].update(visible=True)
+                    window['automatic_bkg'].update(disabled=False)
+                    window['manual_bkg'].update(disabled=False)
+                    window['bkg_selector'].update(disabled=False)
                 else:
-                    window['bkg_type'].Update(visible=False, value='PolynomialModel')
-                    window['poly_n'].Update(visible=False, value='0')
-                    window['bkg_x_min'].Update(visible=False, value='-inf')
-                    window['bkg_x_max'].Update(visible=False, value='inf')
-                    window['automatic_bkg'].Update(disabled=True)
-                    window['manual_bkg'].Update(disabled=True)
-                    window['bkg_selector'].Update(disabled=True)
+                    window['bkg_type'].update(visible=False, value='PolynomialModel')
+                    window['poly_n'].update(visible=False, value='0')
+                    window['bkg_x_min'].update(visible=False, value='-inf')
+                    window['bkg_x_max'].update(visible=False, value='inf')
+                    window['automatic_bkg'].update(disabled=True)
+                    window['manual_bkg'].update(disabled=True)
+                    window['bkg_selector'].update(disabled=True)
 
             elif event == 'bkg_type':
                 if gui_values['bkg_type'] == 'PolynomialModel':
-                    window['poly_n'].Update(visible=True)
+                    window['poly_n'].update(visible=True)
                 else:
-                    window['poly_n'].Update(visible=False, value='0')
+                    window['poly_n'].update(visible=False, value='0')
 
             elif event in ('model_list', 'default_model'):
                 tmp_model_list = [entry for entry in gui_values['model_list'].replace(' ', '').split(',') if entry != '']
                 v_models = ['VoigtModel', 'SkewedVoigtModel']
                 if (any(model in v_models for model in tmp_model_list)) or (gui_values['default_model'] in v_models):
-                    window['vary_Voigt'].Update(disabled=False)
+                    window['vary_Voigt'].update(disabled=False)
                 else:
-                    window['vary_Voigt'].Update(disabled=True, value=False)
+                    window['vary_Voigt'].update(disabled=True, value=False)
 
             elif event == 'fit_residuals':
                 if gui_values['fit_residuals']:
-                    window['min_resid'].Update(visible=True)
-                    window['num_resid_fits'].Update(visible=True)
+                    window['min_resid'].update(visible=True)
+                    window['num_resid_fits'].update(visible=True)
                 else:
-                    window['min_resid'].Update(visible=False, value=0.05)
-                    window['num_resid_fits'].Update(visible=False, value=5)
+                    window['min_resid'].update(visible=False, value=0.05)
+                    window['num_resid_fits'].update(visible=False, value=5)
 
             elif event =='Fit':
                 if ((not plt.fignum_exists('Peak Selector')) and
