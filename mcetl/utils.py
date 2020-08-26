@@ -297,28 +297,38 @@ def optimize_memory(dataframe):
         
     Returns
     -------
-    df : pd.DataFrame
+    optimized_df : pd.DataFrame
         The memory-optimized dataframe.
 
+    Notes
+    -----
+    Only converts int and float numeric types, not numpy types like float64,
+    float 32, int16, etc.
+    
     """
 
-    df = dataframe.copy()
+    optimized_df = dataframe.copy()
+    
     #attempts to convert object columns to other dtypes
     objects = dataframe.select_dtypes(['object'])
     if len(objects.columns) > 0:
-        df[objects.columns] = objects.convert_dtypes(convert_integer=False)
+        optimized_df[objects.columns] = objects.convert_dtypes(
+            convert_integer=False
+        )
 
     ints = dataframe.select_dtypes(include=['int'])
     if len(ints.columns) > 0:
-        df[ints.columns] = ints.apply(pd.to_numeric, downcast='integer',
-                                      errors='ignore')
+        optimized_df[ints.columns] = ints.apply(
+            pd.to_numeric, downcast='integer', errors='ignore'
+        )
 
     floats = dataframe.select_dtypes(include=['float'])
     if len(floats.columns) > 0:
-        df[floats.columns] = floats.apply(pd.to_numeric, downcast='float',
-                                          errors='ignore')
+        optimized_df[floats.columns] = floats.apply(
+            pd.to_numeric, downcast='float', errors='ignore'
+        )
 
-    return df
+    return optimized_df
 
 
 def raw_data_import(window_values, file, show_popup=True):

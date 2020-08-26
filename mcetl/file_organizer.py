@@ -10,8 +10,10 @@ Created on Mon Sep  2 22:08:12 2019
 from pathlib import Path
 import shutil
 import itertools
+
 import PySimpleGUI as sg
-from .utils import safely_close_window, WindowCloseError, validate_inputs
+
+from .utils import safely_close_window, validate_inputs
 
 
 __all__ = ['file_finder', 'file_mover']
