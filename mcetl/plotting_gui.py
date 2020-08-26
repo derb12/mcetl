@@ -13,6 +13,7 @@ import itertools
 import traceback
 from pathlib import Path
 from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
@@ -23,6 +24,7 @@ from matplotlib.ticker import MaxNLocator
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
 import PySimpleGUI as sg
+
 from . import utils
 
 
@@ -375,7 +377,6 @@ def save_image_options(figure):
     ]
 
     window_1 = sg.Window('Save Options', layout)
-
     window_open = True
     while window_open:
         event, values = window_1.read()
@@ -383,27 +384,27 @@ def save_image_options(figure):
         if event in (sg.WIN_CLOSED, 'Back'):
             break
 
-        elif event == 'save_as':
-            if values['save_as']:
-                file_path = Path(values['save_as'])
-                window_1['file_name'].update(value=file_path.name)
-                file_extension = file_path.suffix.lower()
-                if file_extension:
-                    file_extension = file_extension[1:]
-                    if file_extension in extension_mapping.keys():
-                        window_1['extension'].update(
-                            value=extension_displays[extension_mapping[file_extension]]
-                        )
+        elif event == 'save_as' and values['save_as']:
+            file_path = Path(values['save_as'])
+            window_1['file_name'].update(value=file_path.name)
+            file_extension = file_path.suffix.lower()
+            if file_extension and file_extension[1:] in extension_mapping.keys():
+                window_1['extension'].update(
+                    value=extension_displays[extension_mapping[file_extension[1:]]]
+                )
 
         elif event == 'Next':
-            selected_extension = values['extension'].split(' ')[0]
-            directory = str(file_path.parent)
+            if not values['file_name']:
+                sg.popup('Please select a file name.\n',
+                         title='Select a file name')
+            else:
+                selected_extension = values['extension'].split(' ')[0]
+                directory = str(file_path.parent)
 
-            if values['file_name']:
                 file_extension = file_path.suffix[1:] if file_path.suffix else selected_extension.lower()
 
-                if ((file_extension.lower() not in extension_mapping.keys()) or
-                        (file_extension.lower() not in extension_dict[selected_extension])):
+                if (file_extension.lower() not in extension_mapping.keys() or
+                        file_extension.lower() not in extension_dict[selected_extension]):
 
                     error_layout = [
                         [sg.Text('The given filename has an extension that\n'\
@@ -429,7 +430,7 @@ def save_image_options(figure):
                             break
 
                     error_window.close()
-                    del error_window
+                    error_window = None
 
                     if return_to_window:
                         continue
@@ -455,7 +456,7 @@ def save_image_options(figure):
                         elif event_2 == 'Save':
                             break
                     window_2.close()
-                    del window_2
+                    window_2 = None
                 else:
                     save_dict = {}
 
@@ -481,9 +482,6 @@ def save_image_options(figure):
                         window_open = True
                 if window_open:
                     window_1.un_hide()
-
-            else:
-                sg.popup('Please select a file name.\n', title='Select a file name')
 
     window_1.close()
     del window_1
@@ -2407,8 +2405,6 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
         and a dictionary containing the Axes.
 
     """
-    #global values
-    #global fig_kwargs
 
     try:
         interactive = plt.isinteractive()
@@ -2622,51 +2618,4 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
         if interactive:
             plt.ion()
 
-        return figures
-
-
-if __name__ == '__main__':
-
-    #changes some defaults for the plot formatting
-    changes = {
-        'font.serif': 'Times New Roman',
-        'font.family': 'serif',
-        'font.size': 12,
-        'mathtext.default': 'regular',
-        'xtick.direction': 'in',
-        'ytick.direction': 'in',
-        'xtick.minor.visible': True,
-        'ytick.minor.visible': True,
-        'xtick.major.size': 5,
-        'xtick.major.width': 0.6,
-        'xtick.minor.size': 2.5,
-        'xtick.minor.width': 0.6,
-        'ytick.major.size': 5,
-        'ytick.major.width': 0.6,
-        'ytick.minor.size': 2.5,
-        'ytick.minor.width': 0.6,
-        'lines.linewidth': 2,
-        'lines.markersize': 5,
-        'axes.linewidth': 0.6,
-        'legend.frameon': False
-    }
-
-    #TODO make this into a convenience function to put in the main namespace
-    try:
-        num_files = sg.popup_get_text('Enter number of files to open', 'Get Files', '1')
-        if num_files:
-            dataframes = []
-            for _ in range(int(num_files)):
-            #gets the values needed to import a datafile, and then imports the data to a dataframe
-                import_values = utils.select_file_gui()
-                dataframes.append(
-                    utils.raw_data_import(import_values, import_values['file'], False)
-                )
-            figures = configure_plots(dataframes, changes)
-
-    except utils.WindowCloseError:
-        pass
-    except KeyboardInterrupt:
-        pass
-
-    #figures = load_previous_figure(new_rc_changes={'font.size': 12})
+    return figures
