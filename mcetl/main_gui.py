@@ -9,6 +9,7 @@ Created on Tue May 5 17:08:53 2020
 
 import os
 from pathlib import Path
+import itertools
 import json
 import traceback
 
@@ -223,16 +224,16 @@ def _select_processing_options(data_sources):
          sg.Combo(('Create new file', 'Append to existing file'),
                   key='append_file', readonly=True,
                   default_value='Append to existing file', size=(19, 1))],
-        [sg.Check('Plot data in Excel', key='plot_data_excel',
+        [sg.Check('Plot Data in Excel', key='plot_data_excel',
                   pad=((40, 0), (1, 0)))],
-        [sg.Check('Plot fit results in Excel', key='plot_fit_excel',
+        [sg.Check('Plot Fit Results in Excel', key='plot_fit_excel',
                   disabled=True, pad=((40, 0), (1, 0)))],
-        [sg.Text('Filename', pad=((40, 0), (1, 0))),
-         sg.Input('', key='file_name', visible=False),
+        [sg.Input('', key='file_name', visible=False),
          sg.Input('', key='save_as', visible=False,
                   enable_events=True, do_not_clear=False),
          sg.SaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
-                   key='file_save_as', target='save_as')],
+                   key='file_save_as', target='save_as',
+                   pad=((40, 0), 5))],
     ]
 
     #Selection of data source
@@ -301,7 +302,8 @@ def _select_processing_options(data_sources):
 
         elif event == 'fit_peaks':
             if values['fit_peaks'] and values['save_excel']:
-                window['save_fitting'].update(disabled=False)
+                window['save_fitting'].update(value=True, disabled=False)
+                window['plot_fit_excel'].update(disabled=False)
             else:
                 window['save_fitting'].update(value=False, disabled=True)
                 window['plot_fit_excel'].update(value=False, disabled=True)
@@ -316,8 +318,10 @@ def _select_processing_options(data_sources):
             if values['save_excel']:
                 window['append_file'].update(visible=True)
                 window['plot_data_excel'].update(disabled=False)
+
                 if values['fit_peaks']:
-                    window['save_fitting'].update(disabled=False)
+                    window['save_fitting'].update(value=True, disabled=False)
+                    window['plot_fit_excel'].update(disabled=False)
             else:
                 window['append_file'].update(
                     value='Append to existing file', visible=False
@@ -445,19 +449,22 @@ def _plot_python(datasets, data_source):
     Returns
     -------
     results : list
-        A nested list of lists, with each entry containing the matplotlib Figure,
-        and a dictionary containing the Axes. If plotting was exited
-        before plotting all datasets in dataframes, then None will
-        be the entry instead.
+        A nested list of lists, with one entry per dataset in datasets.
+        Each entry containing the matplotlib Figure, and a dictionary
+        containing the Axes. If plotting was exited before plotting all
+        datasets in dataframes, then None will be the entry instead.
 
     """
 
-    results = []
+    plot_datasets = []
+    for dataset in datasets: # flattens the dataset to a single list per dataset
+        plot_datasets.append([*itertools.chain(*dataset)])
 
+    results = []
     # allows an exception to occur during plotting while still moving on with the program.
-    try: #TODO flatten the dataframes into a single list of dataframes per dataset.
+    try:
         results.append(
-            configure_plots(datasets, data_source.figure_rcParams)
+            configure_plots(plot_datasets, data_source.figure_rcParams)
         )
 
     except utils.WindowCloseError:
@@ -501,15 +508,18 @@ def _move_files(files):
         for i in range(len(files))
     ]
     tot_layout = [i for j in zip(text_layout, files_layout) for i in j]
+    
     if len(files) > 2:
-        column = sg.Column(tot_layout, scrollable=True,
-                           vertical_scroll_only=True, size=(600, 200))
+        scrollable = True
+        size = (600, 200)
     else:
-        column = sg.Column(tot_layout, scrollable=False,
-                           vertical_scroll_only=True)
+        scrollable = False
+        size = (None, None)
+    
     layout = [
         [sg.Text('Choose the folder(s) to move files to:', size=(30, 1))],
-        [sg.Frame('', [[column]])],
+        [sg.Frame('', [[sg.Column(tot_layout, scrollable=scrollable,
+                                  vertical_scroll_only=True, size=size)]])],
         [sg.Button('Submit', bind_return_key=True,
                    button_color=utils.PROCEED_COLOR),
          sg.Check('All Same Folder', key='same_folder',
@@ -553,7 +563,7 @@ def _move_files(files):
     window.close()
     del window
 
-    if (values is not None) and (None not in values.values()):
+    if values is not None and None not in values.values():
         folders = [values[f'folder_{i}'] for i in range(len(files))]
         #TODO need to check that this still works once there are multiple files per sample
         for i, file_list in enumerate(files):
@@ -588,17 +598,17 @@ def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
     None.
 
     """
-    
+
     #ensures that the folder destinations exist
     Path(file_name).parent.mkdir(parents=True, exist_ok=True)
     if alternate_name is not None:
         Path(alternate_name).parent.mkdir(parents=True, exist_ok=True)
-    
+
     try_to_save = True
     while try_to_save:
         try:
             excel_writer.save() # raises PermissionError if file is open
-            
+
             if append_file:
                 print('\nSaved temporary file...')
             else:
@@ -617,7 +627,7 @@ def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
                 f'copy the sheets from "{file_name}"'
             ))
         else:
-            close_file = True    
+            close_file = True
             try:
                 #checks if the file is open; raises PermissionError if so
                 Path(alternate_name).rename(alternate_name)
@@ -686,13 +696,14 @@ def launch_main_gui(data_sources):
 
     Parameters
     ----------
-    data_sources : list or tuple
-        A container (list, tuple) of DataSource objects.
+    data_sources : list/tuple or DataSource
+        A container (list, tuple) of mcetl.DataSource objects, or a single
+        DataSource object.
 
     Returns
     -------
     dataframes : list
-        A list lists of dataframes, with each dataframe containing the data imported from a
+        A list of lists of dataframes, with each dataframe containing the data imported from a
         raw data file; will be None if the function fails before importing data.
 
     fit_results : list
@@ -751,12 +762,10 @@ def launch_main_gui(data_sources):
                 final_name = None
 
             writer = pd.ExcelWriter(excel_filename, engine='xlsxwriter') #TODO later add mode here to be either 'a' or 'w' after switching to openpyxl
-            #Formatting styles for the Excel workbook
+            # Formatting styles for the Excel workbook
             for excel_format in data_source.excel_formats:
                 writer.book.add_format(excel_format)
 
-        #TODO make everything work with the original output of file_finder, which
-        #is a thrice nested list: [[[file1, file2]]] <- one main and secondary keywords, two num_files
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
@@ -776,37 +785,40 @@ def launch_main_gui(data_sources):
                     processing_options['fit_peaks'],
                     processing_options['plot_python'])):
 
-                dataframes = [[] for file_list in files]
-                import_vals = [[] for file_list in files]
-
+                dataframes = [[[] for sample in dataset] for dataset in files]
+                import_vals = [[[] for sample in dataset] for dataset in files]
                 if files[0][0][0].endswith('.xlsx'):
-                    for i, file_list in enumerate(files):
-                        for j, file in enumerate(file_list):
-                            #disable_blank_col = not (i == 0 and j == 0) #TODO use this later to lock out changing the number of columns
-                            import_values = utils.select_file_gui(
-                                data_source, file[0]
-                            )
-                            dataframes[i].extend(
-                                [*utils.raw_data_import(import_values, file[0], False)]
-                            )
-                            import_vals[i].append(import_values)
+                    for i, dataset in enumerate(files):
+                        for j, sample in enumerate(dataset):
+                            for entry in sample:
+                                #disable_blank_col = not (i == 0 and j == 0) #TODO use this later to lock out changing the number of columns
+                                import_values = utils.select_file_gui(
+                                    data_source, sample
+                                )
+                                added_dataframes = utils.raw_data_import(
+                                    import_values, sample, False
+                                )
+                                dataframes[i][j].extend(added_dataframes)
+                                import_vals[i][j].extend(
+                                    [import_values] * len(added_dataframes)
+                                )
 
                 else:
                     import_values = utils.select_file_gui(data_source, files[0][0][0])
-
-                    for i, file_list in enumerate(files):
-                        for file in file_list:
-                            dataframes[i].extend(
-                                [*utils.raw_data_import(import_values, file[0], False)]
-                            )
-                            import_vals[i].append(import_values)
+                    for i, dataset in enumerate(files):
+                        for j, sample in enumerate(dataset):
+                            for entry in sample
+                                dataframes[i][j].extend(
+                                    utils.raw_data_import(import_values, entry, False)
+                                )
+                                import_vals[i][j].append(import_values)
 
         else:
             import_values = utils.select_file_gui(data_source)
-            dataframes = [utils.raw_data_import(import_values, import_values['file'],
-                                                False)]
+            dataframes = [[utils.raw_data_import(import_values, import_values['file'],
+                                                False)]]
             files = [[[import_values['file']]]]
-            import_vals = [[import_values]]
+            import_vals = [[[import_values] * len(dataframes[0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'].
@@ -842,30 +854,37 @@ def launch_main_gui(data_sources):
                 ]
 
                 if len(sample_names_inputs) > 4:
-                    sample_names_inputs = [[sg.Column(sample_names_inputs, scrollable=True,
-                                                      vertical_scroll_only=True,
-                                                      size=(380, 150))]]
+                    scrollable = True
+                    size = (380, 150)
                 else:
-                    height = len(sample_names_inputs) * 35
-                    sample_names_inputs = [[sg.Column(sample_names_inputs, scrollable=False,
-                                                      vertical_scroll_only=True,
-                                                      size=(404, height))]]
+                    scrollable = False
+                    size = (404, len(sample_names_inputs) * 35)
+
+                sample_names_inputs = [
+                    [sg.Column(sample_names_inputs, scrollable=scrollable,
+                               vertical_scroll_only=True, size=size)]
+                ]
 
                 default_headers = column_headers[-1] if column_headers else total_cols
 
-                data_header_inputs = [[sg.Text(f'    Column {j}:', size=(11, 1)),
-                                       sg.Input(key=f'data_header_{j}', default_text=default_headers[j],
-                                                do_not_clear=True,
-                                                size=(20, 1))] for j in range(len(total_cols))]
+                data_header_inputs = [
+                    [sg.Text(f'    Column {j}:', size=(11, 1)),
+                     sg.Input(key=f'data_header_{j}', default_text=default_headers[j],
+                              do_not_clear=True, size=(20, 1))] for j in range(len(total_cols))
+                ]
+
                 if len(data_header_inputs) > 4:
-                    data_header_inputs = [[sg.Column(data_header_inputs, scrollable=True,
-                                                     vertical_scroll_only=True,
-                                                     size=(380, 150))]]
+                    scrollable = True
+                    size = (380, 150)
                 else:
-                    height = len(data_header_inputs) * 35
-                    data_header_inputs = [[sg.Column(data_header_inputs, scrollable=False,
-                                                     vertical_scroll_only=True,
-                                                     size=(404, height))]]
+                    scrollable = False
+                    size = (404, len(data_header_inputs) * 35)
+
+                data_header_inputs = [
+                    [sg.Column(data_header_inputs, scrollable=scrollable,
+                               vertical_scroll_only=True, size=size)]
+                ]
+
                 if processing_options['save_excel']:
                     header = 'Sheet Name:'
                     header_visible = True
@@ -1055,7 +1074,7 @@ def launch_main_gui(data_sources):
                                 num += 1
                 dataframes[k].columns = header_list
         """
-        
+
         #Handles peak fitting
         if processing_options['fit_peaks']:
             fit_results = _fit_data(
@@ -1072,7 +1091,7 @@ def launch_main_gui(data_sources):
             _save_excel_file(
                 processing_options['append_file'], writer, excel_filename, final_name
             )
-        
+
         #Handles plotting in python
         if processing_options['plot_python']:
             plot_results = _plot_python(dataframes, data_source)
