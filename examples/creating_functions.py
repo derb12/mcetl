@@ -121,9 +121,11 @@ sum1 = SummaryFunction('sum', 'x', f, added_columns=2)
 sum3 = SummaryFunction('sum3', 'x', f2, sample_summary=False)
 
 #Data Source
-xrd = DataSource('xrd', functions=[calculation, calculation2, separator, sum1, sum3],
-                 unique_variables=['x', 'y'], sample_separation=3, measurement_separation=1,
-                 excel_row_offset=-1, excel_column_offset=1)
+xrd = DataSource(
+    'xrd', functions=[calculation, calculation2, separator, sum1, sum3],
+    unique_variables=['x', 'y'], sample_separation=3, entry_separation=1,
+    excel_row_offset=-1, excel_column_offset=1
+)
 data_source = xrd
 
 x = np.array([*np.linspace(0, 10), *np.linspace(10, 0, 40)])
@@ -168,5 +170,5 @@ merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 dfs2 = data_source.do_python_functions(dfs2)
 
 #split data back into individual dataframes
-output_dfs = data_source.split_into_measurements(merged_dataframes)
-output_dfs2 = data_source.split_into_measurements(dfs2)
+output_dfs = data_source.split_into_entries(merged_dataframes)
+output_dfs2 = data_source.split_into_entries(dfs2)

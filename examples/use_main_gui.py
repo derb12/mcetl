@@ -73,4 +73,4 @@ if __name__ == '__main__':
     data_sources = (xrd, other)
     
     #call the main function with data_sources as the input
-    dataframes, proc_dataframes, fit_results = mcetl.launch_main_gui(data_sources)
+    dataframes, fit_results, plot_results = mcetl.launch_main_gui(data_sources)

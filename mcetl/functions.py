@@ -4,7 +4,7 @@
 There are three main types of Functions:
     1) SeparationFunction: separates the imported pandas DataFrame into
                            multiple DataFrames.
-    2) CalculationFunction: performs a calculation on each of the measurements.
+    2) CalculationFunction: performs a calculation on each of the entries.
     3) SummaryFunction: performs a calculation once per sample or once per
                         dataset.
 
@@ -13,8 +13,9 @@ Created on Fri Jul 31 16:22:51 2020
 
 """
 
-from string import ascii_uppercase
-from itertools import chain, product
+
+import string
+import itertools
 
 
 class FunctionBase:
@@ -58,6 +59,15 @@ class FunctionBase:
             self.target_columns = target_columns
 
 
+    def __str__(self):
+        return f'mcetl.{self.__class__.__name__} {self.name}'
+    
+    
+    def __repr__(self):
+        return f'<{str(self)}>'
+        
+
+
 class SeparationFunction(FunctionBase):
     """
     Function used to separate a single dataframe into multiple dataframes.
@@ -89,7 +99,7 @@ class SeparationFunction(FunctionBase):
         self.function_kwargs = function_kwargs if function_kwargs is not None else {}
 
 
-    def separate_dataframes(self, dataset, column_dict):
+    def separate_dataframes(self, dataset, column_reference):
         """
 
 
@@ -97,41 +107,49 @@ class SeparationFunction(FunctionBase):
         ----------
         dataset : TYPE
             DESCRIPTION.
-        column_dict : TYPE
+        column_reference : TYPE
             DESCRIPTION.
 
         Returns
         -------
-        None.
+        new_datasets : list
+            DESCRIPTION
+        new_column_referece : list
+            DESCRIPTION
 
         """
 
+        new_datasets = []
+        new_column_referece = []
         for i, sample in enumerate(dataset):
             new_samples = []
             new_references = []
             for j, dataframe in enumerate(sample):
 
                 target_columns = [
-                    int(column_dict[i][j][f'index_{column}']) for column in self.target_columns
+                    int(column_reference[i][j][f'index_{column}']) for column in self.target_columns
                 ]
 
-                new_dataframes = self.function(dataframe, target_columns,
-                                               **self.function_kwargs)
+                new_dataframes = self.function(
+                    dataframe, target_columns, **self.function_kwargs
+                )
 
                 for k, df in enumerate(new_dataframes):
-                    #ensures that the new indexes start at 0
+                    #ensures that the new dataframe indices start at 0
                     df.reset_index(drop=True, inplace=True)
 
                 new_samples.extend(new_dataframes)
-                new_references.extend([column_dict[i][j]] * len(new_dataframes))
+                new_references.extend([column_reference[i][j]] * len(new_dataframes))
 
-            dataset[i] = new_samples
-            column_dict[i] = new_references
+            new_datasets.append(new_samples)
+            new_column_referece.append(new_references)
+        
+        return new_datasets, new_column_referece
 
 
 class CalculationFunction(FunctionBase):
     """
-    Function that performs a calculation for each measurement in each sample.
+    Function that performs a calculation for every entry in each sample.
     """
 
     def __init__(self, name, target_columns, functions, added_columns=1,
@@ -206,9 +224,10 @@ class CalculationFunction(FunctionBase):
 
         if index == 0:
             #generator that goes from 'A' to 'ZZ' following Excel's naming format.
-            excel_generator = chain(
-                ascii_uppercase,
-                (''.join(pair) for pair in product(ascii_uppercase, repeat=2))
+            excel_generator = itertools.chain(
+                string.ascii_uppercase,
+                (''.join(pair) for pair in itertools.product(string.ascii_uppercase,
+                                                             repeat=2))
             )
             excel_columns = [
                 next(excel_generator) for _ in range(len(dataset.columns) + first_column)
@@ -225,7 +244,7 @@ class CalculationFunction(FunctionBase):
             dataset, target_columns, added_columns, excel_columns, first_row,
             **self.function_kwargs[index]
         )
-        
+
         return dataset
 
 
