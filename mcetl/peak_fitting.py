@@ -13,7 +13,7 @@ from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
-from lmfit import models, Parameters
+import lmfit
 from matplotlib.widgets import TextBox, RadioButtons
 from matplotlib.patches import Ellipse
 
@@ -215,7 +215,7 @@ def initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         peak_type = next(peak_list)
 
         if peak_type in models_dict.keys():
-            peak_model = getattr(models, peak_type)(prefix=prefix)
+            peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
 
             if use_middles:
                 peak_mask = (x>=middles[i]) & (x<=middles[i + 1])
@@ -349,7 +349,7 @@ def generate_lmfit_model(params_dict):
     for prefix in params_dict:
 
         peak_type = params_dict[prefix][0]
-        peak_model = getattr(models, peak_type)(prefix=prefix)
+        peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
         for param in params_dict[prefix][1]:
             hint_dict = {'value' : params_dict[prefix][1][param].value,
                          'min' : params_dict[prefix][1][param].min,
@@ -607,7 +607,7 @@ def re_sort_prefixes(params_dict):
     new_params_dict = {}
     for index, old_prefix in enumerate(sorted_prefixes):
         new_prefix = f'peak_{index}_'
-        new_params = Parameters()
+        new_params = lmfit.Parameters()
 
         for param in params_dict[old_prefix][1]:
             name = params_dict[old_prefix][1][param].name.replace(old_prefix, new_prefix)
@@ -836,9 +836,11 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
         bkg_mask = (x >= bkg_min) & (x <= bkg_max)
 
         if background_type == 'PolynomialModel':
-            background = getattr(models, background_type)(poly_n, prefix='background_')
+            background = getattr(
+                lmfit.models, background_type)(poly_n, prefix='background_')
         else:
-            background = getattr(models, background_type)(prefix='background_')
+            background = getattr(
+                lmfit.models, background_type)(prefix='background_')
 
         init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
         initial_bkrd = background.eval(init_bkrd_params, x=x)
@@ -1086,7 +1088,7 @@ def background_selector(x_input, y_input, click_list=None):
         circle_height = 0.03 * (y_min - y_max) * 2 # *2 because the aspect ratio is not square
 
         circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker = True)
+                       facecolor='green', picker=True)
         axis.add_patch(circ)
 
 
@@ -1348,7 +1350,7 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
         circle_height = 0.05 * (ax_height[1] - ax_height[0])
 
         circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker = True)
+                       facecolor='green', picker=True)
         axis.add_patch(circ)
 
 
@@ -1389,7 +1391,7 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                 bkrd_peak = initial_bkrd[(x >= middles[i]) & (x <= middles[i+1])]
                 prefix = f'peak_{i+1}'
 
-                peak_model = getattr(models, peak[0][0])(prefix=prefix)
+                peak_model = getattr(lmfit.models, peak[0][0])(prefix=prefix)
                 if peak[0][0] != 'LognormalModel':
                     peak_model.set_param_hint('center',value=center, min=-np.inf,
                                               max=np.inf)
@@ -1540,9 +1542,11 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
     if subtract_background:
         bkg_mask = (x > bkg_min) & (x < bkg_max)
         if background_type == 'PolynomialModel':
-            background = getattr(models, background_type)(poly_n, prefix='background_')
+            background = getattr(
+                lmfit.models, background_type)(poly_n, prefix='background_')
         else:
-            background = getattr(models, background_type)(prefix='background_')
+            background = getattr(
+                lmfit.models, background_type)(prefix='background_')
 
         init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
         initial_bkrd = background.eval(init_bkrd_params, x=x)

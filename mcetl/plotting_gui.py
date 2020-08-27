@@ -19,10 +19,8 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.ticker import AutoMinorLocator
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import sympy as sp
-from sympy.parsing.sympy_parser import parse_expr
 import PySimpleGUI as sg
 
 from . import utils
@@ -1842,7 +1840,7 @@ def plot_data(data, axes, old_axes=None, **kwargs):
                 if kwargs[f'secondary_x_{i}{j}']:
                     expr = kwargs[f'secondary_x_expr_{i}{j}']
                     if expr:
-                        eqn_a = parse_expr(expr)
+                        eqn_a = sp.parse_expr(expr)
                         forward_eqn = sp.lambdify(['x'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('y') - eqn_a],
                                          [sp.Symbol('x')])[sp.Symbol('x')]
@@ -1866,7 +1864,7 @@ def plot_data(data, axes, old_axes=None, **kwargs):
                 if kwargs[f'secondary_y_{i}{j}']:
                     expr = kwargs[f'secondary_y_expr_{i}{j}']
                     if expr:
-                        eqn_a = parse_expr(expr)
+                        eqn_a = sp.parse_expr(expr)
                         forward_eqn = sp.lambdify(['y'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('x') - eqn_a],
                                          [sp.Symbol('y')])[sp.Symbol('y')]
