@@ -236,7 +236,7 @@ def show_dataframes(dataframes, title='Raw Data'):
                 if any(not isinstance(col, str) for col in dataframe.columns):
                     header_list = [f'Column {num}' for num in range(len(data[0]))]
                 else:
-                    header_list = dataframe.columns
+                    header_list = dataframe.columns.tolist()
 
                 tabs[i].append(
                     sg.Table(values=data, headings=header_list, key=f'table_{i}{j}',
