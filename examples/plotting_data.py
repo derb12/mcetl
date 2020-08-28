@@ -12,7 +12,7 @@ from mcetl.plotting_gui import configure_plots
 import mcetl.utils as utils
 
 
-#changes some defaults for the plot formatting
+# changes some defaults for the plot formatting
 changes = {
     'font.serif': 'Times New Roman',
     'font.family': 'serif',
@@ -46,11 +46,13 @@ try:
             dataframes.append(
                 utils.raw_data_import(import_values, import_values['file'], False)
             )
+        
+        for dataset in dataframes:
+            for dataframe in dataset:
+                dataframe.columns = [f'Column {num}' for num in range(len(dataframe.columns))]
         figures = configure_plots(dataframes, changes)
 
 except utils.WindowCloseError:
     pass
 except KeyboardInterrupt:
     pass
-
-#figures = load_previous_figure(new_rc_changes={'font.size': 12})
