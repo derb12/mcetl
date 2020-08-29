@@ -27,14 +27,14 @@ def safely_close_window(window):
     Closes a PySimpleGUI window and removes the window and its layout.
 
     Used when exiting a window early by manually closing the window. Ensures
-    that the window is properly garbage collected, and then raises a
+    that the window is properly closed and then raises a
     WindowCloseError exception, which can be used to determine that the window
     was manually closed.
 
     Parameters
     ----------
     window : sg.Window
-        The window that was closed.
+        The window that will be closed.
 
     Raises
     ------
@@ -45,8 +45,6 @@ def safely_close_window(window):
     """
 
     window.close()
-    del window
-
     raise WindowCloseError
 
 
@@ -119,8 +117,7 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
         A list of lists (see Notes below), with each key corresponding
         to a key in the window_values dictionary, whose values should
         be a certain datatype; the values are first determined by
-        separating each value using ',' (maybe later add the separator
-        as an additional input).
+        separating each value using ',' (default) or the last index.
 
     Returns
     -------
@@ -133,7 +130,7 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     Inputs for integers, floats, and strings are [[key, display text],].
     For example: [['peak_width', 'peak width']].
 
-    Inputs for user_inputs are [[key, display text, data type],].
+    Inputs for user_inputs are [[key, display text, data type, separator(optional)],].
     For example: [['peak_width', 'peak_width', float]].
 
     The display text will be the text that is shown to the user if the value
@@ -177,17 +174,23 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     if user_inputs is not None:
         user_inputs = user_inputs if isinstance(user_inputs, (list, tuple)) else [user_inputs]
         for entry in user_inputs:
+            if len(entry) > 3:
+                separator = entry[3]
+            else:
+                separator = ','
             try:
                 inputs = [
-                    ent for ent in window_values[entry[0]].replace(' ', '').split(',') if ent
+                    ent for ent in window_values[entry[0]].replace(' ', '').split(separator) if ent
                 ]
                 if inputs:
                     [entry[2](inpt) for inpt in inputs]
                 else:
-                    raise ValueError # There must be user inputs.
+                    raise ValueError('Entry must not be empty.')
 
-            except:
-                sg.popup(f'Need to correct entry for "{entry[1]}".\n', title='Error')
+            except Exception as e:
+                sg.popup(
+                    f'Need to correct entry for "{entry[1]}".\n\nError:\n    {repr(e)}\n',
+                    title='Error')
                 return False
 
     return True

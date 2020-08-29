@@ -2049,7 +2049,7 @@ def add_remove_annotations(axis, add_annotation=True):
     """
 
     remove_annotation = False
-    validations = {'text': {'floats': [], 'strings':[]},
+    validations = {'text': {'floats': [], 'user_inputs': []},
                    'arrows': {'floats': []}}
 
     if add_annotation:
@@ -2118,8 +2118,8 @@ def add_remove_annotations(axis, add_annotation=True):
             ['fontsize', 'fontsize'],
             ['rotation', 'rotation'],
         ])
-        validations['text']['strings'].extend([
-            ['text', 'text']
+        validations['text']['user_inputs'].extend([
+            ['text', 'Text', utils.string_to_unicode, None]
         ])
 
         validations['arrows']['floats'].extend([
@@ -2175,8 +2175,8 @@ def add_remove_annotations(axis, add_annotation=True):
                 [f'rotation_{i}', f'rotation for Text {i + 1}'],
             ])
 
-            validations['text']['strings'].extend([
-                [f'text_{i}', f'text for Text {i + 1}']
+            validations['text']['user_inputs'].extend([
+                [f'text_{i}', f'text in Text {i + 1}', utils.string_to_unicode, None]
             ])
 
         for i, annotation in enumerate(annotations['arrows']):
@@ -2319,13 +2319,14 @@ def add_remove_annotations(axis, add_annotation=True):
                     close = utils.validate_inputs(values, **validations['arrows'])
 
             elif add_annotation is None:
-                close = (utils.validate_inputs(values, **validations['text']) and
-                         utils.validate_inputs(values, **validations['arrows']))
+                close = (utils.validate_inputs(values, **validations['text'])
+                         and utils.validate_inputs(values, **validations['arrows']))
 
             else:
                 close = values['text_listbox'] or values['arrows_listbox']
                 if not close:
-                    sg.popup('Please select an annotation to delete.', title='Error')
+                    sg.popup('Please select an annotation to delete.',
+                             title='Error')
 
             if close:
                 break
@@ -2358,7 +2359,8 @@ def add_remove_annotations(axis, add_annotation=True):
         for i, annotation in enumerate(annotations['text']):
             annotation.update(
                 dict(
-                    text=values[f'text_{i}'], color=values[f'text_color_{i}'],
+                    text=utils.string_to_unicode(values[f'text_{i}']),
+                    color=values[f'text_color_{i}'],
                     position=(float(values[f'x_{i}']), float(values[f'y_{i}'])),
                     fontsize=float(values[f'fontsize_{i}']), in_layout=False,
                     rotation=float(values[f'rotation_{i}']), annotation_clip=False
