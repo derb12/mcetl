@@ -605,6 +605,7 @@ def create_figure_components(saving=False, **fig_kwargs):
 
     Later fill this with logic determining which steps can be skipped if no changes
     are made.
+
     """
 
     figure = create_figure(fig_kwargs, saving)
@@ -631,34 +632,49 @@ def create_figure(fig_kwargs, saving=False):
     -------
     fig : plt.Figure
         The created matplotlib Figure.
+        
+    Notes
+    -----
+    Uses different dpi if not saving. When saving, matplotlib
+    saves the correct size and dpi, regardless of the backend. When not
+    saving, the dpi needs to be scaled to fit on the GUI's canvas.
+    For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
+    the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
+    and the dpi would be changed to 150.
+    
+    A dpi correction is needed because the qt5Agg backend will change the dpi
+    to 2x the specified dpi when the scaling in Windows is not 100%. I am
+    not sure how it works on non-Windows operating systems.
 
     """
 
     fig_name = fig_kwargs.get('fig_name', _PREVIEW_NAME)
     plt.close(fig_name)
-    figsize = (float(fig_kwargs['fig_width']), float(fig_kwargs['fig_height']))
-
-    h_pad = 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD
-    w_pad = 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD
-
+    
     if saving:
         dpi = float(fig_kwargs['dpi'])
-        fig_size = (figsize[0] / dpi, figsize[1] / dpi)
 
     else:
-        if figsize[0] >= figsize[1]:
-            scale = _CANVAS_SIZE[0] / figsize[0]
-            dpi = scale * float(fig_kwargs['dpi'])
-            fig_size = (_CANVAS_SIZE[0] / dpi, (scale * figsize[1])  / dpi)
+        dpi_scale = (
+            float(fig_kwargs['dpi'])
+            / plt.figure('dpi_scale', dpi=float(fig_kwargs['dpi'])).get_dpi()
+        )
+        plt.close('dpi_scale')
+        
+        if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
+            size_scale = _CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
         else:
-            scale = _CANVAS_SIZE[1] / figsize[1]
-            dpi = scale * float(fig_kwargs['dpi'])
-            fig_size = ((scale * figsize[0])  / dpi, _CANVAS_SIZE[1] / dpi)
-
+            size_scale = _CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
+        
+        dpi = float(fig_kwargs['dpi']) * dpi_scale * size_scale
+    
     figure = plt.figure(
-        num=fig_name, figsize=fig_size, dpi=dpi,
-        tight_layout={'pad': TIGHT_LAYOUT_PAD, 'w_pad': w_pad,
-                      'h_pad': h_pad}
+        num=fig_name, dpi=dpi,
+        figsize = (float(fig_kwargs['fig_width']) / float(fig_kwargs['dpi']),
+                   float(fig_kwargs['fig_height']) / float(fig_kwargs['dpi'])),
+        tight_layout={'pad': TIGHT_LAYOUT_PAD,
+                      'w_pad': 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD,
+                      'h_pad': 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD}
     )
 
     return figure
@@ -770,7 +786,8 @@ def create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                 gridspec[val[0][0]:val[0][1], val[1][0]:val[1][1]],
                 label=entry_key, sharex=sharex, sharey=sharey
             )
-            ax.tick_params(which='both', labelbottom=label_bottom, labelleft=label_left)
+            ax.tick_params(which='both', labelbottom=label_bottom,
+                           labelleft=label_left)
 
         axes[entry_key]['Main Axis'] = ax
 
@@ -794,7 +811,6 @@ def create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
 
             ax.set_ylabel(y_label)
             ax.set_xlabel(x_label)
-
 
     return axes
 
@@ -1720,9 +1736,16 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
         toolbar = PlotToolbar(figure_canvas_agg, toolbar_canvas)
         toolbar.update()
 
-    figure_canvas_agg.draw()
-    figure_canvas_agg.get_tk_widget().pack(side='left', anchor='nw')
-
+    try:
+        figure_canvas_agg.draw()
+        figure_canvas_agg.get_tk_widget().pack(side='left', anchor='nw')
+    except Exception as e:
+        sg.popup(
+            ('Exception occurred during figure creation. Could be due to '
+             f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
+            title='Plotting Error'
+        )
+    
 
 def plot_data(data, axes, old_axes=None, **kwargs):
     """
