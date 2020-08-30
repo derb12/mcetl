@@ -23,7 +23,8 @@ __version__ = '0.1.0'
 from .datasource import DataSource
 from .functions import SeparationFunction, CalculationFunction, SummaryFunction
 from .main_gui import launch_main_gui
-#include fitting and plotting convenience functions
+from .peak_fitting_gui import launch_peak_fitting_gui
+#include plotting convenience functions
 
 
 # fixes blurry tkinter windows due to weird dpi scaling in Windows os
