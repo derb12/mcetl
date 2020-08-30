@@ -633,15 +633,19 @@ def create_figure(fig_kwargs, saving=False):
     Notes
     -----
     Uses different dpi if not saving. When saving, matplotlib
-    saves the correct size and dpi, regardless of the backend. When not
-    saving, the dpi needs to be scaled to fit on the GUI's canvas.
+    saves the correct size and dpi, regardless of the backend. 
+    
+    When not saving, the dpi needs to be scaled to fit the figure on 
+    the GUI's canvas, and the scaling is called size_scale.
     For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
     the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
-    and the dpi would be changed to 150.
+    and the dpi would be changed to 150, with a size_scale of 0.5.
     
-    A dpi correction is needed because the qt5Agg backend will change the dpi
-    to 2x the specified dpi when the scaling in Windows is not 100%. I am
-    not sure how it works on non-Windows operating systems.
+    A dpi_scale correction is needed because the qt5Agg backend will change
+    the dpi to 2x the specified dpi when the display scaling in Windows is 
+    not 100%. I am not sure how it works on non-Windows operating systems.
+    
+    The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
 
     """
 
@@ -652,11 +656,7 @@ def create_figure(fig_kwargs, saving=False):
         dpi = float(fig_kwargs['dpi'])
 
     else:
-        dpi_scale = (
-            float(fig_kwargs['dpi'])
-            / plt.figure('dpi_scale', dpi=float(fig_kwargs['dpi'])).get_dpi()
-        )
-        plt.close('dpi_scale')
+        dpi_scale = utils.get_dpi_correction(float(fig_kwargs['dpi']))
         
         if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
             size_scale = _CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])

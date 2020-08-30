@@ -20,7 +20,7 @@ import PySimpleGUI as sg
 from . import utils
 from .file_organizer import file_finder, file_mover
 from .datasource import DataSource
-from .peak_fitting_gui import fit_dataframe, fit_to_excel
+from .peak_fitting_gui import launch_peak_fitting_gui
 from .plotting_gui import configure_plots
 
 
@@ -378,6 +378,32 @@ def _fit_data(datasets, data_source, sample_names, column_headers, excel_writer,
         the value will be None.
 
     """
+    
+    # changes some defaults for the plot formatting to look nice
+    mpl_changes = {
+        'font.serif': 'Times New Roman',
+        'font.family': 'serif',
+        'font.size': 12,
+        'mathtext.default': 'regular',
+        'xtick.direction': 'in',
+        'ytick.direction': 'in',
+        'xtick.minor.visible': True,
+        'ytick.minor.visible': True,
+        'xtick.major.size': 5,
+        'xtick.major.width': 0.6,
+        'xtick.minor.size': 2.5,
+        'xtick.minor.width': 0.6,
+        'ytick.major.size': 5,
+        'ytick.major.width': 0.6,
+        'ytick.minor.size': 2.5,
+        'ytick.minor.width': 0.6,
+        'lines.linewidth': 2,
+        'lines.markersize': 5,
+        'axes.linewidth': 0.6,
+        'legend.frameon': False,
+        'figure.dpi': 100,
+        'figure.figsize': (7, 5)
+    }
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
@@ -397,39 +423,28 @@ def _fit_data(datasets, data_source, sample_names, column_headers, excel_writer,
             })
 
             for j, sample in enumerate(dataset):
-                for k, measurement in enumerate(sample):
+                for k, entry in enumerate(sample):
                     default_inputs.update({
                         'sample_name': f'{sample_names[i][j]}_{k}_fit'
                     })
 
-                    fit_output = fit_dataframe(measurement, default_inputs)
+                    fit_output, proceed = launch_peak_fitting_gui(
+                        entry, default_inputs, excel_writer,
+                        options['save_fitting'], options['plot_fit_excel'],
+                        mpl_changes, False)
+                    
+                    results[i][j].extend(fit_output)
+                    
+                    if not proceed:
+                        raise utils.WindowCloseError
 
-                    if not fit_output:
-                        results[i][j].append(None)
-                    else:
-                        results[i][j].append(fit_output[0])
-                        peak_df = fit_output[1]
-                        params_df = fit_output[2]
-                        descriptors_df = fit_output[3]
-                        default_inputs = fit_output[4]
-
-                        if options['save_fitting']:
-                            fit_to_excel(
-                                peak_df, params_df, descriptors_df,
-                                excel_writer, default_inputs['sample_name'],
-                                options['plot_fit_excel']
-                            )
-
-    except utils.WindowCloseError:
+    except (utils.WindowCloseError, KeyboardInterrupt):
         print('\nPeak fitting manually ended early.\nMoving on with program.')
 
     except Exception:
         print('\nException occured during peak fitting:\n')
         print(traceback.format_exc())
         print('Moving on with program.')
-
-    except KeyboardInterrupt:
-        print('\nPeak fitting manually ended early.\nMoving on with program.')
 
     return results
 
@@ -467,9 +482,7 @@ def _plot_python(datasets, data_source):
             configure_plots(plot_datasets, data_source.figure_rcParams)
         )
 
-    except utils.WindowCloseError:
-        print('\nPlotting manually ended early.\nMoving on with program.')
-    except KeyboardInterrupt:
+    except (utils.WindowCloseError, KeyboardInterrupt):
         print('\nPlotting manually ended early.\nMoving on with program.')
 
     except Exception:
@@ -1096,9 +1109,7 @@ def launch_main_gui(data_sources):
         if processing_options['plot_python']:
             plot_results = _plot_python(dataframes, data_source)
 
-    except utils.WindowCloseError:
-        pass
-    except KeyboardInterrupt:
+    except (utils.WindowCloseError, KeyboardInterrupt):
         pass
     except Exception:
         print(traceback.format_exc())
