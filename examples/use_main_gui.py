@@ -7,8 +7,7 @@ Created on Sat Aug 22 13:01:37 2020
 """
 
 import numpy as np
-import mcetl
-from mcetl import DataSource, CalculationFunction
+from mcetl import DataSource, CalculationFunction, launch_main_gui
 
 
 def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
@@ -43,7 +42,7 @@ if __name__ == '__main__':
     #Definitions for each data source
     xrd = DataSource(
         name='XRD',
-        column_names=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
+        column_labels=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
         functions=offset, column_numbers=[1, 2],
         start_row=1, end_row=0, separator=',',
         xy_plot_indices=[0, 2], file_type='csv', num_files=1,
@@ -73,4 +72,4 @@ if __name__ == '__main__':
     data_sources = (xrd, other)
     
     #call the main function with data_sources as the input
-    dataframes, fit_results, plot_results = mcetl.launch_main_gui(data_sources)
+    dataframes, fit_results, plot_results = launch_main_gui(data_sources)

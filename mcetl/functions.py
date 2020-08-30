@@ -61,11 +61,11 @@ class FunctionBase:
 
     def __str__(self):
         return f'mcetl.{self.__class__.__name__} {self.name}'
-    
-    
+
+
     def __repr__(self):
         return f'<{str(self)}>'
-        
+
 
 
 class SeparationFunction(FunctionBase):
@@ -134,7 +134,7 @@ class SeparationFunction(FunctionBase):
                     dataframe, target_columns, **self.function_kwargs
                 )
 
-                for k, df in enumerate(new_dataframes):
+                for df in new_dataframes:
                     #ensures that the new dataframe indices start at 0
                     df.reset_index(drop=True, inplace=True)
 
@@ -143,7 +143,7 @@ class SeparationFunction(FunctionBase):
 
             new_datasets.append(new_samples)
             new_column_referece.append(new_references)
-        
+
         return new_datasets, new_column_referece
 
 

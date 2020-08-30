@@ -556,10 +556,10 @@ def fit_dataframe(dataframe, user_inputs=None):
                         domain_mask = (x_data > x_min) & (x_data < x_max)
                         x_input = x_data[domain_mask]
                         y_input = y_data[domain_mask]
-                        peak_list = peak_fitting.peak_selector(x_input, y_input, peak_list,
-                                                               peak_width, subtract_bkg,
-                                                               background_type, poly_n,
-                                                               bkg_min, bkg_max, default_model)
+                        peak_list = peak_fitting.peak_selector(
+                            x_input, y_input, peak_list, peak_width, subtract_bkg,
+                            background_type, poly_n, bkg_min, bkg_max, default_model
+                        )
                     except Exception as e:
                         sg.popup('Error creating plot:\n    '+repr(e))
 

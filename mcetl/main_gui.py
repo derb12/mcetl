@@ -508,14 +508,14 @@ def _move_files(files):
         for i in range(len(files))
     ]
     tot_layout = [i for j in zip(text_layout, files_layout) for i in j]
-    
+
     if len(files) > 2:
         scrollable = True
         size = (600, 200)
     else:
         scrollable = False
         size = (None, None)
-    
+
     layout = [
         [sg.Text('Choose the folder(s) to move files to:', size=(30, 1))],
         [sg.Frame('', [[sg.Column(tot_layout, scrollable=scrollable,
@@ -780,7 +780,7 @@ def launch_main_gui(data_sources):
                     json.dump(files, output_file)
 
             # Imports the raw data from the files
-            if any((processing_options['process_data'].
+            if any((processing_options['process_data'],
                     processing_options['save_excel'],
                     processing_options['fit_peaks'],
                     processing_options['plot_python'])):
@@ -807,7 +807,7 @@ def launch_main_gui(data_sources):
                     import_values = utils.select_file_gui(data_source, files[0][0][0])
                     for i, dataset in enumerate(files):
                         for j, sample in enumerate(dataset):
-                            for entry in sample
+                            for entry in sample:
                                 dataframes[i][j].extend(
                                     utils.raw_data_import(import_values, entry, False)
                                 )
@@ -821,7 +821,7 @@ def launch_main_gui(data_sources):
             import_vals = [[[import_values] * len(dataframes[0][0])]]
 
         # Specifies column names
-        if any((processing_options['process_data'].
+        if any((processing_options['process_data'],
                 processing_options['save_excel'],
                 processing_options['fit_peaks'],
                 processing_options['plot_python'])):

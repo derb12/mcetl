@@ -101,7 +101,7 @@ class DataSource:
         self.lengths = None
         self.excel_formats = None
         self.references = None
-        
+
         self.start_row = start_row
         self.end_row = end_row
         self.separator = separator
@@ -120,11 +120,11 @@ class DataSource:
             self.unique_variables = [unique_variables]
         else:
             self.unique_variables = unique_variables
-            
+
         self.column_numbers = column_numbers if column_numbers is not None else [
             *range(len(self.unique_variables))
         ]
-        
+
         # ensures the number of imported columns can accomodate all variables
         if len(self.column_numbers) < len(self.unique_variables):
             raise IndexError((
@@ -162,7 +162,7 @@ class DataSource:
             self.unique_variable_indices = [unique_variable_indices]
         else:
             self.unique_variable_indices = unique_variable_indices
-            
+
         while len(self.unique_variables) > len(self.unique_variable_indices):
             self.unique_variable_indices.append(max(self.unique_variable_indices) + 1)
 
@@ -180,17 +180,17 @@ class DataSource:
 
     def __str__(self):
         return f'mcetl.{self.__class__.__name__} {self.name}'
-    
-    
+
+
     def __repr__(self):
         return f'<{str(self)}>'
-        
-        
+
+
     def _create_excel_writer_formats(self, format_kwargs):
         """
         Sets the excel_formats attribute for the DataSource.
-        
-        Contains the keys: 
+
+        Contains the keys:
             odd_header_format, even_header_format,
             odd_column_number_format, even_column_number_format,
             odd_fit_header_format, even_fit_header_format,
@@ -208,7 +208,7 @@ class DataSource:
         self.excel_formats = {
             'odd_header_format': {
                 'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2,
-                'bold':True,'bg_color':'DBEDFF', 'font_size':12, 'bottom': True
+                'bold':True, 'bg_color':'DBEDFF', 'font_size':12, 'bottom': True
             },
             'even_header_format': {
                 'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2,
@@ -449,7 +449,7 @@ class DataSource:
             references.append(reference)
 
             # add entry spacings
-            for j, sample in enumerate(dataset):
+            for sample in dataset:
                 for k, entry in enumerate(sample):
                     if k < len(sample) - 1:
                         start_index = len(entry.columns)
@@ -469,7 +469,7 @@ class DataSource:
     def do_separation_functions(self, dataframes, import_values):
         """
         Performs the function for all SeparationFunctions.
-        
+
         Parameters
         ----------
         dataframes : list
@@ -477,7 +477,7 @@ class DataSource:
         import_values : list
             A list of lists of dictionaries containing the values used to import the data
             from files. The relevant keys are the DataSource's unique variables
-        
+
         Returns
         -------
         new_dataframes : list
@@ -487,7 +487,7 @@ class DataSource:
             The list of lists of dictionaries containing the values used to
             import the data from files, after performing the
             separation calculations.
-        
+
         """
 
         new_dataframes = []
@@ -499,7 +499,7 @@ class DataSource:
                 )
             new_dataframes.append(dataset)
             new_import_values.append(import_values[i])
-        
+
         return new_dataframes, new_import_values
 
 
@@ -574,7 +574,7 @@ class DataSource:
 
             # optimizes memory usage after calculations
             processed_dataframes.append(optimize_memory(dataset))
-            
+
         return processed_dataframes
 
 
@@ -588,7 +588,7 @@ class DataSource:
         ----------
         dataframes : list
             A list of dataframes, one for each dataset.
-            
+
         Returns
         -------
         list
@@ -597,7 +597,7 @@ class DataSource:
         """
 
         return self._do_functions(dataframes, 0)
-        
+
 
 
     def do_python_functions(self, dataframes):
@@ -674,14 +674,14 @@ class DataSource:
     def create_needed_labels(self, dataframe=None):
         """
         Calculates the necessary column labels for imported data and Functions.
-        
+
         Also fills in as many labels as possible using self.column_labels.
-        
+
         Parameters
         ----------
         dataframe : pd.DataFrame, optional
             The dataframe containing the imported data.
-            
+
         Returns
         -------
         total_labels : list
@@ -707,7 +707,7 @@ class DataSource:
         for function in self.dataset_summary_functions:
             if isinstance(function.added_columns, int):
                 total_labels[3].extend('' for _ in range(function.added_columns))
-              
+
         specified_labels = iter(self.column_labels)
         fill_labels = True
         for entry in total_labels:
@@ -740,12 +740,12 @@ class DataSource:
         Column headers account for all of the columns imported from raw data, the
         columns added by CalculationFunctions, and the columns added by
         SummaryFunctions.
-        
+
         """
 
         labels = self.create_needed_labels()
         label_template = [*itertools.chain(*labels)]
-        
+
         print((
             f'\nImported data labels: {len(labels[0])}\n'
             f'Calculation labels: {len(labels[1])}\n'
@@ -753,4 +753,3 @@ class DataSource:
             f'Dataset summary labels: {len(labels[3])}\n\n'
             f'label template = {label_template}'
         ))
-        
