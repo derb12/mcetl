@@ -243,13 +243,10 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             if new_rc_changes is not None:
                 rc_changes.update(new_rc_changes)
 
-            interactive = plt.isinteractive()
-            plt.ioff()
-            fig, axes = create_figure_components(**fig_kwargs)
-            plt.close(_PREVIEW_NAME)
-            fig.clear()
-            if interactive:
-                plt.ion()
+            with plt.rc_context({'interactive': False}):
+                fig, axes = create_figure_components(**fig_kwargs)
+                plt.close(_PREVIEW_NAME)
+                del fig
 
             for i, key in enumerate(axes):
                 for j, label in enumerate(axes[key]):
@@ -325,7 +322,7 @@ def load_figure_theme(current_axes=None, current_values=None, current_fig_kwargs
 
         fig, axes = create_figure_components(**fig_kwargs)
         plt.close(_PREVIEW_NAME)
-        #fig.clear()
+        del fig
 
         for i, key in enumerate(axes):
             for j, label in enumerate(axes[key]):
@@ -2452,8 +2449,9 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
         defaults = plt.rcParams.copy()
         rc_changes = rc_changes if rc_changes is not None else {}
         # ensures use of tight_layout over constrained_layout
-        plt.rcParams.update(**rc_changes, **{'figure.constrained_layout.use': False})
-        plt.ioff()
+        rc_changes.update({'interactive': False,
+                           'figure.constrained_layout.use': False})
+        plt.rcParams.update(rc_changes)
 
         figures = []
         for i, dataframe_list in enumerate(data_list):

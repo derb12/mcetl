@@ -749,19 +749,15 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
         with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
             f.write('Parameters for all of the data in the Raw Data folder.')
             
-        interactive = plt.isinteractive()
-        plt.ioff()
+        # ensures that plots are not shown until plt.show() is called.
+        with plt.rc_context({'interactive': False}):
+            #creates all of the data
+            _generate_XRD_data(data_path, num_data, show_plots)
+            _generate_FTIR_data(data_path, num_data, show_plots)
+            _generate_Raman_data(data_path, num_data, show_plots)
+            _generate_TGA_data(data_path, num_data, show_plots)
+            _generate_DSC_data(data_path, num_data, show_plots)
         
-        #creates all of the data
-        _generate_XRD_data(data_path, num_data, show_plots)
-        _generate_FTIR_data(data_path, num_data, show_plots)
-        _generate_Raman_data(data_path, num_data, show_plots)
-        _generate_TGA_data(data_path, num_data, show_plots)
-        _generate_DSC_data(data_path, num_data, show_plots)
-        
-        if interactive:
-            plt.ion()
-
 
 if __name__ == '__main__':
 
