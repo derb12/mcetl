@@ -12,6 +12,7 @@ Created on Wed Jul 15 14:26:59 2020
 
 import pandas as pd
 import PySimpleGUI as sg
+import matplotlib.pyplot as plt
 
 
 #the button color for buttons that proceed to the next window.
@@ -290,7 +291,8 @@ def optimize_memory(dataframe):
     """
     Optimizes dataframe memory usage by converting data types.
 
-    Optimizes object dtypes by trying to convert to other dtypes.
+    Optimizes object dtypes by trying to convert to other dtypes,
+    if the pandas version is greater than 1.0.0.
     Optimizes numerical dtypes by downcasting to the most appropriate dtype.
 
     Parameters
@@ -312,12 +314,13 @@ def optimize_memory(dataframe):
 
     optimized_df = dataframe.copy()
     
-    #attempts to convert object columns to other dtypes
-    objects = dataframe.select_dtypes(['object'])
-    if len(objects.columns) > 0:
-        optimized_df[objects.columns] = objects.convert_dtypes(
-            convert_integer=False
-        )
+    if int(pd.__version__.split('.')[0]) > 0:
+        #attempts to convert object columns to other dtypes
+        objects = dataframe.select_dtypes(['object'])
+        if len(objects.columns) > 0:
+            optimized_df[objects.columns] = objects.convert_dtypes(
+                convert_integer=False
+            )
 
     ints = dataframe.select_dtypes(include=['int'])
     if len(ints.columns) > 0:
@@ -398,9 +401,6 @@ def raw_data_import(window_values, file, show_popup=True):
                     sep=separator, usecols=column_numbers, engine='python'
                 )
             ]
-
-        for i, dataframe in enumerate(dataframes):
-            dataframes[i] = optimize_memory(dataframe)
 
         if not show_popup:
             for i, dataframe in enumerate(dataframes):
@@ -783,3 +783,90 @@ def _assign_indices(window, columns, variables):
         window[f'index_{variable}'].update(
             values=columns, set_to_index=index, readonly=True
         )
+
+
+def open_multiple_files():
+    """
+    Creates a prompt to open multiple files and add their contents to a dataframe.
+
+    Returns
+    -------
+    dataframes : list
+        A list of dataframes containing the imported data from the selected
+        files.
+
+    """
+
+    layout = [
+        [sg.Text('Enter number of files to open:'),
+         sg.Input('1', size=(10, 1), key='num_files')],
+        [sg.Text('')],
+        [sg.Button('Next', button_color=PROCEED_COLOR,
+                   bind_return_key=True, enable_events=True)]
+    ]
+    
+    window = sg.Window('Get Files', layout)
+    while True:
+        event, values = window.read()
+        
+        if event == sg.WIN_CLOSED:
+            num_files = False
+            break
+        else:
+            if validate_inputs(values, [['num_files', 'number of files']]):
+                num_files = int(values['num_files'])
+                break
+    
+    window.close()
+    del window
+    
+    dataframes = []
+    if num_files:
+        try:
+            for _ in range(int(num_files)):
+                import_values = select_file_gui()
+                dataframes.extend(
+                    raw_data_import(import_values, import_values['file'], False)
+                )
+        except (WindowCloseError, KeyboardInterrupt):
+            pass
+        
+    return dataframes
+
+
+def get_dpi_correction(dpi):
+    """
+    Calculates the correction factor needed to create a figure with the desired dpi.
+    
+    Necessary because some matplotlib backends (namely qt5Agg) will adjust
+    the dpi of the figure after creation. 
+
+    Parameters
+    ----------
+    dpi : float or int
+        The desired figure dpi.
+
+    Returns
+    -------
+    dpi_correction : float
+        The scaling factor needed to create a figure with the desired
+        dpi.
+        
+    Notes
+    -----
+    The matplotlib dpi correction occurs when the operating system display
+    scaling is set to any value not equal to 100% (at least on Windows,
+    other operating systems are unknown). This may cause issues when
+    using UHD monitors, but I cannot test.
+    
+    To get the desired dpi, simply create a figure with a dpi equal
+    to dpi * dpi_correction.
+
+    """
+    
+    with plt.rc_context({'interactive': False}):
+        dpi_correction = dpi / plt.figure('dpi_corr', dpi=dpi).get_dpi()
+        plt.close('dpi_corr')
+    
+    return dpi_correction
+    
