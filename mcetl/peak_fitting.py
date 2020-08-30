@@ -75,10 +75,11 @@ def peak_transformer():
     return models_dict
 
 
-def initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
-                     vary_Voigt=False, model_list=None, default_model='PseudoVoigtModel',
-                     min_sigma=0.0, max_sigma=np.inf, background_y=0.0,
-                     params_dict=None, debug=False, peak_heights=None):
+def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
+                      vary_Voigt=False, model_list=None, 
+                      default_model='PseudoVoigtModel', min_sigma=0.0,
+                      max_sigma=np.inf, background_y=0.0,
+                      params_dict=None, debug=False, peak_heights=None):
     """
     Generates the default parameters for each peak.
 
@@ -325,7 +326,7 @@ def initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     return params_dict
 
 
-def generate_lmfit_model(params_dict):
+def _generate_lmfit_model(params_dict):
     """
     Creates an lmfit composite model using the input dictionary of parameters.
 
@@ -351,12 +352,13 @@ def generate_lmfit_model(params_dict):
         peak_type = params_dict[prefix][0]
         peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
         for param in params_dict[prefix][1]:
-            hint_dict = {'value' : params_dict[prefix][1][param].value,
-                         'min' : params_dict[prefix][1][param].min,
-                         'max' : params_dict[prefix][1][param].max,
-                         'vary' : params_dict[prefix][1][param].vary,
-                         'expr' : params_dict[prefix][1][param].expr
-                        }
+            hint_dict = {
+                'value' : params_dict[prefix][1][param].value,
+                'min' : params_dict[prefix][1][param].min,
+                'max' : params_dict[prefix][1][param].max,
+                'vary' : params_dict[prefix][1][param].vary,
+                'expr' : params_dict[prefix][1][param].expr
+            }
             peak_model.set_param_hint(param, **hint_dict)
         peak_params = peak_model.make_params()
 
@@ -411,8 +413,8 @@ def find_peak_centers(x, y, additional_peaks=None, height=None,
     additional_peaks = np.array(additional_peaks) if additional_peaks is not None else np.empty(0)
 
     if additional_peaks.size > 0:
-        additional_peaks = additional_peaks[(additional_peaks>np.min(x)) &
-                                            (additional_peaks<np.max(x))]
+        additional_peaks = additional_peaks[(additional_peaks>np.min(x))
+                                            & (additional_peaks<np.max(x))]
 
     peaks_located = signal.find_peaks(y, height=height, prominence=prominence)[0]
 
@@ -438,8 +440,8 @@ def find_peak_centers(x, y, additional_peaks=None, height=None,
     return peaks_found, peaks_accepted
 
 
-def find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
-                      min_resid=0.05, debug=False):
+def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
+                       min_resid=0.05, debug=False):
     """
     Locates hidden peaks by using scipy's find_peaks on the fit residuals.
 
@@ -546,7 +548,7 @@ def find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
         ax.plot(x,residuals, label='residuals')
         ax.plot(x, resid_interp, label='interpolated residuals')
         ax.plot(x, np.array([prominence]*len(x)),
-                 label='minimum height to be a peak')
+                label='minimum height to be a peak')
         if residual_peak_centers:
             for peak in residual_peak_centers:
                 if peak not in residual_peaks_accepted:
@@ -568,7 +570,7 @@ def find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     return residual_peaks_found, residual_peaks_accepted
 
 
-def re_sort_prefixes(params_dict):
+def _re_sort_prefixes(params_dict):
     """
     Reassigns peak prefixes so that peak number increases from left to right.
 
@@ -612,15 +614,15 @@ def re_sort_prefixes(params_dict):
         for param in params_dict[old_prefix][1]:
             name = params_dict[old_prefix][1][param].name.replace(old_prefix, new_prefix)
             value = params_dict[old_prefix][1][param].value
-            min = params_dict[old_prefix][1][param].min
-            max = params_dict[old_prefix][1][param].max
+            param_min = params_dict[old_prefix][1][param].min
+            param_max = params_dict[old_prefix][1][param].max
             vary = params_dict[old_prefix][1][param].vary
             if params_dict[old_prefix][1][param].expr is not None:
                 params_dict[old_prefix][1][param].expr = params_dict[old_prefix][1][param].expr.replace(old_prefix, new_prefix)
             expr = params_dict[old_prefix][1][param].expr
 
-            new_params.add(name=name, value=value, vary=vary, min=min, max=max,
-                           expr=expr)
+            new_params.add(name=name, value=value, vary=vary, min=param_min,
+                           max=param_max, expr=expr)
 
         new_params_dict[new_prefix] = [params_dict[old_prefix][0], new_params]
 
@@ -825,9 +827,6 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
     y = y_array[domain_mask]
 
     if debug:
-
-        interactive = plt.isinteractive()
-        plt.ioff()
         tot_fig, tot_ax = plt.subplots()
         tot_ax.plot(x, y, label='data')
         tot_ax.set_title('initial fits and backgrounds')
@@ -845,7 +844,7 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
         init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
         initial_bkrd = background.eval(init_bkrd_params, x=x)
 
-        params_dict = initialize_peaks(
+        params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
             vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
@@ -853,7 +852,7 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
             debug=debug, peak_heights=peak_heights
         )
 
-        model, params = generate_lmfit_model(params_dict)
+        model, params = _generate_lmfit_model(params_dict)
         fit_wo_bkrd = model.eval(params, x=x)
         bkrd_params = background.guess(y - fit_wo_bkrd, x=x)
 
@@ -865,14 +864,14 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
         composite_params = params + bkrd_params
 
     else:
-        params_dict = initialize_peaks(
+        params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
             vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
             max_sigma=max_sigma, debug=debug, peak_heights=peak_heights
         )
 
-        composite_model, composite_params = generate_lmfit_model(params_dict)
+        composite_model, composite_params = _generate_lmfit_model(params_dict)
 
     if debug:
         tot_ax.plot(x, composite_model.eval(composite_params, x=x),
@@ -907,9 +906,9 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
 
             #use peaks_accepted as the peak centers instead of the centers of peaks
             #because peaks will move during fitting to fill void space.
-            residual_peaks = find_hidden_peaks(x, output['fit_results'][-1],
-                                               output['peaks_accepted'], fwhm,
-                                               min_resid, debug)
+            residual_peaks = _find_hidden_peaks(x, output['fit_results'][-1],
+                                                output['peaks_accepted'], fwhm,
+                                                min_resid, debug)
             #Keep them as lists so the peaks found at each iteration is available.
             output['resid_peaks_found'].append([residual_peaks[0]])
             output['resid_peaks_accepted'].append([residual_peaks[1]])
@@ -918,7 +917,7 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
             #background_y=output["fit_results"][-1].best_fit means that new peaks
             #will be fit to the residuals (y-background_y)
             if residual_peaks[1]:
-                params_dict = initialize_peaks(
+                params_dict = _initialize_peaks(
                     x, y, peak_centers=residual_peaks[1], peak_width=avg_fwhm,
                     default_model=default_model, center_offset=center_offset,
                     vary_Voigt=vary_Voigt, model_list=None, min_sigma=min_sigma,
@@ -926,9 +925,9 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
                     params_dict=params_dict, debug=debug
                 )
 
-                params_dict = re_sort_prefixes(params_dict)
+                params_dict = _re_sort_prefixes(params_dict)
 
-            model, params = generate_lmfit_model(params_dict)
+            model, params = _generate_lmfit_model(params_dict)
 
             if subtract_background:
                 fit_wo_bkrd = model.eval(params, x=x)
@@ -950,27 +949,31 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
                             label=f'initial fit_{eval_num+2}')
 
             output['initial_fits'].append(composite_model.eval(composite_params, x=x))
-            output['fit_results'].append(composite_model.fit(y, composite_params, x=x,
-                                                             method=min_method,
-                                                             fit_kws=fit_kws))
+            output['fit_results'].append(
+                composite_model.fit(y, composite_params, x=x,method=min_method,
+                                    fit_kws=fit_kws)
+            )
 
             current_chisq = output['fit_results'][-1].redchi
 
-            if (np.abs(last_chisq - current_chisq) < 1e-9) and (not residual_peaks[1]):
-                print(f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations')
-                print('Delta \u03c7\u00B2 < 1e-9 \nCalculation ended')
+            if np.abs(last_chisq - current_chisq) < 1e-9 and not residual_peaks[1]:
+                print((
+                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
+                ))
                 break
             else:
-                print(f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations')
-                print(f'Delta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}')
+                print((
+                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    f'\nDelta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}'
+                    ))
             if eval_num + 1 == num_resid_fits:
                 print('Number of residual fits exceeded.')
 
     if debug:
         tot_ax.legend()
         plt.show(block=False)
-        if interactive:
-            plt.ion()
+        plt.pause(0.01)
 
     for fit_result in output['fit_results']:
         #list of y-values for the inidividual models
@@ -996,7 +999,7 @@ def plugNchug_fit(x, y, height=None, prominence=np.inf, center_offset=1.0,
 
 def r_squared(y, y_calc, num_variables):
     """
-    Calculates r^2 and adjusted r^2.
+    Calculates r^2 and adjusted r^2 for the fitting.
 
     Parameters
     ----------
