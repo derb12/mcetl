@@ -87,7 +87,7 @@ class PlotToolbar(NavigationToolbar2Tk):
         super().__init__(fig_canvas, canvas)
 
 
-def save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
+def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     """
     Save the values required to recreate the theme or the figure.
 
@@ -110,7 +110,7 @@ def save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     Notes
     -----
     The gui_values, fig_kwargs, rc_changes, and axes annotations are saved to
-    a .figtheme file (just a json files).
+    a .figtheme file (just a json file).
 
     If saving the data for the figure, the data is saved to a csv file
     containing all of the data, separated by columns labeled with the
@@ -167,7 +167,7 @@ def save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 # creates separator columns
                 for i, dataframe in enumerate(data):
                     df = dataframe.copy()
-                    df.columns = [f'{col}.{i}' for col in df.columns]
+                    df.columns = [f'{col}_{i}' for col in df.columns]
                     if i != len(data) - 1:
                         df[f'{_FILLER_COLUMN_NAME}.{i}'] = pd.Series(np.nan,
                                                                      dtype=np.float32)
@@ -205,7 +205,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     figures : list or None
         A list of figures (with len=1) using the loaded data. If no file is
         selected, then figures = None.
-        
+
     Notes
     -----
     Will load the data from the csv file specified by filename. If there also
@@ -223,7 +223,6 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         )
 
     if filename:
-
         # loads the figure theme data, if it exists
         if not Path(filename.lower().replace('.csv', _THEME_EXTENSION)).exists():
             rc_changes = new_rc_changes
@@ -244,7 +243,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
                 rc_changes.update(new_rc_changes)
 
             with plt.rc_context({'interactive': False}):
-                fig, axes = create_figure_components(**fig_kwargs)
+                fig, axes = _create_figure_components(**fig_kwargs)
                 plt.close(_PREVIEW_NAME)
                 del fig
 
@@ -252,7 +251,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
                 for j, label in enumerate(axes[key]):
                     axis = axes[key][label]
                     for annotation in annotations[i][j]:
-                        #the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
+                        # the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
                         if int(''.join(mpl.__version__.split('.'))) < 330:
                             annotation['s'] = annotation.pop('text')
 
@@ -274,15 +273,18 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         data.append(dataframe.iloc[:, row:])
         for dataframe in data:
             dataframe.columns = [
-                ''.join(col.split('.')[:-1]) for col in dataframe.columns
+                ''.join(col.split('_')[:-1]) for col in dataframe.columns
             ]
-
-        figures = configure_plots([data], rc_changes, fig_kwargs, axes, gui_values)
+        #TODO use the convenience function instead
+        figures = launch_plotting_gui(
+            [data], rc_changes, fig_kwargs, axes, gui_values
+        )
 
     return figures
 
 
-def load_figure_theme(current_axes=None, current_values=None, current_fig_kwargs=None):
+def _load_figure_theme(current_axes=None, current_values=None,
+                       current_fig_kwargs=None):
     """
     Load the options to recreate a figure layout.
 
@@ -320,7 +322,7 @@ def load_figure_theme(current_axes=None, current_values=None, current_fig_kwargs
         gui_values = json.loads(file[3])
         annotations = json.loads(file[7])
 
-        fig, axes = create_figure_components(**fig_kwargs)
+        fig, axes = _create_figure_components(**fig_kwargs)
         plt.close(_PREVIEW_NAME)
         del fig
 
@@ -341,7 +343,7 @@ def load_figure_theme(current_axes=None, current_values=None, current_fig_kwargs
     return axes, gui_values, fig_kwargs
 
 
-def save_image_options(figure):
+def _save_image_options(figure):
     """
     Handles saving a figure through matplotlib.
 
@@ -355,9 +357,10 @@ def save_image_options(figure):
 
     """
 
-    extension_mapping = {'jpeg':'JPEG', 'jpg':'JPEG', 'tiff':'TIFF', 'tif':'TIFF',
-                         'png':'PNG', 'pdf':'PDF', 'eps':'EPS', 'ps':'PS',
-                         'svg':'SVG', 'svgz':'SVGZ'}
+    extension_mapping = {
+        'jpeg':'JPEG', 'jpg':'JPEG', 'tiff':'TIFF', 'tif':'TIFF', 'png':'PNG',
+        'pdf':'PDF', 'eps':'EPS', 'ps':'PS', 'svg':'SVG', 'svgz':'SVGZ'
+    }
 
     extension_dict = defaultdict(list)
     for ext in sorted(set(extension_mapping.values())):
@@ -365,8 +368,12 @@ def save_image_options(figure):
             if ext == extension_mapping[key]:
                 extension_dict[ext].append(key)
 
-    extension_displays = {key: f'{key} ({", ".join(extension_dict[key])})' for key in extension_dict}
-    extension_regex = [[f'*.{val}' for val in extension_dict[key]] for key in extension_dict]
+    extension_displays = {
+        key: f'{key} ({", ".join(extension_dict[key])})' for key in extension_dict
+    }
+    extension_regex = [
+        [f'*.{val}' for val in extension_dict[key]] for key in extension_dict
+    ]
     file_types = tuple(zip(extension_displays.values(), extension_regex))
 
     layout = [
@@ -378,7 +385,8 @@ def save_image_options(figure):
                    target='save_as')],
         [sg.Text('Image Type:'),
          sg.Combo([*extension_displays.values()], key='extension',
-                  default_value=extension_displays['TIFF'], size=(15, 1))],
+                  default_value=extension_displays['TIFF'], size=(15, 1),
+                  readonly=True)],
         [sg.Text('')],
         [sg.Button('Back'),
          sg.Button('Next', bind_return_key=True, size=(6, 1),
@@ -446,14 +454,15 @@ def save_image_options(figure):
 
                 file_name = str(Path(directory, file_path.stem + '.' + file_extension))
                 window_1.hide()
-                layout_2, param_types, use_pillow = image_options(
+                layout_2, param_types, use_pillow = _get_image_options(
                     extension_mapping.get(file_extension.lower(), '')
                 )
                 save_fig = True
                 window_open = False
 
                 if layout_2:
-                    window_2 = sg.Window(f'Options for {values["extension"]}', layout_2)
+                    window_2 = sg.Window(f'Options for {values["extension"]}',
+                                         layout_2)
                     while True:
                         event_2, save_dict = window_2.read()
 
@@ -485,10 +494,14 @@ def save_image_options(figure):
                                  title='Saved Figure')
 
                     except Exception as e:
-                        sg.popup(f'Save failed...\n\nSaving to "{file_extension}" may not be supported by matplotlib, '\
-                                 f'or an additional error may have occurred. \n\nError:\n    {repr(e)}\n',
-                                 title='Error')
+                        sg.popup(
+                            (f'Save failed...\n\nSaving to "{file_extension}" may not '
+                             f'be supported by matplotlib, or an additional error may '
+                             f'have occured.\n\nError:\n    {repr(e)}\n'),
+                            title='Error'
+                        )
                         window_open = True
+
                 if window_open:
                     window_1.un_hide()
 
@@ -496,7 +509,7 @@ def save_image_options(figure):
     del window_1
 
 
-def image_options(extension):
+def _get_image_options(extension):
     """
     Constructs the layout for options to save to the given image extension.
 
@@ -551,7 +564,7 @@ def image_options(extension):
             [sg.Slider((1, 95), plt.rcParams['savefig.jpeg_quality'],
                        size=(30, 30), key='quality', orientation='h')],
         ]
-        param_types = {'quality': int, 'compression': convert_to_pillow_kwargs}
+        param_types = {'quality': int, 'compression': _convert_to_pillow_kwargs}
         use_pillow = True
 
     else:
@@ -574,7 +587,7 @@ def image_options(extension):
     return layout, param_types, use_pillow
 
 
-def convert_to_pillow_kwargs(arg):
+def _convert_to_pillow_kwargs(arg):
     """
     Converts a string to the correct keyword to use for tiff compression in pillow.
 
@@ -596,7 +609,7 @@ def convert_to_pillow_kwargs(arg):
     return arg_dict[arg]
 
 
-def create_figure_components(saving=False, **fig_kwargs):
+def _create_figure_components(saving=False, **fig_kwargs):
     """
     Convenience function to create the figure, gridspec, and axes with one function.
 
@@ -605,14 +618,14 @@ def create_figure_components(saving=False, **fig_kwargs):
 
     """
 
-    figure = create_figure(fig_kwargs, saving)
-    gridspec, gridspec_layout = create_gridspec(fig_kwargs, figure)
-    axes = create_axes(gridspec, gridspec_layout, figure, fig_kwargs)
+    figure = _create_figure(fig_kwargs, saving)
+    gridspec, gridspec_layout = _create_gridspec(fig_kwargs, figure)
+    axes = _create_axes(gridspec, gridspec_layout, figure, fig_kwargs)
 
     return figure, axes
 
 
-def create_figure(fig_kwargs, saving=False):
+def _create_figure(fig_kwargs, saving=False):
     """
     Creates a figure corresponding to the value selected in select_plot_type
 
@@ -629,42 +642,42 @@ def create_figure(fig_kwargs, saving=False):
     -------
     fig : plt.Figure
         The created matplotlib Figure.
-        
+
     Notes
     -----
     Uses different dpi if not saving. When saving, matplotlib
-    saves the correct size and dpi, regardless of the backend. 
-    
-    When not saving, the dpi needs to be scaled to fit the figure on 
+    saves the correct size and dpi, regardless of the backend.
+
+    When not saving, the dpi needs to be scaled to fit the figure on
     the GUI's canvas, and the scaling is called size_scale.
     For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
     the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
     and the dpi would be changed to 150, with a size_scale of 0.5.
-    
+
     A dpi_scale correction is needed because the qt5Agg backend will change
-    the dpi to 2x the specified dpi when the display scaling in Windows is 
+    the dpi to 2x the specified dpi when the display scaling in Windows is
     not 100%. I am not sure how it works on non-Windows operating systems.
-    
+
     The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
 
     """
 
     fig_name = fig_kwargs.get('fig_name', _PREVIEW_NAME)
     plt.close(fig_name)
-    
+
     if saving:
         dpi = float(fig_kwargs['dpi'])
 
     else:
         dpi_scale = utils.get_dpi_correction(float(fig_kwargs['dpi']))
-        
+
         if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
             size_scale = _CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
         else:
             size_scale = _CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
-        
+
         dpi = float(fig_kwargs['dpi']) * dpi_scale * size_scale
-    
+
     figure = plt.figure(
         num=fig_name, dpi=dpi,
         figsize = (float(fig_kwargs['fig_width']) / float(fig_kwargs['dpi']),
@@ -677,7 +690,7 @@ def create_figure(fig_kwargs, saving=False):
     return figure
 
 
-def create_gridspec(gs_kwargs, figure):
+def _create_gridspec(gs_kwargs, figure):
     """
     """
 
@@ -722,7 +735,7 @@ def create_gridspec(gs_kwargs, figure):
     return gridspec, gridspec_layout
 
 
-def create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
+def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     """
     """
 
@@ -812,8 +825,19 @@ def create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     return axes
 
 
-def annotate_example_plot(axes, canvas, fig):
+def _annotate_example_figure(axes, canvas, figure):
     """
+    Adds labels to all axes on the figure.
+
+    Parameters
+    ----------
+    axes : dict
+        A dictionary of plt.Axes objects.
+    canvas : tk.Canvas
+        The canvas for the figure.
+    figure : plt.Figure
+        The figure to that will be shown. 
+
     """
 
     for key in axes:
@@ -832,10 +856,10 @@ def annotate_example_plot(axes, canvas, fig):
             ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
             ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 
-    draw_figure_on_canvas(canvas, fig)
+    _draw_figure_on_canvas(canvas, figure)
 
 
-def create_advanced_layout(input_values, canvas, fig):
+def _create_advanced_layout(input_values, canvas, fig):
 
     num_cols = int(input_values['num_cols'])
     num_rows = int(input_values['num_rows'])
@@ -894,10 +918,10 @@ def create_advanced_layout(input_values, canvas, fig):
             window.TKroot.grab_release()
             proceed = utils.validate_inputs(values, **validations)
             if proceed:
-                fig, axes = create_figure_components(**input_values)
+                fig, axes = _create_figure_components(**input_values)
 
                 if event == 'Preview':
-                    annotate_example_plot(axes, canvas, fig)
+                    _annotate_example_figure(axes, canvas, fig)
 
                 elif event == 'Submit':
                     break
@@ -909,7 +933,7 @@ def create_advanced_layout(input_values, canvas, fig):
     del window
 
 
-def create_gridspec_labels(fig_kwargs):
+def _create_gridspec_labels(fig_kwargs):
     """
     """
 
@@ -954,7 +978,7 @@ def create_gridspec_labels(fig_kwargs):
     return new_kwargs
 
 
-def set_twin_axes(gridspec_layout, user_inputs, canvas):
+def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     """
     """
 
@@ -1008,9 +1032,9 @@ def set_twin_axes(gridspec_layout, user_inputs, canvas):
         if event != sg.WIN_CLOSED:
             user_inputs.update(values)
 
-        fig, axes = create_figure_components(**user_inputs)
+        fig, axes = _create_figure_components(**user_inputs)
         if event == 'Preview':
-            annotate_example_plot(axes, canvas, fig)
+            _annotate_example_figure(axes, canvas, fig)
 
         elif event in ('Submit', sg.WIN_CLOSED):
             break
@@ -1019,7 +1043,7 @@ def set_twin_axes(gridspec_layout, user_inputs, canvas):
     del window
 
 
-def select_plot_type(user_inputs=None):
+def _select_plot_type(user_inputs=None):
     """
     Window that allows selection of the type of plot to use and the plot layout.
 
@@ -1056,7 +1080,7 @@ def select_plot_type(user_inputs=None):
     }
 
     default_inputs.update({key: num == 0 for num, key in enumerate(plot_types)})
-    fig_kwargs = create_gridspec_labels(default_inputs.copy())
+    fig_kwargs = _create_gridspec_labels(default_inputs.copy())
 
     user_inputs = user_inputs if user_inputs is not None else {}
     default_inputs.update(user_inputs)
@@ -1118,11 +1142,11 @@ def select_plot_type(user_inputs=None):
          ], size=(_CANVAS_SIZE[0] + 10, _CANVAS_SIZE[1] + 10), pad=(20, 0))]
     ]
 
-    fig= create_figure(fig_kwargs)
-    gridspec, gridspec_layout = create_gridspec(fig_kwargs, fig)
-    axes = create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
+    fig = _create_figure(fig_kwargs)
+    gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
+    axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
     window = sg.Window('Plot Types', layout, finalize=True)
-    annotate_example_plot(axes, window['example_canvas'].TKCanvas, fig)
+    _annotate_example_figure(axes, window['example_canvas'].TKCanvas, fig)
 
     validations= {'floats': [['fig_width', 'Figure Width'],
                              ['fig_height', 'Figure Height'],
@@ -1140,19 +1164,25 @@ def select_plot_type(user_inputs=None):
             fig_kwargs.update(values)
             proceed = utils.validate_inputs(values, **validations)
             if proceed:
-                fig_kwargs = create_gridspec_labels(fig_kwargs)
-                fig = create_figure(fig_kwargs)
-                gridspec, gridspec_layout = create_gridspec(fig_kwargs, fig)
-                axes = create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
+                fig_kwargs = _create_gridspec_labels(fig_kwargs)
+                fig = _create_figure(fig_kwargs)
+                gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
+                axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
 
                 if event == 'Preview':
-                    annotate_example_plot(axes, window['example_canvas'].TKCanvas, fig)
+                    _annotate_example_figure(
+                        axes, window['example_canvas'].TKCanvas, fig
+                    )
 
                 elif event == 'Advanced Options':
-                    create_advanced_layout(fig_kwargs, window['example_canvas'].TKCanvas, fig)
+                    _create_advanced_layout(
+                        fig_kwargs, window['example_canvas'].TKCanvas, fig
+                    )
 
                 elif event == 'Add Twin Axes':
-                    set_twin_axes(gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas)
+                    _set_twin_axes(
+                        gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas
+                    )
 
                 elif event == 'Next':
                     break
@@ -1180,7 +1210,8 @@ def select_plot_type(user_inputs=None):
     return fig_kwargs
 
 
-def plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None, **kwargs):
+def _create_plot_options_gui(data, figure, axes, user_inputs=None,
+                            old_axes=None, **kwargs):
     """
     Creates a new window with all of the plotting options.
 
@@ -1195,6 +1226,11 @@ def plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None, **kwar
         of Axes.
     user_inputs : dict
         A dictionary to recreate a previous layout of the window.
+    old_axes : dict
+        A dictionary of plt.Axes objects that were previously used. Used
+        to transfer annotations to the new axes.
+    kwargs : dict
+        Additional keyword arguments to create the plots.
 
     Returns
     -------
@@ -1329,7 +1365,7 @@ def plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None, **kwar
     user_inputs = user_inputs if user_inputs is not None else {}
     default_inputs.update(user_inputs)
     #plot to get the axis limits for defaults
-    plot_data(data, axes, old_axes, **default_inputs, **kwargs)
+    _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
 
     axes_tabs = []
     #column_layout = []
@@ -1696,16 +1732,16 @@ def plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None, **kwar
         ]
     ]
 
-    plot_data(data, axes, old_axes, **default_inputs, **kwargs)
+    _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True, finalize=True)
-    draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
-                          window['controls_canvas'].TKCanvas)
+    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
+                           window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) #expands the column when window changes size
 
     return window
 
 
-def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
+def _draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
     """
     Places the figure and toolbar onto the tkinter canvas.
 
@@ -1713,7 +1749,7 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
     ----------
     canvas : tk.Canvas
         The tkinter Canvas element for the figure.
-    figure : matplotlib Figure
+    figure : plt.Figure
         The figure to be place on the canvas.
     toolbar_canvas: tk.Canvas
         The tkinter Canvas element for the toolbar.
@@ -1742,9 +1778,9 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
              f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
             title='Plotting Error'
         )
-    
 
-def plot_data(data, axes, old_axes=None, **kwargs):
+
+def _plot_data(data, axes, old_axes=None, **kwargs):
     """
     Plots data and configures the axes.
 
@@ -1754,16 +1790,15 @@ def plot_data(data, axes, old_axes=None, **kwargs):
 
     Parameters
     ----------
-    data: list
+    data : list
         The list of DataFrames to be plotted.
     axes : dict
-        An array of axes.
+        A dictionary of plt.Axes objects.
+    old_axes : dict
+        A dictionary of plt.Axes objects that were previously used. Used
+        to transfer annotations to the new axes.
     kwargs : dict
         Additional keyword arguments to create the plots.
-
-    Returns
-    -------
-    None
 
     """
 
@@ -1936,8 +1971,8 @@ def plot_data(data, axes, old_axes=None, **kwargs):
         sg.popup('Error creating plot:\n\n    '+repr(e)+'\n')
 
 
-def add_remove_dataset(current_data, plot_details, data_list=None,
-                       add_dataset=True, axes=None):
+def _add_remove_dataset(current_data, plot_details, data_list=None,
+                        add_dataset=True, axes=None):
     """
     Allows adding a data entry from the available data_list or removing a data entry.
 
@@ -2052,7 +2087,7 @@ def add_remove_dataset(current_data, plot_details, data_list=None,
     return current_data, plot_details
 
 
-def add_remove_annotations(axis, add_annotation=True):
+def _add_remove_annotations(axis, add_annotation=True):
     """
     Gives options to add, edit, or remove text and arrows on the figure.
 
@@ -2414,26 +2449,25 @@ def add_remove_annotations(axis, add_annotation=True):
             del axis.texts[index]
 
 
-def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axes=None,
-                    input_values=None):
+def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
+                             input_axes=None, input_values=None):
     """
-
+    Handles the event loop for the plot options gui.
 
     Parameters
     ----------
     data_list : list
         A nested list of pandas DataFrames. Each list of DataFrames will
         create one figure.
-    rc_changes : dict, optional
-        A dictionary of values to changes the matplotlib rcParams. Any changes
-        made during this function will be reverted when the function is done.
-        The default is None.
+    mpl_changes : dict
+        Changes to matplotlib's rcParams file to alter the figure.
     input_fig_kwargs : dict, optional
         The fig_kwargs from a previous session. Only used if reloading a figure.
-    input_fig : plt.Figure, optional
-        The figure from a reloaded session.
     input_axes : dict, optional
         A dictionary of plt.Axes objects from a reloaded session.
+    input_values : dict, optional
+        The values needed to recreate the previous gui window from
+        a reloaded figure.
 
     Returns
     -------
@@ -2443,30 +2477,23 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
 
     """
 
+    rc_changes = mpl_changes if mpl_changes is not None else {}
+    figures = []
+
     try:
-        interactive = plt.isinteractive()
-        # copies the rcParams currently active so they can be reset after plotting.
-        defaults = plt.rcParams.copy()
-        rc_changes = rc_changes if rc_changes is not None else {}
-        # ensures use of tight_layout over constrained_layout
-        rc_changes.update({'interactive': False,
-                           'figure.constrained_layout.use': False})
-        plt.rcParams.update(rc_changes)
-
-        figures = []
         for i, dataframe_list in enumerate(data_list):
-
             data = dataframe_list.copy()
 
             if i == 0 and input_axes is not None: # loading a previous figure
-                fig_kwargs = input_fig_kwargs
-                fig, axes = create_figure_components(**fig_kwargs)
-                window = plot_options_gui(data, fig, axes, input_values, input_axes,
-                                          **fig_kwargs)
+                fig_kwargs = input_fig_kwargs.copy()
+                fig, axes = _create_figure_components(**fig_kwargs)
+                window = _create_plot_options_gui(
+                    data, fig, axes, input_values, input_axes, **fig_kwargs
+                )
             else:
-                fig_kwargs = select_plot_type()
-                fig, axes = create_figure_components(**fig_kwargs)
-                window = plot_options_gui(data, fig, axes, **fig_kwargs)
+                fig_kwargs = _select_plot_type()
+                fig, axes = _create_figure_components(**fig_kwargs)
+                window = _create_plot_options_gui(data, fig, axes, **fig_kwargs)
 
             while True:
                 event, values = window.read()
@@ -2477,20 +2504,21 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                 elif event == 'Continue':
                     plt.close(_PREVIEW_NAME)
                     old_axes = axes
-                    fig, axes = create_figure_components(True, fig_name=f'Figure_{i+1}',
-                                                         **fig_kwargs)
-                    plot_data(data, axes, old_axes, **values, **fig_kwargs)
+                    fig, axes = _create_figure_components(
+                        True, fig_name=f'Figure_{i+1}', **fig_kwargs
+                    )
+                    _plot_data(data, axes, old_axes, **values, **fig_kwargs)
                     figures.append([fig, axes])
                     plt.close(f'Figure_{i+1}')
                     break
                 # save figure
                 elif event == 'Save Image':
                     window.hide()
-                    fig_temp, axes_temp = create_figure_components(True,
-                                                                   fig_name=f'Save_{i+1}',
-                                                                   **fig_kwargs)
-                    plot_data(data, axes_temp, axes, **values, **fig_kwargs)
-                    save_image_options(fig_temp)
+                    fig_temp, axes_temp = _create_figure_components(
+                        True, fig_name=f'Save_{i+1}', **fig_kwargs
+                    )
+                    _plot_data(data, axes_temp, axes, **values, **fig_kwargs)
+                    _save_image_options(fig_temp)
                     plt.close(f'Save_{i+1}')
                     del fig_temp, axes_temp
                     window.un_hide()
@@ -2501,18 +2529,20 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                         saved_data = None
                     else:
                         saved_data = data
-                    save_figure_json(values, fig_kwargs, rc_changes, axes, saved_data)
+                    _save_figure_json(values, fig_kwargs, rc_changes, axes, saved_data)
                     window.un_hide()
                 # load the options required to recreate a figure layout
                 elif event.startswith('Load Figure'):
                     window.close()
                     window = None
                     plt.close(_PREVIEW_NAME)
-                    old_axes, values, fig_kwargs = load_figure_theme(axes, values,
-                                                                     fig_kwargs)
-                    fig, axes = create_figure_components(**fig_kwargs)
-                    window = plot_options_gui(data, fig, axes, values, old_axes,
-                                              **fig_kwargs)
+                    old_axes, values, fig_kwargs = _load_figure_theme(
+                        axes, values, fig_kwargs
+                    )
+                    fig, axes = _create_figure_components(**fig_kwargs)
+                    window = _create_plot_options_gui(
+                        data, fig, axes, values, old_axes, **fig_kwargs
+                    )
 
                 # show tables of data
                 elif event == 'Show Data':
@@ -2528,17 +2558,19 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                     if 'Empty' in event:
                         data.append(
                             pd.DataFrame([[np.nan, np.nan], [np.nan, np.nan]],
-                                         columns=['Empty Column 0', 'Empty Column 1'])
+                                            columns=['Empty Column 0', 'Empty Column 1'])
                         )
                     else:
                         add_dataset = False
                         if event == 'Add Entry':
                             add_dataset = True
 
-                        data, values = add_remove_dataset(data, values, data_list,
-                                                          add_dataset, axes)
-                    window = plot_options_gui(data, fig, axes, values, axes,
-                                              **fig_kwargs)
+                        data, values = _add_remove_dataset(
+                            data, values, data_list, add_dataset, axes
+                        )
+                    window = _create_plot_options_gui(
+                        data, fig, axes, values, axes, **fig_kwargs
+                    )
                 # add/remove annotations
                 elif 'annotation' in event:
                     add_annotation = False
@@ -2550,11 +2582,11 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                     index = list(map(int, event.split('_')[-1]))
                     key = [*axes.keys()][index[0]]
                     label = [*axes[key].keys()][index[1]]
-                    add_remove_annotations(axes[key][label], add_annotation)
+                    _add_remove_annotations(axes[key][label], add_annotation)
 
-                    plot_data(data, axes, axes, **values, **fig_kwargs)
-                    draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                          window['controls_canvas'].TKCanvas)
+                    _plot_data(data, axes, axes, **values, **fig_kwargs)
+                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
+                                            window['controls_canvas'].TKCanvas)
 
                     window[f'edit_annotation_{index[0]}{index[1]}'].update(
                         disabled=not axes[key][label].texts
@@ -2567,16 +2599,17 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                     plt.close(_PREVIEW_NAME)
                     window.close()
                     window = None
-                    fig_kwargs = select_plot_type(fig_kwargs)
+                    fig_kwargs = _select_plot_type(fig_kwargs)
                     old_axes = axes
-                    fig, axes = create_figure_components(**fig_kwargs)
-                    window = plot_options_gui(data, fig, axes, values, old_axes,
-                                              **fig_kwargs)
+                    fig, axes = _create_figure_components(**fig_kwargs)
+                    window = _create_plot_options_gui(
+                        data, fig, axes, values, old_axes, **fig_kwargs
+                    )
                 # update the figure
                 elif event == 'Update Figure':
-                    plot_data(data, axes, axes, **values, **fig_kwargs)
-                    draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                          window['controls_canvas'].TKCanvas)
+                    _plot_data(data, axes, axes, **values, **fig_kwargs)
+                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
+                                            window['controls_canvas'].TKCanvas)
                 # resets all options to their defaults
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
@@ -2587,13 +2620,15 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
                         plt.close(_PREVIEW_NAME)
                         window.close()
                         window = None
-                        fig, axes = create_figure_components(**fig_kwargs)
-                        window = plot_options_gui(data, fig, axes, **fig_kwargs)
+                        fig, axes = _create_figure_components(**fig_kwargs)
+                        window = _create_plot_options_gui(
+                            data, fig, axes, **fig_kwargs
+                        )
                 # toggles legend options
                 elif 'show_legend' in event:
                     index = event.split('_')[-1]
                     properties = ('cols', 'auto', 'auto_loc',
-                                  'manual', 'manual_x', 'manual_y')
+                                    'manual', 'manual_x', 'manual_y')
                     if values[event]:
                         for prop in properties:
                             try:
@@ -2648,23 +2683,70 @@ def configure_plots(data_list, rc_changes=None, input_fig_kwargs=None, input_axe
 
             window.close()
             window = None
-
-    except utils.WindowCloseError:
-        pass
-    except KeyboardInterrupt:
+    
+    except (utils.WindowCloseError, KeyboardInterrupt):
         pass
     except Exception:
         print(traceback.format_exc())
 
     finally:
         plt.close(_PREVIEW_NAME)
+        while len(figures) < len(data_list):
+            figures.append([None, None])
 
-        #applies the rcParams that were set before this function
-        with mpl.cbook._suppress_matplotlib_deprecation_warning():
-            from matplotlib.style.core import STYLE_BLACKLIST
-            plt.rcParams.update({k: defaults[k] for k in defaults if k not in STYLE_BLACKLIST})
+    return figures
 
-        if interactive:
-            plt.ion()
 
+def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None,
+                        input_axes=None, input_values=None): 
+    """
+    Convenience function to plot lists of dataframes with matplotlib.
+
+    Wraps the plotting in a context manager that applies the changes
+    to the matplotlib rcParams.
+
+    Parameters
+    ----------
+    dataframes : list
+        A nested list of pandas DataFrames. Each list of DataFrames will
+        create one figure.
+    mpl_changes : dict
+        Changes to matplotlib's rcParams file to alter the figure.
+    input_fig_kwargs : dict, optional
+        The fig_kwargs from a previous session. Only used if reloading a figure.
+    input_axes : dict, optional
+        A dictionary of plt.Axes objects from a reloaded session.
+    input_values : dict, optional
+        The values needed to recreate the previous gui window from
+        a reloaded figure.
+
+    Returns
+    -------
+    figures : list
+        A nested list of lists, with each entry containing the matplotlib Figure,
+        and a dictionary containing the Axes.
+        
+    """
+
+    rc_params = mpl_changes if mpl_changes is not None else {}
+    rc_params.update({
+        'interactive': False,
+        'figure.constrained_layout.use': False
+    })
+
+    if dataframes is not None:
+        plot_data = dataframes
+    else:
+        plot_data = [utils.open_multiple_files()]
+        for dataframe in plot_data[0]:
+            dataframe.columns = [
+                f'Column {num}' for num in range(len(dataframe.columns))
+            ]
+    
+    if plot_data:
+        with plt.rc_context(rc_params):
+            figures = _plot_options_event_loop(
+                plot_data, rc_params, input_fig_kwargs, input_axes, input_values
+            )
+        
     return figures
