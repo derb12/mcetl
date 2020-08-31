@@ -21,7 +21,7 @@ from . import utils
 from .file_organizer import file_finder, file_mover
 from .datasource import DataSource
 from .peak_fitting_gui import launch_peak_fitting_gui
-from .plotting_gui import configure_plots
+from .plotting_gui import launch_plotting_gui
 
 
 #the path where this program is located

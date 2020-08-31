@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Shows how to use peak_fitting_gui from mcetl.
 
+Since no data is input into the function, it will launch a window
+that will prompt the user to select the data files to open and fit.
+
 @author: Donald Erb
 Created on Sat Aug 22 17:34:39 2020
 
@@ -32,12 +35,11 @@ changes = {
     'lines.markersize': 5,
     'axes.linewidth': 0.6,
     'legend.frameon': False,
-    'figure.dpi': 100,
-    'figure.figsize': (8, 6.5)
+    'figure.dpi': 150,
+    'figure.figsize': (6, 4.5)
 }
 
 fit_results, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
-
 
 while plt.get_fignums():
     plt.pause(5) # ensures the program continues while the plots are open

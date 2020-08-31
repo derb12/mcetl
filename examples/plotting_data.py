@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Shows how to use plotting_gui from mcetl.
+"""Shows how to use launch_plotting_gui from mcetl.
+
+Since no data is input into the function, it will launch a window
+that will prompt the user to select the data files to open and plot.
 
 @author: Donald Erb
 Created on Sat Aug 22 17:34:39 2020
@@ -7,9 +10,7 @@ Created on Sat Aug 22 17:34:39 2020
 """
 
 
-import PySimpleGUI as sg
-from mcetl.plotting_gui import configure_plots
-import mcetl.utils as utils
+from mcetl import launch_plotting_gui
 
 
 # changes some defaults for the plot formatting
@@ -36,23 +37,4 @@ changes = {
     'legend.frameon': False
 }
 
-try:
-    num_files = sg.popup_get_text('Enter number of files to open', 'Get Files', '1')
-    if num_files:
-        dataframes = []
-        for _ in range(int(num_files)):
-        #gets the values needed to import a datafile, and then imports the data to a dataframe
-            import_values = utils.select_file_gui()
-            dataframes.append(
-                utils.raw_data_import(import_values, import_values['file'], False)
-            )
-        
-        for dataset in dataframes:
-            for dataframe in dataset:
-                dataframe.columns = [f'Column {num}' for num in range(len(dataframe.columns))]
-        figures = configure_plots(dataframes, changes)
-
-except utils.WindowCloseError:
-    pass
-except KeyboardInterrupt:
-    pass
+launch_plotting_gui(mpl_changes=changes)

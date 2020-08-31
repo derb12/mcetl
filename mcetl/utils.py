@@ -50,8 +50,8 @@ def safely_close_window(window):
 
 
 def string_to_unicode(input_list):
-    """
-    Takes a list of strings and replaces the '\\(you)' in the strings with '\(you)', where (you) is u'.
+    r"""
+    Takes a list of strings and replaces the '\\u' in the strings with '\u'.
 
     Necessary because the user input from PySimpleGui's InputText element
     will convert any '\' input by the user to '\\', which will not
