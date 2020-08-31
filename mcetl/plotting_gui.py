@@ -214,48 +214,27 @@ def load_previous_figure(filename=None, new_rc_changes=None):
 
     """
 
-    figures = None
-
     if filename is None:
         filename = sg.popup_get_file(
             'Select the data file.', title='Load Data File',
             file_types=(('CSV Files (*.csv)', '*.csv'),)
         )
 
+    figures = None
     if filename:
-        # loads the figure theme data, if it exists
-        if not Path(filename.lower().replace('.csv', _THEME_EXTENSION)).exists():
+        # loads the figure theme file, if it exists
+        if Path(filename).with_suffix(_THEME_EXTENSION).exists():
+            fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(
+                str(Path(filename).with_suffix(_THEME_EXTENSION))
+            )
+            if new_rc_changes is not None:
+                rc_changes.update(new_rc_changes)
+
+        else:
             rc_changes = new_rc_changes
             fig_kwargs = None
             axes = None
             gui_values = None
-
-        else:
-            with open(filename.lower().replace('.csv', _THEME_EXTENSION), 'r') as f:
-                file = f.readlines()
-
-            fig_kwargs = json.loads(file[1])
-            gui_values = json.loads(file[3])
-            rc_changes = json.loads(file[5])
-            annotations = json.loads(file[7])
-
-            if new_rc_changes is not None:
-                rc_changes.update(new_rc_changes)
-
-            with plt.rc_context({'interactive': False}):
-                fig, axes = _create_figure_components(**fig_kwargs)
-                plt.close(_PREVIEW_NAME)
-                del fig
-
-            for i, key in enumerate(axes):
-                for j, label in enumerate(axes[key]):
-                    axis = axes[key][label]
-                    for annotation in annotations[i][j]:
-                        # the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
-                        if int(''.join(mpl.__version__.split('.'))) < 330:
-                            annotation['s'] = annotation.pop('text')
-
-                        axis.annotate(**annotation)
 
         dataframe = pd.read_csv(filename, header=0, index_col=False)
 
@@ -275,7 +254,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             dataframe.columns = [
                 ''.join(col.split('_')[:-1]) for col in dataframe.columns
             ]
-        #TODO use the convenience function instead
+
         figures = launch_plotting_gui(
             [data], rc_changes, fig_kwargs, axes, gui_values
         )
@@ -283,27 +262,77 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     return figures
 
 
-def _load_figure_theme(current_axes=None, current_values=None,
-                       current_fig_kwargs=None):
+def _load_theme_file(filename):
+    """
+    Loads the specified file and returns the parameters to recreate a figure theme.
+
+    Parameters
+    ----------
+    filename : str
+        The string of the path of the file to open.
+
+    Returns
+    -------
+    fig_kwargs : dict
+        The dictionary to recreate the loaded figure.
+    gui_values : dict
+        A dictionary that contains all the information to create the figure
+        and set the values in the plot options gui.
+    rc_changes : dict
+        Changes to matplotlib's rcParams file to alter the saved figure.
+    axes : dict
+        The dictionary of plt.Axes objects, with annotations added to them.
+
+    """
+
+    with open(filename, 'r') as f:
+        file = f.readlines()
+
+    fig_kwargs = json.loads(file[1])
+    gui_values = json.loads(file[3])
+    rc_changes = json.loads(file[5])
+    annotations = json.loads(file[7])
+
+    with plt.rc_context({'interactive': False}):
+        fig, axes = _create_figure_components(**fig_kwargs)
+        plt.close(_PREVIEW_NAME)
+        del fig
+
+    for i, key in enumerate(axes):
+        for j, label in enumerate(axes[key]):
+            axis = axes[key][label]
+            for annotation in annotations[i][j]:
+                # the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
+                if int(''.join(mpl.__version__.split('.')[:2])) < 33:
+                    annotation['s'] = annotation.pop('text')
+
+                axis.annotate(**annotation)
+
+    return fig_kwargs, gui_values, rc_changes, axes
+
+
+def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
     """
     Load the options to recreate a figure layout.
 
     Parameters
     ----------
-    current_axes : array-like, optional
-        The current array of axes. Just used in case the user does not load a file.
-    current_values : dict, optional
-        The current window dictionary. Only used if user does not load a file.
+    current_axes : dict
+        The current dictionary of plt.Axes objects. Returned if the
+        user does not load a file.
+    current_values : dict
+        The current window dictionary. Returned if user does not load a file.
     current_fig_kwargs : dict
-        The dictionary used to create the current figure. Only used if user does not
-        load a file.
+        The dictionary used to create the current figure. Returned if user
+        does not load a file.
 
     Returns
     -------
-    axes : list
-        The input axes, with annotations added to them.
+    axes : dict
+        The dictionary of plt.Axes objects, with annotations added to them.
     gui_values : dict
-        A dictionary that contains all the information to create the figure.
+        A dictionary that contains all the information to create the figure
+        and set the values in the plot options gui.
     fig_kwargs : dict
         The dictionary to recreate the loaded figure.
 
@@ -314,27 +343,8 @@ def _load_figure_theme(current_axes=None, current_values=None,
                                               f"*{_THEME_EXTENSION}"),))
 
     if filename:
-
-        with open(filename, 'r') as f:
-            file = f.readlines()
-
-        fig_kwargs = json.loads(file[1])
-        gui_values = json.loads(file[3])
-        annotations = json.loads(file[7])
-
-        fig, axes = _create_figure_components(**fig_kwargs)
-        plt.close(_PREVIEW_NAME)
-        del fig
-
-        for i, key in enumerate(axes):
-            for j, label in enumerate(axes[key]):
-                axis = axes[key][label]
-                for annotation in annotations[i][j]:
-                    #the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
-                    if int(''.join(mpl.__version__.split('.'))) < 330:
-                        annotation['s'] = annotation.pop('text')
-                    axis.annotate(**annotation)
-
+        fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(filename)
+        del rc_changes
     else:
         axes = current_axes
         gui_values = current_values
@@ -390,7 +400,7 @@ def _save_image_options(figure):
         [sg.Text('')],
         [sg.Button('Back'),
          sg.Button('Next', bind_return_key=True, size=(6, 1),
-                   button_color=('white', '#00A949'))]
+                   button_color=utils.PROCEED_COLOR)]
     ]
 
     window_1 = sg.Window('Save Options', layout)
@@ -412,7 +422,7 @@ def _save_image_options(figure):
 
         elif event == 'Next':
             if not values['file_name']:
-                sg.popup('Please select a file name.\n',
+                sg.popup('\nPlease select a file name.\n',
                          title='Select a file name')
             else:
                 selected_extension = values['extension'].split(' ')[0]
@@ -424,8 +434,8 @@ def _save_image_options(figure):
                         file_extension.lower() not in extension_dict[selected_extension]):
 
                     error_layout = [
-                        [sg.Text('The given filename has an extension that\n'\
-                                 'is not the same as the selected extension\n')],
+                        [sg.Text(('The given filename has an extension that\n'
+                                 'is not the same as the selected extension\n'))],
                         [sg.Button(f'Use Filename Extension ({file_extension})',
                                    key='use_filename')],
                         [sg.Button(f'Use Selected Extension ({values["extension"].split(" ")[0]})',
@@ -836,7 +846,7 @@ def _annotate_example_figure(axes, canvas, figure):
     canvas : tk.Canvas
         The canvas for the figure.
     figure : plt.Figure
-        The figure to that will be shown. 
+        The figure to that will be shown.
 
     """
 
@@ -1396,8 +1406,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     f'secondary_y_{i}{j}': False,
                     f'secondary_y_label_{i}{j}': '',
                     f'secondary_y_label_offset_{i}{j}': '',
-                    f'secondary_y_expr_{i}{j}': '',
-
+                    f'secondary_y_expr_{i}{j}': ''
                 })
             else:
                 secondary_y_disabled = False
@@ -1408,8 +1417,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     f'secondary_x_{i}{j}': False,
                     f'secondary_x_label_{i}{j}': '',
                     f'secondary_x_label_offset_{i}{j}': '',
-                    f'secondary_x_expr_{i}{j}': '',
-
+                    f'secondary_x_expr_{i}{j}': ''
                 })
             else:
                 secondary_x_disabled = False
@@ -1441,7 +1449,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                         ], pad=((5, 5), 5)),
                         sg.Column([
                             [sg.Text('      Marker')],
-                            [sg.Text('Color:', size=(5, 1)),
+                            [sg.Text('Color:'),
                              sg.Combo(COLORS, default_value=default_inputs[f'marker_color_{i}{j}{k}'],
                                       key=f'marker_color_{i}{j}{k}', size=(9, 1),
                                       readonly=True,
@@ -1450,7 +1458,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                       visible=False),
                              sg.ColorChooserButton('..', target=f'marker_chooser_{i}{j}{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
-                            [sg.Text('Syle:', size=(4, 1)),
+                            [sg.Text('Style:'),
                              sg.Combo(markers, default_value=default_inputs[f'marker_style_{i}{j}{k}'],
                                       key=f'marker_style_{i}{j}{k}', size=(13, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
@@ -1475,7 +1483,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                       visible=False),
                              sg.ColorChooserButton('..', target=f'line_chooser_{i}{j}{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
-                            [sg.Text('Syle:'),
+                            [sg.Text('Style:'),
                              sg.Combo([*LINE_MAPPING.keys()], readonly=True,
                                       default_value=default_inputs[f'line_style_{i}{j}{k}'],
                                       key=f'line_style_{i}{j}{k}', size=(10, 1),
@@ -1804,18 +1812,18 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
     try:
 
+        if old_axes is not None:
+            annotations = {}
+            for key in axes:
+                if 'Invisible' not in axes[key]['Main Axis'].get_label() and key in old_axes:
+                    annotations[key] = old_axes[key]['Main Axis'].texts
+
         for i, key in enumerate(axes):
             if 'Invisible' in axes[key]['Main Axis'].get_label():
                 continue
             for j, label in enumerate(axes[key]):
                 axis = axes[key][label]
-
-                if old_axes is not None and key in old_axes and label in old_axes[key]:
-                    annotations = old_axes[key][label].texts
-                else:
-                    annotations = []
-
-                axis.clear()
+                axis.clear() #TODO check if this is needed, or can be replaced with a faster alternative
 
                 for k, dataset in enumerate(data):
                     if kwargs[f'plot_boolean_{i}{j}{k}']:
@@ -1955,20 +1963,24 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     sec_y_axis.yaxis.set_minor_locator(
                         AutoMinorLocator(kwargs[f'secondary_y_minor_ticks_{i}{j}'] + 1))
 
-                for annotation in annotations:
-                    #cannot directly copy artists because the transformations will not
-                    #update in the new axis
-                    axis.annotate(
-                        annotation.get_text(), xy=annotation.xy, xytext=annotation.xyann,
-                        fontsize=annotation.get_fontsize(), arrowprops=annotation.arrowprops,
-                        rotation=annotation.get_rotation(), color=annotation.get_color(),
+    except Exception as e:
+        sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
+    finally:
+        # ensures that the annotations are maintained if an exception occurres
+        if old_axes is not None:
+            for key in annotations:
+                for annotation in annotations[key]:
+                    # cannot directly copy artists because the transformations will not
+                    # update in the new axis
+                    axes[key]['Main Axis'].annotate(
+                        annotation.get_text(), xy=annotation.xy,
+                        xytext=annotation.xyann,
+                        fontsize=annotation.get_fontsize(),
+                        arrowprops=annotation.arrowprops,
+                        rotation=annotation.get_rotation(),
+                        color=annotation.get_color(),
                         annotation_clip=False, in_layout=False
                     )
-                    #axis.texts[-1].draggable(True) #unfortunately not currently working in tkinter window
-
-
-    except Exception as e:
-        sg.popup('Error creating plot:\n\n    '+repr(e)+'\n')
 
 
 def _add_remove_dataset(current_data, plot_details, data_list=None,
@@ -2558,7 +2570,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     if 'Empty' in event:
                         data.append(
                             pd.DataFrame([[np.nan, np.nan], [np.nan, np.nan]],
-                                            columns=['Empty Column 0', 'Empty Column 1'])
+                                         columns=['Empty Column 0', 'Empty Column 1'])
                         )
                     else:
                         add_dataset = False
@@ -2586,7 +2598,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                            window['controls_canvas'].TKCanvas)
+                                           window['controls_canvas'].TKCanvas)
 
                     window[f'edit_annotation_{index[0]}{index[1]}'].update(
                         disabled=not axes[key][label].texts
@@ -2609,7 +2621,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 elif event == 'Update Figure':
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                            window['controls_canvas'].TKCanvas)
+                                           window['controls_canvas'].TKCanvas)
                 # resets all options to their defaults
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
@@ -2683,7 +2695,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
 
             window.close()
             window = None
-    
+
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
     except Exception:
@@ -2698,7 +2710,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
 
 
 def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None,
-                        input_axes=None, input_values=None): 
+                        input_axes=None, input_values=None):
     """
     Convenience function to plot lists of dataframes with matplotlib.
 
@@ -2725,7 +2737,7 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
     figures : list
         A nested list of lists, with each entry containing the matplotlib Figure,
         and a dictionary containing the Axes.
-        
+
     """
 
     rc_params = mpl_changes if mpl_changes is not None else {}
@@ -2742,11 +2754,11 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
             dataframe.columns = [
                 f'Column {num}' for num in range(len(dataframe.columns))
             ]
-    
+
     if plot_data:
         with plt.rc_context(rc_params):
             figures = _plot_options_event_loop(
                 plot_data, rc_params, input_fig_kwargs, input_axes, input_values
             )
-        
+
     return figures
