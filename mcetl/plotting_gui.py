@@ -1012,8 +1012,8 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     default_inputs.update(user_inputs)
 
     layout = [
-        [sg.Text(('Twin X creates a second Y axis that shares the X-axis\n
-                  'of the parent plot. Twin Y creates a second X axis,\n
+        [sg.Text(('Twin X creates a second Y axis that shares the X-axis\n'
+                  'of the parent plot. Twin Y creates a second X axis,\n'
                   'sharing the Y-axis of the parent plot.'))],
         [sg.Text('')],
         [sg.Column([[sg.Text('                        ')]]),
@@ -2111,7 +2111,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
     return current_data, plot_details
 
 
-def _add_remove_annotations(axis, add_annotation=True):
+def _add_remove_annotations(axis, add_annotation):
     """
     Gives options to add, edit, or remove text and arrows on the figure.
 
@@ -2448,7 +2448,7 @@ def _add_remove_annotations(axis, add_annotation=True):
             )
 
         for i, annotation in enumerate(annotations['arrows']):
-            #not able to move arrow head location, so have to create new annotations
+            # not able to move arrow head location, so have to create new annotations
             del axis.texts[axis.texts.index(annotation)]
 
             axis.annotate(
