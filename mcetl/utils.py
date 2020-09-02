@@ -51,7 +51,7 @@ def safely_close_window(window):
 
 def string_to_unicode(input_list):
     r"""
-    Takes a list of strings and replaces the '\\u' in the strings with '\u'.
+    Converts strings to unicode by replacing '\\u' with '\u'.
 
     Necessary because the user input from PySimpleGui's InputText element
     will convert any '\' input by the user to '\\', which will not
@@ -69,6 +69,11 @@ def string_to_unicode(input_list):
         A container of strings or a single string, depending on the input,
         with the unicode correctly converted.
 
+    Notes
+    -----
+    Uses raw_unicode_escape encoding to ensure that any existing unicode is
+    correctly decoded; otherwise, it would translate incorrectly.
+
     """
 
     if isinstance(input_list, str):
@@ -81,8 +86,9 @@ def string_to_unicode(input_list):
 
     for i, entry in enumerate(input_list):
         if '\\u' in entry:
-            #replace "\\\\u" with "\\u" in case user used \\ instead of \
-            new_list[i] = entry.replace('\\\\u', '\\u').encode('utf-8').decode('unicode_escape')
+            # replace "\\\\u" with "\\u" in case user used \\ instead of \
+            new_list[i] = entry.replace(
+                '\\\\u', '\\u').encode('raw_unicode_escape').decode('unicode_escape')
         else:
             new_list[i] = entry
 
@@ -92,8 +98,8 @@ def string_to_unicode(input_list):
         return new_list[0]
 
 
-def validate_inputs(window_values, integers=None, floats=None, strings=None,
-                    user_inputs=None):
+def validate_inputs(window_values, integers=None, floats=None,
+                    strings=None, user_inputs=None):
     """
     Validates entries from a PySimpleGUI window.
 
@@ -117,7 +123,7 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     user_inputs : list, optional
         A list of lists (see Notes below), with each key corresponding
         to a key in the window_values dictionary, whose values should
-        be a certain datatype; the values are first determined by
+        be a certain data type; the values are first determined by
         separating each value using ',' (default) or the last index.
 
     Returns
@@ -129,18 +135,29 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     Notes
     -----
     Inputs for integers, floats, and strings are [[key, display text],].
-    For example: [['peak_width', 'peak width']].
+    For example: [['peak_width', 'peak width']]
 
-    Inputs for user_inputs are [[key, display text, data type, separator(optional)],].
-    For example: [['peak_width', 'peak_width', float]].
+    Inputs for user_inputs are 
+        [[key, display text, data type, allow_empty_input (optional), separator (optional)],],
+    where separator is a string, and allow_empty_input is a boolean.
+    If no separator is given, it is assumed to be a comma (','), and
+    if no allow_empty_input value is given, it is assumed to be False.
+    user_inputs can also be used to run the inputs through a function by setting 
+    the data type to a custom function. Use None as the separator if only a 
+    single value is wanted.
+    For example: [
+        ['peak_width', 'peak width', float], # ensures each entry is a float
+        ['peak_width_2', 'peak width 2', int, False, ';'], # uses ';' as the separator
+        ['peak_width_3', 'peak width 3', function, False, None], # no separator, verify with function
+        ['peak_width_3', 'peak width 3', function, True, None] # allows empty input
+    ]
 
     The display text will be the text that is shown to the user if the value
-    of window_values[key] is not the correct data type.
+    of window_values[key] fails the validation.
 
     """
 
     if integers is not None:
-        integers = integers if isinstance(integers, (list, tuple)) else [integers]
         for entry in integers:
             try:
                 int(window_values[entry[0]])
@@ -149,7 +166,6 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
                 return False
 
     if floats is not None:
-        floats = floats if isinstance(floats, (list, tuple)) else [floats]
         for entry in floats:
             if entry == 'inf':
                 continue
@@ -159,33 +175,39 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
                 try:
                     float(window_values[entry[0]])
                 except:
-                    sg.popup(f'Need to enter number in "{entry[1]}".\n', title='Error')
+                    sg.popup(f'Need to enter number in "{entry[1]}".\n',
+                             title='Error')
                     return False
 
     if strings is not None:
-        strings = strings if isinstance(strings, (list, tuple)) else [strings]
         for entry in strings:
             try:
                 if not window_values[entry[0]]:
                     raise ValueError
             except:
-                sg.popup(f'Need to enter information in "{entry[1]}".\n', title='Error')
+                sg.popup(f'Need to enter information in "{entry[1]}".\n',
+                         title='Error')
                 return False
 
     if user_inputs is not None:
-        user_inputs = user_inputs if isinstance(user_inputs, (list, tuple)) else [user_inputs]
         for entry in user_inputs:
-            if len(entry) > 3:
-                separator = entry[3]
-            else:
-                separator = ','
+            allow_empty_input = False
+            separator = ','
+
+            if len(entry) > 4:
+                allow_empty_input = entry[3]
+                separator = entry[4]
+                
+            elif len(entry) > 3:
+                allow_empty_input = entry[3]
+
             try:
                 inputs = [
                     ent for ent in window_values[entry[0]].replace(' ', '').split(separator) if ent
                 ]
                 if inputs:
                     [entry[2](inpt) for inpt in inputs]
-                else:
+                elif not allow_empty_input:
                     raise ValueError('Entry must not be empty.')
 
             except Exception as e:
@@ -315,7 +337,7 @@ def optimize_memory(dataframe):
     optimized_df = dataframe.copy()
     
     if int(pd.__version__.split('.')[0]) > 0:
-        #attempts to convert object columns to other dtypes
+        # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:
             optimized_df[objects.columns] = objects.convert_dtypes(
@@ -535,7 +557,7 @@ def select_file_gui(data_source=None, file=None):
         })
 
     layout = [
-        [sg.Text('Excel Workbook Options', relief='ridge', size=(38,1),
+        [sg.Text('Excel Workbook Options', relief='ridge', size=(38, 1),
                  justification='center', pad=(0,(15, 10)))],
         [sg.Text('Sheet to use:'),
          sg.Combo(default_inputs['sheets'], size=(17, 4), key='sheet',
@@ -554,8 +576,8 @@ def select_file_gui(data_source=None, file=None):
          sg.Input(default_inputs['repeat_unit'], key='repeat_unit',
                   do_not_clear=True, disabled=disable_excel,
                   size=(3, 1), enable_events=True)],
-        [sg.Text('Other Filetype Options', relief='ridge', size=(38 ,1),
-                 justification='center', pad=(5,(25, 10)))],
+        [sg.Text('Other Filetype Options', relief='ridge', size=(38, 1),
+                 justification='center', pad=(5, (25, 10)))],
         [sg.Text('Separator (eg. , or ;)', size=(20, 1)),
          sg.Input(default_inputs['initial_separator'], key='separator',
                   disabled=disable_other, do_not_clear=True, size=(5, 1))],
