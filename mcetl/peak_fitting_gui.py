@@ -405,7 +405,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                       pad=((50, 10), 5))],
             [peak_finding_layout],
         ]
-    
+        #TODO put all validations into a single dictionary
         integers = [
             ['x_fit_index', 'x column'], ['y_fit_index', 'y column'],
             ['poly_n', 'polynomial order'], ['num_resid_fits', 'number of residual fits']
@@ -423,7 +423,8 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
             ['default_model', 'default model'], ['bkg_type', 'background model']
         ]
         user_inputs = [
-            ['model_list', 'model list', str], ['peak_list', 'peak x values', float]
+            ['model_list', 'model list', str, True],
+            ['peak_list', 'peak x values', float, True]
         ]
     
         col = sg.Column(column_layout, scrollable=True,
@@ -663,10 +664,10 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                         additional_peaks = [float(entry) for entry in
                                             gui_values['peak_list'].replace(' ', '').split(',') if entry != '']
 
-                        peaks = peak_fitting.find_peak_centers(x_data, y_data,
-                                                               additional_peaks,
-                                                               height, prominence,
-                                                               x_min, x_max)
+                        peaks = peak_fitting.find_peak_centers(
+                            x_data, y_data, additional_peaks,
+                            height, prominence, x_min, x_max
+                        )
                         if not peaks[1]:
                             sg.popup('No peaks found in fitting range. Either manually enter \n'\
                                      'peak positions or change peak finding options', title='Error')
@@ -759,7 +760,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
     )
 
     output_list = [fitting_results[key] for key in fitting_results]
-    resid_found, resid_accept, peaks_found, peaks_accept, initial_fit, fit_result, individual_peaks, best_values = output_list
+    fit_result, individual_peaks, best_values = output_list[5:]
 
     #renames amplitude to area for peaks to be more clear; lmfit has amplitude==area
     #by the way the module defines the peaks
@@ -870,10 +871,6 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         If True, will create a simple plot in Excel that plots the raw x and
         y data, the data for each peak, the total of all peaks, and
         the background if it is present.
-
-    Returns
-    -------
-    None
 
     """
 
@@ -1109,7 +1106,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     else:
         fit_dataframes = utils.open_multiple_files()
 
-    if save_excel and excel_writer is None:
+    if save_excel and excel_writer is None: #TODO maybe make a pop-up to allow selecting the file name and location
         writer = pd.ExcelWriter('temporary file from peak fitting.xlsx',
                                 engine='xlsxwriter')
     else:

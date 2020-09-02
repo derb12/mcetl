@@ -203,7 +203,6 @@ class DataSource:
 
         """
 
-        format_kwargs = format_kwargs if format_kwargs is not None else {}
         #TODO rename the keys to make more sense
         self.excel_formats = {
             'odd_header_format': {
@@ -240,9 +239,10 @@ class DataSource:
             }
         }
 
-        for key in self.excel_formats:
-            if key in format_kwargs:
-                self.excel_formats[key].update(format_kwargs[key])
+        if format_kwargs is not None:
+            for key in self.excel_formats:
+                if key in format_kwargs:
+                    self.excel_formats[key].update(format_kwargs[key])
 
 
     def _validate_target_columns(self):
@@ -671,7 +671,7 @@ class DataSource:
         return split_dataframes
 
 
-    def create_needed_labels(self, dataframe=None):
+    def create_needed_labels(self, max_df_length=None):
         """
         Calculates the necessary column labels for imported data and Functions.
 
@@ -679,8 +679,8 @@ class DataSource:
 
         Parameters
         ----------
-        dataframe : pd.DataFrame, optional
-            The dataframe containing the imported data.
+        max_df_length : int, optional
+            The highest number of columns in the imported dataframes.
 
         Returns
         -------
@@ -723,11 +723,11 @@ class DataSource:
 
         # fills labels for the imported data last in case the number
         # of imported columns is different than self.column_numbers
-        if dataframe is not None:
+        if max_df_length is not None:
             temp_names = total_labels[0].copy()
-            total_labels[0] = ['' for _ in range(len(dataframe.columns))]
+            total_labels[0] = ['' for _ in range(max_df_length)]
             # reassigns the column names
-            for i in range(min(len(temp_names), len(dataframe.columns))):
+            for i in range(min(len(temp_names), max_df_length)):
                 total_labels[0][i] = temp_names[i]
 
         return total_labels

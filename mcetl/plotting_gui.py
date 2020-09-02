@@ -733,7 +733,7 @@ def _create_gridspec(gs_kwargs, figure):
             width_ratios=width_ratios, height_ratios=height_ratios
         )
 
-    #set up the twin x and y values
+    # set up the twin x and y values
     default_inputs = {}
     for entry, val in gridspec_layout.items():
         if not entry.startswith('blank'):
@@ -753,26 +753,23 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     for key, val in gridspec_layout.items():
         entry_key = f'Row {int(val[0][0]) + 1}, Col {int(val[1][0]) + 1}'
         if 'blank' in key:
-            #creates the axis without spines or labels, but not invisible so it can be annotated
+            # creates the axis without spines or labels, but not invisible so it can be annotated
             ax = figure.add_subplot(
                 gridspec[val[0][0]:val[0][1], val[1][0]:val[1][1]],
-                label=f'{entry_key} (Invisible)',
-                frameon=False
+                label=f'{entry_key} (Invisible)', frameon=False
             )
             ax.tick_params(
                 which='both', labelbottom=False, labelleft=False, top=False,
-                bottom=False, left=False, labelright=False, labeltop=False,
-                right=False
+                bottom=False, left=False, labelright=False, labeltop=False, right=False
             )
 
-        else:
+        else: #TODO maybe collect all the options into a single dictionary
             sharex = None
             sharey = None
             x_label = 'x label'
             y_label = 'y label'
             label_bottom = True
             label_left = True
-
             twin_x_label = 'twin x label'
             twin_y_label = 'twin y label'
             label_top = True
@@ -837,7 +834,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
 
 def _annotate_example_figure(axes, canvas, figure):
     """
-    Adds labels to all axes on the figure.
+    Adds labels to all axes on the figure to specify their locations.
 
     Parameters
     ----------
@@ -855,9 +852,11 @@ def _annotate_example_figure(axes, canvas, figure):
             ax = axes[key][label]
             if label == 'Main Axis':
                 ax_label = ax.get_label().split(', ')
-                ax.annotate(f'{ax_label[0]}\n{ax_label[1]}', (0.5, 0.5),
-                            horizontalalignment='center', in_layout=False,
-                            verticalalignment='center', transform=ax.transAxes)
+                ax.annotate(
+                    f'{ax_label[0]}\n{ax_label[1]}', (0.5, 0.5),
+                    horizontalalignment='center', in_layout=False,
+                    verticalalignment='center', transform=ax.transAxes
+                )
 
             ax.set_xlim(0.1, 0.9)
             ax.set_ylim(0.1, 0.9)
@@ -870,6 +869,19 @@ def _annotate_example_figure(axes, canvas, figure):
 
 
 def _create_advanced_layout(input_values, canvas, fig):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    input_values : [type]
+        [description]
+    canvas : [type]
+        [description]
+    fig : [type]
+        [description]
+
+    """
 
     num_cols = int(input_values['num_cols'])
     num_rows = int(input_values['num_rows'])
@@ -951,7 +963,7 @@ def _create_gridspec_labels(fig_kwargs):
     num_rows = int(fig_kwargs['num_rows'])
 
     new_kwargs = fig_kwargs.copy()
-    #delete previous gridspec values
+    # deletes previous gridspec values
     for key in fig_kwargs:
         if key.startswith('gs') or key.startswith('width') or key.startswith('height'):
             index = key.split('_')[-1]
@@ -965,11 +977,10 @@ def _create_gridspec_labels(fig_kwargs):
                 if int(index) >= num_rows:
                     new_kwargs.pop(key)
 
-
     if any(key.startswith('gs') for key in new_kwargs):
-        #ensures a new key is always generated when creating new axes
+        # ensures a new key is always generated when creating new axes
         len_string = max(len(new_kwargs[key]) for key in new_kwargs if key.startswith('gs')) + 1
-        #ensures current height and width ratios are not overwritten
+        # ensures current height and width ratios are not overwritten
         current_col = max(int(key.split('_')[-1]) for key in new_kwargs if key.startswith('width')) + 1
         current_row = max(int(key.split('_')[-1]) for key in new_kwargs if key.startswith('height')) + 1
     else:
@@ -977,9 +988,9 @@ def _create_gridspec_labels(fig_kwargs):
         current_col = 0
         current_row = 0
 
-    letters = itertools.cycle(string.ascii_letters)
     new_kwargs.update({f'width_{i}': '1' for i in range(current_col, num_cols)})
     new_kwargs.update({f'height_{i}': '1' for i in range(current_row, num_rows)})
+    letters = itertools.cycle(string.ascii_letters)
     for i in range(num_rows):
         for j in range(num_cols):
             if f'gs_{i}{j}' not in new_kwargs:
@@ -1001,8 +1012,9 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     default_inputs.update(user_inputs)
 
     layout = [
-        [sg.Text('Twin X creates a second Y axis that shares the X-axis\nof the parent plot. '\
-                 'Twin Y creates a second X axis,\nsharing the Y-axis of the parent plot.')],
+        [sg.Text(('Twin X creates a second Y axis that shares the X-axis\n
+                  'of the parent plot. Twin Y creates a second X axis,\n
+                  'sharing the Y-axis of the parent plot.'))],
         [sg.Text('')],
         [sg.Column([[sg.Text('                        ')]]),
          sg.Column([[sg.Text('Twin X', justification='center')]],
@@ -1098,7 +1110,7 @@ def _select_plot_type(user_inputs=None):
     fig_kwargs['fig_name'] = 'example'
 
     check_buttons = []
-    for plot in plot_types:
+    for plot in plot_types: #TODO just make it manually since there are only two entries
 
         if plot != 'Multiple Plots':
             check_buttons.append(
@@ -1158,9 +1170,9 @@ def _select_plot_type(user_inputs=None):
     window = sg.Window('Plot Types', layout, finalize=True)
     _annotate_example_figure(axes, window['example_canvas'].TKCanvas, fig)
 
-    validations= {'floats': [['fig_width', 'Figure Width'],
-                             ['fig_height', 'Figure Height'],
-                             ['dpi', 'DPI']]
+    validations= {
+        'floats': [['fig_width', 'Figure Width'], ['fig_height', 'Figure Height'],
+                   ['dpi', 'DPI']]
     }
 
     while True:
@@ -1221,7 +1233,7 @@ def _select_plot_type(user_inputs=None):
 
 
 def _create_plot_options_gui(data, figure, axes, user_inputs=None,
-                            old_axes=None, **kwargs):
+                             old_axes=None, **kwargs):
     """
     Creates a new window with all of the plotting options.
 
@@ -1248,11 +1260,15 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
         The window that contains the plotting options.
 
     #TODO disable secondary axes in plots with twin axes
+    #TODO document all possible kwargs? maybe not needed since this is a private function
+
     """
 
-    markers = (' None', 'o Circle', 's Square', '^ Triangle-Up',
-               'D Diamond', 'v Triangle-Down', 'p Pentagon',
-               '< Triangle-Left', '> Triangle-Right', '* Star')
+    markers = (
+        ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
+        'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
+        '> Triangle-Right', '* Star'
+    )
 
     line_width = plt.rcParams['lines.linewidth']
     marker_size = plt.rcParams['lines.markersize']
@@ -1260,14 +1276,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     scatter_plot = kwargs['scatter']
 
     default_inputs = {}
-    #generates default values based on the Axes and data length
+    # generates default values based on the Axes and data length
     for i, key in enumerate(axes):
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
         for j, label in enumerate(axes[key]):
 
             axis = axes[key][label]
-
             marker_colors = itertools.cycle(COLORS)
             line_colors = itertools.cycle(COLORS)
 
@@ -1299,7 +1314,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 show_y_label = True
                 y_label_disabled = False
 
-            #Options for each axis
+            # Options for each axis
             default_inputs.update({
                 f'show_x_label_{i}{j}': show_x_label,
                 f'show_y_label_{i}{j}': show_y_label,
@@ -1344,9 +1359,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'y_minor_grid_{i}{j}': False,
             })
 
-            #Options for each dataset
-            #using update for each dict comprehension is just as fast as using
-            #generators for each comprehension and updating once
+            # Options for each data entry #TODO maybe make this into a loop to clean it up
             default_inputs.update({f'plot_boolean_{i}{j}{k}': True if 'Invisible' not in axis.get_label() else False
                                     for k in range(len(data))})
             default_inputs.update({f'x_col_{i}{j}{k}': '0'
@@ -1374,11 +1387,10 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
     user_inputs = user_inputs if user_inputs is not None else {}
     default_inputs.update(user_inputs)
-    #plot to get the axis limits for defaults
+    # plot to get the axis limits for defaults
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
 
     axes_tabs = []
-    #column_layout = []
     for i, key in enumerate(axes):
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
@@ -1388,7 +1400,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             axis = axes[key][label]
             plot_details = []
 
-            #have to update axis limits after plotting the data
+            # have to update axis limits after plotting the data
             default_inputs.update({
                 f'x_axis_min_{i}{j}': axis.get_xlim()[0],
                 f'x_axis_max_{i}{j}': axis.get_xlim()[1],
@@ -1503,7 +1515,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                          relief='ridge', size=(header_width, 3),
                          justification='center')],
                 [sg.Text('')],
-                [sg.Text('Dataset Details', relief='ridge', size=(header_width, 1),
+                [sg.Text('Plot Details', relief='ridge', size=(header_width, 1),
                          justification='center')],
                 *plot_details,
                 [sg.Text('')],
@@ -1695,20 +1707,20 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 [sg.Text('')]
             ]
 
-            label_tabs += [
+            label_tabs.append([
                 [sg.Tab(label,
                         [[sg.Column(column_layout, scrollable=True,
                                     vertical_scroll_only=True, size=(750, 650))]],
                         key=f'label_tab_{i}{j}')]
-            ]
+            ])
 
         axis_label = axes[key]['Main Axis'].get_label().split(', ')
-        axes_tabs += [
+        axes_tabs.append([
             [sg.Tab(f'R{axis_label[0].split(" ")[1]}, C{axis_label[1].split(" ")[1]}',
                     [[sg.TabGroup(label_tabs, key=f'label_tabgroup_{i}',
                                   tab_background_color=sg.theme_background_color())]],
                     key=f'tab_{i}')]
-        ]
+        ])
 
     layout = [
         [sg.Menu([
@@ -2186,7 +2198,7 @@ def _add_remove_annotations(axis, add_annotation=True):
             ['rotation', 'rotation'],
         ])
         validations['text']['user_inputs'].extend([
-            ['text', 'Text', utils.string_to_unicode, None]
+            ['text', 'Text', utils.string_to_unicode, False, None]
         ])
 
         validations['arrows']['floats'].extend([
@@ -2243,7 +2255,8 @@ def _add_remove_annotations(axis, add_annotation=True):
             ])
 
             validations['text']['user_inputs'].extend([
-                [f'text_{i}', f'text in Text {i + 1}', utils.string_to_unicode, None]
+                [f'text_{i}', f'text in Text {i + 1}',
+                 utils.string_to_unicode, False, None]
             ])
 
         for i, annotation in enumerate(annotations['arrows']):
@@ -2316,7 +2329,7 @@ def _add_remove_annotations(axis, add_annotation=True):
     else:
         remove_annotation = True
         window_text = 'Remove Annotations'
-        annotations = {'text':{}, 'arrows':{}}
+        annotations = {'text': {}, 'arrows': {}}
         for i, annotation in enumerate(axis.texts):
             if annotation.arrowprops is not None:
                 annotations['arrows'][
@@ -2345,7 +2358,7 @@ def _add_remove_annotations(axis, add_annotation=True):
         *tab_layout,
         [sg.Text('')],
         [sg.Button('Back'),
-         sg.Button('Submit', bind_return_key=True, button_color=('white', '#00A949'))],
+         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)],
     ]
 
     window = sg.Window(window_text, layout)

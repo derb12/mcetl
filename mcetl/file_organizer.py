@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Provides GUIs to find files containing combinations of keywords and move files.
 
+#TODO add an option to select each file individually
+
 @author: Donald Erb
 Created on Mon Sep  2 22:08:12 2019
 
@@ -18,7 +20,7 @@ from .utils import safely_close_window, validate_inputs
 
 __all__ = ['file_finder', 'file_mover']
 
-HELP_TEXT = (
+_HELP_TEXT = (
     'For example, consider the following files:\n\n'
     '    Ti-10Ni-700, Ti-20Ni-700, Ti-10Ni-800, Ti-20Ni-800,\n'
     '    Ti-10Fe-700, Ti-20Fe-700, Ti-10Fe-800, Ti-20Fe-800,\n'
@@ -179,7 +181,7 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
             safely_close_window(window)
 
         elif event == 'Help':
-            sg.Popup(HELP_TEXT, title='Help')
+            sg.Popup(_HELP_TEXT, title='Help')
 
         elif event == 'Next':
             if validate_inputs(values, **validations):
@@ -317,15 +319,17 @@ def _get_keywords(num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
             safely_close_window(window)
 
         elif event == 'Help':
-            sg.Popup(HELP_TEXT, title='Help')
+            sg.Popup(_HELP_TEXT, title='Help')
 
         elif event == 'Back':
             window.close()
             window = None
             num_keyword_1, num_keyword_2, num_kw_values = _get_num_keywords(
-                previous_inputs=num_kw_values)
-            window = _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1,
-                                              keyword_2, values)
+                previous_inputs=num_kw_values
+            )
+            window = _generate_keyword_window(
+                num_keyword_1, num_keyword_2, keyword_1, keyword_2, values
+            )
 
         else:
             break
