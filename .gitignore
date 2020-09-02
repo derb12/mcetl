@@ -109,3 +109,4 @@ ENV/
 Raw Data/
 *.xlsx
 *.json
+*.bat
