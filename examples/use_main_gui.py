@@ -16,19 +16,16 @@ def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             if excel_columns is not None:
-                x = df[target_indices[0][i][j]]
-                x_col = excel_columns[target_indices[0][i][j]]
-                y_col = excel_columns[target_indices[1][i][j]]
+                y = df[target_indices[0][i][j]]
+                y_col = excel_columns[target_indices[0][i][j]]
                 calc = [
-                    f'= {x_col}{k+3+start_row} + {y_col}{k+3+start_row} + {offset}' for k in range(len(x))
+                    f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(x))
                 ]
 
-                df[calc_col] = np.where(~np.isnan(x), calc, '')
+                df[calc_col] = np.where(~np.isnan(y), calc, '')
             else:
-                x_col = df[df.columns[target_indices[0][i][j]]]
-                y_col = df[df.columns[target_indices[1][i][j]]]
-
-                df[df.columns[calc_col]] = x_col + y_col + offset
+                y_col = df[df.columns[target_indices[0][i][j]]]
+                df[df.columns[calc_col]] = y_col + offset
 
         offset += offset
 
