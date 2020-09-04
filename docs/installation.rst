@@ -28,17 +28,12 @@ From sources
 
 The sources for mcetl can be downloaded from the `Github repo`_.
 
-You can either clone the public repository:
+You can clone the public repository:
 
 .. code-block:: console
 
     $ git clone git://github.com/derb12/mcetl
 
-Or download the `tarball`_:
-
-.. code-block:: console
-
-    $ curl -OJL https://github.com/derb12/mcetl/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -48,4 +43,3 @@ Once you have a copy of the source, you can install it with:
 
 
 .. _Github repo: https://github.com/derb12/mcetl
-.. _tarball: https://github.com/derb12/mcetl/tarball/master

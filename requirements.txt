@@ -1,5 +1,5 @@
 lmfit==1.0.1
-matplotlib==3.3.0
+matplotlib==3.2.2
 numpy==1.18.5
 pandas==1.0.5
 pysimplegui==4.28.0

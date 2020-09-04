@@ -14,7 +14,7 @@ requirements = [
     'lmfit',
     'matplotlib>=3.1',
     'numpy',
-    'pandas>=1.0',
+    'pandas',
     'pysimplegui>=4.28',
     'scipy',
     'sympy',

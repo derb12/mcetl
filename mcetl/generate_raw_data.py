@@ -11,10 +11,11 @@ Created on Mon Jun 15 08:38:19 2020
 """
 
 from pathlib import Path
-import numpy as np
-import pandas as pd
+
 from lmfit import lineshapes
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import PySimpleGUI as sg
 
 
@@ -725,7 +726,7 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
     
         window = sg.Window('Folder Selection', layout)
         while True:
-            event, values = window.Read()
+            event, values = window.read()
             if event == sg.WIN_CLOSED:
                 values['folder'] = False
                 break
@@ -748,19 +749,15 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
         with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
             f.write('Parameters for all of the data in the Raw Data folder.')
             
-        interactive = plt.isinteractive()
-        plt.ioff()
+        # ensures that plots are not shown until plt.show() is called.
+        with plt.rc_context({'interactive': False}):
+            #creates all of the data
+            _generate_XRD_data(data_path, num_data, show_plots)
+            _generate_FTIR_data(data_path, num_data, show_plots)
+            _generate_Raman_data(data_path, num_data, show_plots)
+            _generate_TGA_data(data_path, num_data, show_plots)
+            _generate_DSC_data(data_path, num_data, show_plots)
         
-        #creates all of the data
-        _generate_XRD_data(data_path, num_data, show_plots)
-        _generate_FTIR_data(data_path, num_data, show_plots)
-        _generate_Raman_data(data_path, num_data, show_plots)
-        _generate_TGA_data(data_path, num_data, show_plots)
-        _generate_DSC_data(data_path, num_data, show_plots)
-        
-        if interactive:
-            plt.ion()
-
 
 if __name__ == '__main__':
 

@@ -121,13 +121,15 @@ sum1 = SummaryFunction('sum', 'x', f, added_columns=2)
 sum3 = SummaryFunction('sum3', 'x', f2, sample_summary=False)
 
 #Data Source
-xrd = DataSource('xrd', functions=[calculation, calculation2, separator, sum1, sum3],
-                 unique_variables=['x', 'y'], sample_separation=3, measurement_separation=1,
-                 excel_row_offset=-1, excel_column_offset=1)
+xrd = DataSource(
+    'xrd', functions=[calculation, calculation2, separator, sum1, sum3],
+    unique_variables=['x', 'y'], sample_separation=3, entry_separation=1,
+    excel_row_offset=-1, excel_column_offset=1
+)
 data_source = xrd
 
-x = np.array([*np.linspace(0, 10), *np.linspace(10, 0, 4000)])
-x2 = np.linspace(0, 20, 6000)
+x = np.array([*np.linspace(0, 10), *np.linspace(10, 0, 40)])
+x2 = np.linspace(0, 20, 600)
 data = {0: x, 1: 2 * x, 2: np.zeros(x.size)}
 data2 = {0: x2, 1: 4 * x2, 2: np.zeros(x2.size)}
 
@@ -149,23 +151,24 @@ for i, dataset in enumerate(dataframes):
 
 
 #perform separation calcs
-data_source.separate_data(dataframes, import_vals)
+dataframes, import_vals = data_source.do_separation_functions(
+    dataframes, import_vals
+)
 #assign reference indices for all relevant columns
 data_source.set_references(dataframes, import_vals)
 
 #merge dfs for each dataset
 merged_dataframes = data_source.merge_datasets(dataframes)
-dataframes = None #frees up memory
 
 #to compare excel vs python formulas
 dfs2 = [df.copy() for df in merged_dataframes]
 
 #doing excel formulas
-data_source.do_excel_functions(merged_dataframes)
+merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 
 #doing python formulas
-data_source.do_python_functions(dfs2)
+dfs2 = data_source.do_python_functions(dfs2)
 
 #split data back into individual dataframes
-output_dfs = data_source.split_into_measurements(merged_dataframes)
-output_dfs2 = data_source.split_into_measurements(dfs2)
+output_dfs = data_source.split_into_entries(merged_dataframes)
+output_dfs2 = data_source.split_into_entries(dfs2)

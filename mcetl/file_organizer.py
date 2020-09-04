@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
 """Provides GUIs to find files containing combinations of keywords and move files.
 
+#TODO add an option to select each file individually
+
 @author: Donald Erb
 Created on Mon Sep  2 22:08:12 2019
 
 """
 
 
+import itertools
 from pathlib import Path
 import shutil
-import itertools
+
 import PySimpleGUI as sg
-from .utils import safely_close_window, WindowCloseError, validate_inputs
+
+from .utils import safely_close_window, validate_inputs, PROCEED_COLOR
 
 
 __all__ = ['file_finder', 'file_mover']
 
-HELP_TEXT = (
+_HELP_TEXT = (
     'For example, consider the following files:\n\n'
     '    Ti-10Ni-700, Ti-20Ni-700, Ti-10Ni-800, Ti-20Ni-800,\n'
     '    Ti-10Fe-700, Ti-20Fe-700, Ti-10Fe-800, Ti-20Fe-800,\n'
@@ -54,8 +58,9 @@ def _prepare_for_search(input_str):
     return output_str
 
 
-def _generate_num_keyword_window(file_directory=None, keyword_1=None, keyword_2=None,
-                                 file_type=None, num_files=None, previous_inputs=None):
+def _generate_num_keyword_window(
+        file_directory=None, keyword_1=None, keyword_2=None, file_type=None,
+        num_files=None, previous_inputs=None, location=(None, None)):
     """
     Creates a Window to select the number of keywords and other file search parameters.
 
@@ -74,6 +79,8 @@ def _generate_num_keyword_window(file_directory=None, keyword_1=None, keyword_2=
     previous_inputs : dict
         A dictionary containing the values from a previous run of this function,
         used to regenerate the layout.
+    location : tuple
+        The location to place the window.
 
     Returns
     -------
@@ -117,14 +124,15 @@ def _generate_num_keyword_window(file_directory=None, keyword_1=None, keyword_2=
                   default_text=default_inputs['num_files'])],
         [sg.Text('')],
         [sg.Button('Help'),
-         sg.Button('Next', bind_return_key=True, button_color=('white', '#00A949'))]
+         sg.Button('Next', bind_return_key=True, button_color=PROCEED_COLOR)]
     ]
 
-    return sg.Window('Search Criteria', layout)
+    return sg.Window('Search Criteria', layout, location=location)
 
 
-def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
-                      file_type=None, num_files=None, previous_inputs=None):
+def _get_num_keywords(
+        file_directory=None, keyword_1=None, keyword_2=None, file_type=None,
+        num_files=None, previous_inputs=None, location=(None, None)):
     """
     Launches a GUI to get the number of keywords and other file search parameters.
 
@@ -143,6 +151,8 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
     previous_inputs : dict
         A dictionary containing the values from a previous run of this function,
         used to regenerate the layout.
+    location : tuple
+        The location to place the window.
 
     Returns
     -------
@@ -159,15 +169,21 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
 
     """
 
-    window = _generate_num_keyword_window(file_directory, keyword_1, keyword_2,
-                                          file_type, num_files, previous_inputs)
+    window = _generate_num_keyword_window(
+        file_directory, keyword_1, keyword_2, file_type,
+        num_files, previous_inputs, location
+    )
 
     validations = {
-        'strings': [['folder', 'topmost folder'],
-                    ['file_type', 'file extension']],
-        'integers': [['num_keyword_1', 'number of main keywords'],
-                     ['num_keyword_2', 'number of secondary keywords'],
-                     ['num_files', 'maximum number of files per search term']]
+        'strings': [
+            ['folder', 'topmost folder'],
+            ['file_type', 'file extension']
+        ],
+        'integers': [
+            ['num_keyword_1', 'number of main keywords'],
+            ['num_keyword_2', 'number of secondary keywords'],
+            ['num_files', 'maximum number of files per search term']
+        ]
     }
 
     while True:
@@ -177,7 +193,7 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
             safely_close_window(window)
 
         elif event == 'Help':
-            sg.Popup(HELP_TEXT, title='Help')
+            sg.popup(_HELP_TEXT, title='Help')
 
         elif event == 'Next':
             if validate_inputs(values, **validations):
@@ -185,7 +201,8 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
                     if int(values['num_files']) > 0:
                         break
                     else:
-                        sg.popup('Maximum number of files must be > 0.\n', title='Error')
+                        sg.popup('Maximum number of files must be > 0.\n',
+                                 title='Error')
                 else:
                     sg.popup('Number of keywords must be > 0.\n', title='Error')
 
@@ -198,8 +215,9 @@ def _get_num_keywords(file_directory=None, keyword_1=None, keyword_2=None,
     return num_keyword_1, num_keyword_2, values
 
 
-def _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1=None,
-                             keyword_2=None, previous_inputs=None):
+def _generate_keyword_window(
+        num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
+        previous_inputs=None, location=(None, None)):
     """
     Creates a Window to enter the terms for each keyword.
 
@@ -216,6 +234,8 @@ def _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1=None,
     previous_inputs : dict
         A dictionary containing the values from a previous run of this function,
         used to regenerate the layout.
+    location : tuple
+        The location to place the window.
 
     Returns
     -------
@@ -224,7 +244,7 @@ def _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1=None,
 
     """
 
-    #default values for keywords
+    # default values for keywords
     if keyword_1 is None:
         if num_keyword_1 == 0:
             default_keyword_1 = ['']
@@ -232,7 +252,7 @@ def _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1=None,
             default_keyword_1 = [''] * num_keyword_1
     else:
         default_keyword_1 = [keyword for keyword in keyword_1]
-        #in case num_keyword_1 is greater than the number of user inputs for keyword 1
+        # in case num_keyword_1 is greater than the number of user inputs for keyword 1
         default_keyword_1.extend(['' for i in range(num_keyword_1 - len(keyword_1))])
 
     if keyword_2 is None:
@@ -242,39 +262,48 @@ def _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1=None,
             default_keyword_2 = [''] * num_keyword_2
     else:
         default_keyword_2 = [keyword for keyword in keyword_2]
-        default_keyword_2.extend(['' for i in range(num_keyword_2 - len(keyword_2))])
+        default_keyword_2.extend(
+            ['' for i in range(num_keyword_2 - len(keyword_2))]
+        )
 
     default_options = {f'keyword_1_{i}': kw for i, kw in enumerate(default_keyword_1)}
-    default_options.update({f'keyword_2_{i}': kw for i, kw in enumerate(default_keyword_2)})
+    default_options.update({
+        f'keyword_2_{i}': kw for i, kw in enumerate(default_keyword_2)
+    })
 
     previous_inputs = previous_inputs if previous_inputs is not None else {}
     default_inputs = dict(default_options, **previous_inputs)
 
-    keyword_1_inputs = [[sg.Text(f'    entry {i+1}'),
-                         sg.Input(key=f'keyword_1_{i}', do_not_clear=True, size=(20, 1),
-                                  default_text=default_inputs[f'keyword_1_{i}'])]
-                        for i in range(num_keyword_1)]
-    keyword_2_inputs = [[sg.Text(f'    entry {i+1}'),
-                         sg.Input(key=f'keyword_2_{i}', do_not_clear=True, size=(20, 1),
-                                  default_text=default_inputs[f'keyword_2_{i}'])]
-                        for i in range(num_keyword_2)]
+    keyword_1_inputs = [
+        [sg.Text(f'    entry {i+1}'),
+         sg.Input(default_inputs[f'keyword_1_{i}'], key=f'keyword_1_{i}',
+                  do_not_clear=True, size=(20, 1))]
+        for i in range(num_keyword_1)]
+    keyword_2_inputs = [
+        [sg.Text(f'    entry {i+1}'),
+         sg.Input(default_inputs[f'keyword_2_{i}'], key=f'keyword_2_{i}',
+                  do_not_clear=True, size=(20, 1))]
+        for i in range(num_keyword_2)]
 
     layout = [
-        [sg.Text('Entries for main keywords, separated\nby commas if using more than one term:')],
+        [sg.Text(('Entries for main keywords, separated\nby commas if'
+                  ' using more than one term:'))],
         *keyword_1_inputs,
-        [sg.Text('\nEntries for secondary keywords, separated\nby commas if using more than one term:')],
+        [sg.Text(('\nEntries for secondary keywords, separated\nby'
+                  ' commas if using more than one term:'))],
         *keyword_2_inputs,
         [sg.Text("")],
         [sg.Button('Back'),
          sg.Button('Help'),
-         sg.Button('Submit', bind_return_key=True, button_color=('white', '#00A949'))]
+         sg.Button('Submit', bind_return_key=True, button_color=PROCEED_COLOR)]
     ]
 
-    return sg.Window('Keyword Selection', layout)
+    return sg.Window('Keyword Selection', layout, location=location)
 
 
-def _get_keywords(num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
-                  num_kw_values=None):
+def _get_keywords(
+        num_keyword_1, num_keyword_2, keyword_1=None,
+        keyword_2=None, num_kw_values=None):
     """Launches the GUI to enter the terms for each keyword.
 
     Parameters
@@ -306,8 +335,9 @@ def _get_keywords(num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
 
     """
 
-    window = _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1, keyword_2)
-
+    window = _generate_keyword_window(num_keyword_1, num_keyword_2,
+                                      keyword_1, keyword_2)
+    location = (None, None)
     while True:
         event, values = window.read()
 
@@ -315,15 +345,19 @@ def _get_keywords(num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
             safely_close_window(window)
 
         elif event == 'Help':
-            sg.Popup(HELP_TEXT, title='Help')
+            sg.popup(_HELP_TEXT, title='Help')
 
         elif event == 'Back':
+            location = window.current_location()
             window.close()
             window = None
             num_keyword_1, num_keyword_2, num_kw_values = _get_num_keywords(
-                previous_inputs=num_kw_values)
-            window = _generate_keyword_window(num_keyword_1, num_keyword_2, keyword_1,
-                                              keyword_2, values)
+                previous_inputs=num_kw_values, location=location
+            )
+            window = _generate_keyword_window(
+                num_keyword_1, num_keyword_2, keyword_1, keyword_2,
+                values, location
+            )
 
         else:
             break
@@ -335,12 +369,12 @@ def _get_keywords(num_keyword_1, num_keyword_2, keyword_1=None, keyword_2=None,
     kw_2_tmp = [values[f'keyword_2_{i}'] for i in range(num_keyword_2)]
     kw_1_tmp2 = [kw.replace('  ', '').replace(' ', '').split(',') for kw in kw_1_tmp]
     kw_2_tmp2 = [kw.replace('  ', '').replace(' ', '').split(',') for kw in kw_2_tmp]
-    #deletes repeated entries to reduce the permutations and search time
+    # deletes repeated entries to reduce the permutations and search time
     keyword_1 = [set(kw_entries) for kw_entries in kw_1_tmp2]
     keyword_2 = [set(kw_entries) for kw_entries in kw_2_tmp2]
 
     file_directory = Path(num_kw_values['folder'])
-    #in case the extension is given as something like .csv instead of csv
+    # in case the extension is given as something like .csv instead of csv
     file_type = num_kw_values['file_type'].replace('.', '')
     num_files = int(num_kw_values['num_files'])
 
@@ -386,10 +420,10 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
 
     """
 
-    #Ensures the keywords are input as lists
-    if not isinstance(keyword_1, (list, tuple)) and keyword_1 is not None:
+    # Ensures the keywords are input as lists
+    if keyword_1 is not None and not isinstance(keyword_1, (list, tuple)):
         keyword_1 = [keyword_1]
-    if not isinstance(keyword_2, (list, tuple)) and keyword_2 is not None:
+    if keyword_2 is not None and not isinstance(keyword_2, (list, tuple)):
         keyword_2 = [keyword_2]
 
     num_keyword_1, num_keyword_2, num_kw_values = _get_num_keywords(
@@ -400,19 +434,20 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
         num_keyword_1, num_keyword_2, keyword_1, keyword_2, num_kw_values
     )
 
-    #File finding
+    # File finding
     found_files = [[[] for j in range(len(keyword_2))] for i in range(len(keyword_1))]
+    window_location = (None, None)
     for j, keyword1 in enumerate(keyword_1):
         for k, keyword2 in enumerate(keyword_2):
-            #Tries each variation of (keyword1, keyword2) and collects all files that fit
+            # Tries each variation of (keyword1, keyword2) and collects all files that fit
             keywords = [*keyword1, *keyword2]
             permutations = ['*'.join(p) for p in itertools.permutations(keywords) if p != '']
             for permutation in permutations:
                 search_term = _prepare_for_search(f'*{permutation}*.{file_type}')
                 found_files[j][k].extend(file_directory.rglob(search_term))
 
-            #Relaxes the search criteria and tries to find the file using only
-            #one keyword if not enough files were found using the original two keywords
+            # Relaxes the search criteria and tries to find the file using only
+            # one keyword if not enough files were found using the original two keywords
             if len(found_files[j][k]) < num_files:
 
                 keywords = [*keyword1]
@@ -429,28 +464,30 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
                     search_term = _prepare_for_search(f'*{permutation}*.{file_type}')
                     found_files[j][k].extend(file_directory.rglob(search_term))
 
-                #Relaxes the search criteria to match any of the keywords
+                # Relaxes the search criteria to match any of the keywords
                 if len(found_files[j][k]) < num_files:
                     for keyword in [*keyword1, *keyword2]:
                         search_term = _prepare_for_search(f'*{keyword}*.{file_type}')
                         found_files[j][k].extend(file_directory.rglob(search_term))
 
-                    #Relaxes the search criteria to just include the file extension
-                    #if not enough files have been found yet
+                    # Relaxes the search criteria to just include the file extension
+                    # if not enough files have been found yet
                     if len(found_files[j][k]) < num_files:
                         found_files[j][k].extend(file_directory.rglob(f'*.{file_type}'))
 
-                        #Relaxes the search criteria completely and includes all files in the folder
+                        # Relaxes the search criteria completely and includes all files in the folder
                         if len(found_files[j][k]) < num_files:
                             found_files[j][k].extend(file_directory.rglob('*.*'))
 
-            #Converts the list to a set to remove duplicates and then converts back using sorted
+            # Converts the list to a set to remove duplicates and then converts back using sorted
             found_files[j][k] = [str(file) for file in sorted(set(found_files[j][k]))]
 
             if len(found_files[j][k]) <= num_files:
                 continue
             else:
-                files = [file.replace(str(file_directory), '') for file in found_files[j][k]]
+                files = [
+                    file.replace(str(file_directory), '') for file in found_files[j][k]
+                ]
                 kw1_keywords = ', '.join(kw for kw in keyword1)
                 kw2_keywords = ', '.join(kw for kw in keyword2)
                 layout = [
@@ -461,28 +498,31 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
                                 size=(max(len(str(file)) for file in files) + 3, 8),
                                 select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED,
                                 bind_return_key=True)],
-                    [sg.Button('Submit', button_color=('white', '#00A949'))]
+                    [sg.Button('Submit', button_color=PROCEED_COLOR)]
                 ]
 
-                window = sg.Window('Found Files', layout)
+                window = sg.Window('Found Files', layout, location=window_location)
                 while True:
                     event, values = window.read()
                     if event == sg.WIN_CLOSED:
                         safely_close_window(window)
 
                     elif not values['listbox']:
-                        sg.Popup('Please select a file.')
+                        sg.popup('Please select a file.')
 
                     elif len(values['listbox']) != num_files:
-                        sg.Popup(f'Please select {num_files} file(s).')
+                        sg.popup(f'Please select {num_files} file(s).')
 
                     else:
+                        window_location = window.current_location()
                         break
 
                 window.close()
                 window = None
 
-                found_files[j][k] = [f'{file_directory}{file}' for file in values['listbox']]
+                found_files[j][k] = [
+                    f'{file_directory}{file}' for file in values['listbox']
+                ]
 
     return found_files
 
@@ -514,12 +554,12 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
         file_list = [file_list]
 
     if not new_folder:
-
         layout = [
             [sg.Text('Choose the folder to move files to:', size=(35, 1))],
             [sg.InputText('', disabled=True),
              sg.FolderBrowse(key='folder')],
-            [sg.Button('Submit', bind_return_key=True)]
+            [sg.Button('Submit', bind_return_key=True,
+                       button_color=PROCEED_COLOR)]
         ]
 
         window = sg.Window('Folder Selection', layout)
@@ -530,7 +570,7 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
                 safely_close_window(window)
 
             elif values['folder'] == '':
-                sg.Popup('Please select a folder.')
+                sg.popup('Please select a folder.')
 
             else:
                 break
@@ -568,15 +608,3 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
                 shutil.copy(file, new_folder.joinpath(new_file_name))
 
     return str(new_folder)
-
-
-if __name__ == '__main__':
-
-    try:
-        #launches a GUI to find files using a set of keywords
-        files = file_finder()
-        for file_list in files:
-            file_mover(file_list, new_folder=None, skip_same_files=False)
-
-    except WindowCloseError:
-        pass

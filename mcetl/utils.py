@@ -7,16 +7,21 @@ within the other files.
 @author: Donald Erb
 Created on Wed Jul 15 14:26:59 2020
 
+Attributes
+----------
+PROCEED_COLOR : tuple(str, str)
+    The button color for all buttons that proceed to the next window.
+
 """
 
 
 import pandas as pd
 import PySimpleGUI as sg
+import matplotlib.pyplot as plt
 
 
-#the button color for buttons that proceed to the next window.
 PROCEED_COLOR = ('white', '#00A949')
-                 
+
 
 class WindowCloseError(Exception):
     """Custom exception to allow exiting a GUI window to stop the program."""
@@ -27,15 +32,15 @@ def safely_close_window(window):
     Closes a PySimpleGUI window and removes the window and its layout.
 
     Used when exiting a window early by manually closing the window. Ensures
-    that the window is properly garbage collected, and then raises a
+    that the window is properly closed and then raises a
     WindowCloseError exception, which can be used to determine that the window
     was manually closed.
 
     Parameters
     ----------
     window : sg.Window
-        The window that was closed.
-        
+        The window that will be closed.
+
     Raises
     ------
     WindowCloseError
@@ -45,14 +50,12 @@ def safely_close_window(window):
     """
 
     window.close()
-    del window
-
     raise WindowCloseError
 
 
 def string_to_unicode(input_list):
-    """
-    Takes a list of strings and replaces the '\\(you)' in the strings with '\(you)', where (you) is u'.
+    r"""
+    Converts strings to unicode by replacing '\\u' with '\u'.
 
     Necessary because the user input from PySimpleGui's InputText element
     will convert any '\' input by the user to '\\', which will not
@@ -70,6 +73,11 @@ def string_to_unicode(input_list):
         A container of strings or a single string, depending on the input,
         with the unicode correctly converted.
 
+    Notes
+    -----
+    Uses raw_unicode_escape encoding to ensure that any existing unicode is
+    correctly decoded; otherwise, it would translate incorrectly.
+
     """
 
     if isinstance(input_list, str):
@@ -82,8 +90,9 @@ def string_to_unicode(input_list):
 
     for i, entry in enumerate(input_list):
         if '\\u' in entry:
-            #replace "\\\\u" with "\\u" in case user used \\ instead of \
-            new_list[i] = entry.replace('\\\\u', '\\u').encode('utf-8').decode('unicode_escape')
+            # replace "\\\\u" with "\\u" in case user used \\ instead of \
+            new_list[i] = entry.replace(
+                '\\\\u', '\\u').encode('raw_unicode_escape').decode('unicode_escape')
         else:
             new_list[i] = entry
 
@@ -93,8 +102,8 @@ def string_to_unicode(input_list):
         return new_list[0]
 
 
-def validate_inputs(window_values, integers=None, floats=None, strings=None,
-                    user_inputs=None):
+def validate_inputs(window_values, integers=None, floats=None,
+                    strings=None, user_inputs=None):
     """
     Validates entries from a PySimpleGUI window.
 
@@ -118,9 +127,8 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     user_inputs : list, optional
         A list of lists (see Notes below), with each key corresponding
         to a key in the window_values dictionary, whose values should
-        be a certain datatype; the values are first determined by
-        separating each value using ',' (maybe later add the separator
-        as an additional input).
+        be a certain data type; the values are first determined by
+        separating each value using ',' (default) or the last index.
 
     Returns
     -------
@@ -131,27 +139,37 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
     Notes
     -----
     Inputs for integers, floats, and strings are [[key, display text],].
-    For example: [['peak_width', 'peak width']].
-    
-    Inputs for user_inputs are [[key, display text, data type],].
-    For example: [['peak_width', 'peak_width', float]].
+    For example: [['peak_width', 'peak width']]
+
+    Inputs for user_inputs are 
+        [[key, display text, data type, allow_empty_input (optional), separator (optional)],],
+    where separator is a string, and allow_empty_input is a boolean.
+    If no separator is given, it is assumed to be a comma (','), and
+    if no allow_empty_input value is given, it is assumed to be False.
+    user_inputs can also be used to run the inputs through a function by setting 
+    the data type to a custom function. Use None as the separator if only a 
+    single value is wanted.
+    For example: [
+        ['peak_width', 'peak width', float], # ensures each entry is a float
+        ['peak_width_2', 'peak width 2', int, False, ';'], # uses ';' as the separator
+        ['peak_width_3', 'peak width 3', function, False, None], # no separator, verify with function
+        ['peak_width_3', 'peak width 3', function, True, None] # allows empty input
+    ]
 
     The display text will be the text that is shown to the user if the value
-    of window_values[key] is not the correct data type.
+    of window_values[key] fails the validation.
 
     """
 
     if integers is not None:
-        integers = integers if isinstance(integers, (list, tuple)) else [integers]
         for entry in integers:
             try:
                 int(window_values[entry[0]])
             except:
-                sg.Popup(f'Need to enter integer in "{entry[1]}".\n', title='Error')
+                sg.popup(f'Need to enter integer in "{entry[1]}".\n', title='Error')
                 return False
 
     if floats is not None:
-        floats = floats if isinstance(floats, (list, tuple)) else [floats]
         for entry in floats:
             if entry == 'inf':
                 continue
@@ -161,28 +179,45 @@ def validate_inputs(window_values, integers=None, floats=None, strings=None,
                 try:
                     float(window_values[entry[0]])
                 except:
-                    sg.Popup(f'Need to enter number in "{entry[1]}".\n', title='Error')
+                    sg.popup(f'Need to enter number in "{entry[1]}".\n',
+                             title='Error')
                     return False
 
     if strings is not None:
-        strings = strings if isinstance(strings, (list, tuple)) else [strings]
         for entry in strings:
             try:
                 if not window_values[entry[0]]:
                     raise ValueError
             except:
-                sg.Popup(f'Need to enter information in "{entry[1]}".\n', title='Error')
+                sg.popup(f'Need to enter information in "{entry[1]}".\n',
+                         title='Error')
                 return False
 
     if user_inputs is not None:
-        user_inputs = user_inputs if isinstance(user_inputs, (list, tuple)) else [user_inputs]
         for entry in user_inputs:
-            try:
-                inputs = [ent for ent in window_values[entry[0]].replace(' ', '').split(',') if ent]
-                [entry[2](inpt) for inpt in inputs]
+            allow_empty_input = False
+            separator = ','
 
-            except:
-                sg.Popup(f'Need to correct entry for "{entry[1]}".\n', title='Error')
+            if len(entry) > 4:
+                allow_empty_input = entry[3]
+                separator = entry[4]
+                
+            elif len(entry) > 3:
+                allow_empty_input = entry[3]
+
+            try:
+                inputs = [
+                    ent for ent in window_values[entry[0]].replace(' ', '').split(separator) if ent
+                ]
+                if inputs:
+                    [entry[2](inpt) for inpt in inputs]
+                elif not allow_empty_input:
+                    raise ValueError('Entry must not be empty.')
+
+            except Exception as e:
+                sg.popup(
+                    f'Need to correct entry for "{entry[1]}".\n\nError:\n    {repr(e)}\n',
+                    title='Error')
                 return False
 
     return True
@@ -231,23 +266,23 @@ def show_dataframes(dataframes, title='Raw Data'):
                 if any(not isinstance(col, str) for col in dataframe.columns):
                     header_list = [f'Column {num}' for num in range(len(data[0]))]
                 else:
-                    header_list = dataframe.columns
+                    header_list = dataframe.columns.tolist()
 
-                tabs[i] += [
+                tabs[i].append(
                     sg.Table(values=data, headings=header_list, key=f'table_{i}{j}',
                              auto_size_columns=True, vertical_scroll_only=False,
                              num_rows=min(25, len(data)))
-                ]
+                )
 
         if single_file:
             layout = [tabs[0]]
         else:
             datasets = []
             for i, tab_group in enumerate(tabs):
-                datasets += [
-                    [sg.Tab(f'Sample {j + 1}', [[table]],
-                            key=f'set_{i}{j}') for j, table in enumerate(tab_group)]
-                ]
+                datasets.append(
+                    [sg.Tab(f'Entry {j + 1}', [[table]],
+                            key=f'entry_{i}{j}') for j, table in enumerate(tab_group)]
+                )
 
             if single_dataset:
                 layout = [
@@ -258,18 +293,20 @@ def show_dataframes(dataframes, title='Raw Data'):
             else:
                 tab_groups = []
                 for i, tab_group in enumerate(datasets):
-                    tab_groups += [
+                    tab_groups.append(
                         [sg.Tab(f'Dataset {i + 1}',
                                 [[sg.TabGroup([tab_group],
                                               tab_background_color=sg.theme_background_color())]])]
-                    ]
-                layout = [[sg.TabGroup(tab_groups,
-                                       tab_background_color=sg.theme_background_color())]]
+                    )
+                layout = [
+                    [sg.TabGroup(tab_groups,
+                                 tab_background_color=sg.theme_background_color())]
+                ]
 
         window = sg.Window(title, layout, resizable=True)
 
     except Exception as e:
-        sg.Popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
+        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
         window = None
 
     finally:
@@ -279,42 +316,57 @@ def show_dataframes(dataframes, title='Raw Data'):
 def optimize_memory(dataframe):
     """
     Optimizes dataframe memory usage by converting data types.
-    
-    Optimizes object dtypes by trying to convert to other dtypes.
+
+    Optimizes object dtypes by trying to convert to other dtypes,
+    if the pandas version is greater than 1.0.0.
     Optimizes numerical dtypes by downcasting to the most appropriate dtype.
-    
-    All changes are done inplace, so no new dataframe is created.
-    
+
     Parameters
     ----------
     dataframe : pd.DataFrame
         The dataframe to optimize.
+        
+    Returns
+    -------
+    optimized_df : pd.DataFrame
+        The memory-optimized dataframe.
+
+    Notes
+    -----
+    Only converts int and float numeric types, not numpy types like float64,
+    float 32, int16, etc.
     
     """
 
-    df = dataframe.copy()
-    #attempts to convert object columns to other dtypes
-    objects = dataframe.select_dtypes(['object'])
-    if len(objects.columns) > 0:
-        df[objects.columns] = objects.convert_dtypes(convert_integer=False)
+    optimized_df = dataframe.copy()
+    
+    if int(pd.__version__.split('.')[0]) > 0:
+        # attempts to convert object columns to other dtypes
+        objects = dataframe.select_dtypes(['object'])
+        if len(objects.columns) > 0:
+            optimized_df[objects.columns] = objects.convert_dtypes(
+                convert_integer=False
+            )
 
     ints = dataframe.select_dtypes(include=['int'])
     if len(ints.columns) > 0:
-        df[ints.columns] = ints.apply(pd.to_numeric, downcast='integer',
-                                      errors='ignore')
+        optimized_df[ints.columns] = ints.apply(
+            pd.to_numeric, downcast='integer', errors='ignore'
+        )
 
     floats = dataframe.select_dtypes(include=['float'])
     if len(floats.columns) > 0:
-        df[floats.columns] = floats.apply(pd.to_numeric, downcast='float',
-                                          errors='ignore')
-        
-    return df
+        optimized_df[floats.columns] = floats.apply(
+            pd.to_numeric, downcast='float', errors='ignore'
+        )
+
+    return optimized_df
 
 
 def raw_data_import(window_values, file, show_popup=True):
     """
     Used to import data from the specified file into pandas DataFrames.
-    
+
     Also used to show how data will look after using certain import values.
 
     Parameters
@@ -329,8 +381,9 @@ def raw_data_import(window_values, file, show_popup=True):
 
     Returns
     -------
-    dataframes : list
-        A list of dataframes containing the data after importing.
+    dataframes : list or None
+        A list of dataframes containing the data after importing if show_popup
+        is False, otherwise returns None.
 
     Notes
     -----
@@ -343,11 +396,10 @@ def raw_data_import(window_values, file, show_popup=True):
         row_end = int(window_values['row_end'])
         separator = window_values['separator'] if window_values['separator'] != '' else None
         column_numbers = [
-            int(i) for i in window_values['columns'].replace(' ', '').split(',') if i != ''
+            int(num) for num in window_values['columns'].replace(' ', '').split(',') if num
         ]
 
         if file.endswith('.xlsx'):
-
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1
             columns = [num for num in range(first_col, last_col)]
@@ -355,17 +407,14 @@ def raw_data_import(window_values, file, show_popup=True):
 
             total_dataframe = pd.read_excel(
                 file, window_values['sheet'], None, skiprows=row_start,
-                skipfooter=row_end, usecols=columns
+                skipfooter=row_end, usecols=columns, convert_float=not show_popup
             )
 
             column_indices = [num + first_col for num in column_numbers]
-
             dataframes = []
             for num in range(max(1, len(total_dataframe.columns) // repeat_unit)):
                 indices = [(num * repeat_unit) + elem for elem in column_indices]
-                dataframe = total_dataframe[indices]
-                dataframe.columns = [*range(len(dataframe.columns))]
-                dataframes.append(dataframe)
+                dataframes.append(total_dataframe[indices])
 
         else:
             dataframes = [
@@ -375,11 +424,12 @@ def raw_data_import(window_values, file, show_popup=True):
                 )
             ]
 
-        for i, dataframe in enumerate(dataframes):
-            dataframes[i] = optimize_memory(dataframe)
+        if not show_popup:
+            for i, dataframe in enumerate(dataframes):
+                dataframe.columns = [*range(len(dataframe.columns))]
+                dataframes[i] = optimize_memory(dataframe)
 
-        if show_popup:
-
+        else:
             window_1_open = False
             if file.endswith('.xlsx') and len(dataframes) > 1:
                 window_1_open = True
@@ -390,27 +440,28 @@ def raw_data_import(window_values, file, show_popup=True):
 
             if window_0:
                 window_0_open = True
-                while window_0_open or window_1_open:
+                while window_0_open or window_1_open: #TODO use sg.read_windows once pysimplegui is updated rather than using read(100)
 
                     if window_1_open:
-                        event_1 = window_1.Read(100)[0]
+                        event_1 = window_1.read(100)[0]
                         if event_1 == sg.WIN_CLOSED:
                             window_1.close()
                             window_1_open = False
 
-                    event = window_0.Read(100)[0]
-                    if event == sg.WIN_CLOSED:
+                    event_0 = window_0.read(100)[0]
+                    if event_0 == sg.WIN_CLOSED:
                         window_0.close()
                         window_0_open = False
 
             del window_0
             if file.endswith('.xlsx') and len(dataframes) > 1:
                 del window_1
+            dataframes = None # to clean up memory, dataframe is not needed
 
         return dataframes
 
     except Exception as e:
-        sg.Popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
+        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
 
 
 def select_file_gui(data_source=None, file=None):
@@ -419,134 +470,138 @@ def select_file_gui(data_source=None, file=None):
 
     Parameters
     ----------
-    data_source : DataSource
+    data_source : DataSource, optional
         The DataSource object used for opening the file.
-    file: str
+    file: str, optional
         A string containing the path to the file to be imported.
 
     Returns
     -------
     values : dict
-        A dictionary containing the items necessary for importing data.
+        A dictionary containing the items necessary for importing data from
+        the selected file.
+
     """
 
-    #TODO put all of these default variables into a single dictionary
-    if data_source is not None:
-        default_row_start = data_source.start_row
-        default_row_end = data_source.end_row
-        default_separator = data_source.separator if data_source.separator is not None else ''
-        default_columns = ', '.join([str(elem) for elem in data_source.column_numbers])
-        default_indices = data_source.column_numbers
-        default_var_indices = [index for index in data_source.unique_variable_indices]
+    # default values for if there is no file specified
+    default_inputs = {
+        'row_start': 0 if data_source is None else data_source.start_row,
+        'row_end': 0 if data_source is None else data_source.end_row,
+        'separator': '' if data_source is None else data_source.separator,
+        'columns': '0, 1' if data_source is None else ', '.join([
+            str(elem) for elem in data_source.column_numbers
+        ]),
+        'total_indices': None if data_source is None else data_source.column_numbers,
+        'variable_indices': None if data_source is None else dict(
+            zip(data_source.unique_variables,
+                data_source.unique_variable_indices)
+        ),
+        'sheets': [],
+        'sheet': '',
+        'excel_columns': [],
+        'first_column': '',
+        'last_column': '',
+        'repeat_unit': '',
+        'initial_separator': '',
+        'initial_columns': '',
+        'initial_row_start': '',
+        'initial_row_end': '',
+        'initial_total_indices': None if data_source is None else [''] * len(data_source.column_numbers),
+    }
 
-    else:
-        default_row_start = 0
-        default_row_end = 0
-        default_separator = ''
-        default_columns = '0, 1'
+    validations = {
+        'integers': [['row_start', 'start row'], ['row_end', 'end row']],
+        'user_inputs': [['columns', 'data columns', int]],
+    }
 
-    if file is None:
-        disable_excel = True
-        disable_other = True
-        disable_bottom = True
-        default_sheets = []
-        default_sheet = ''
-        default_column_list = []
-        default_first_col = ''
-        default_last_col = ''
-        default_repeat_unit = ''
-        initial_separator = ''
-        initial_columns = ''
-        initial_row_start = ''
-        initial_row_end = ''
-        initial_indices = []
-        initial_x_index = ''
-        initial_y_index = ''
+    disable_excel = True
+    disable_other = True
+    disable_bottom = True
 
-    else:
+    if file is not None:
         disable_bottom = False
 
         if file.endswith('.xlsx'):
             disable_excel = False
-            disable_other = True
 
-            dataframes = pd.read_excel(file, None, None)
+            dataframes = pd.read_excel(file, None, None, convert_float=False)
             sheet_names = [*dataframes.keys()]
             sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
-            default_sheets = [*dataframes.keys()]
-            default_sheet = default_sheets[0]
-            sheet_0_len = len(dataframes[default_sheet].columns)
-            default_column_list = [f'Column {num}' for num in range(sheet_0_len)]
-            default_first_col = default_column_list[0]
-            default_last_col = default_column_list[-1]
-            default_repeat_unit = sheet_0_len
-            default_columns = ', '.join(str(num) for num in range(sheet_0_len))
-            default_separator = ''
-            default_row_start = 0
-            default_row_end = 0
-            default_indices = [num for num in range(sheet_0_len)]
+            default_inputs.update({
+                'sheets': sheet_names,
+                'sheet': sheet_names[0],
+                'excel_columns': [f'Column {num}' for num in range(sheet_0_len)],
+                'first_column': 'Column 0',
+                'last_column': f'Column {sheet_0_len - 1}',
+                'repeat_unit': sheet_0_len,
+                'separator': '',
+                'columns': ', '.join(str(num) for num in range(sheet_0_len)),
+                'row_start': 0,
+                'row_end': 0,
+                'total_indices': [*range(sheet_0_len)],
+            })
+
+            validations['integers'].append(
+                ['repeat_unit', 'number of columns per dataset']
+            )
 
         else:
-            disable_excel = True
             disable_other = False
-            default_sheets = []
-            default_sheet = ''
-            default_column_list = []
-            default_first_col = ''
-            default_last_col = ''
-            default_repeat_unit = ''
 
-        initial_separator = default_separator
-        initial_columns = default_columns
-        initial_row_start = default_row_start
-        initial_row_end = default_row_end
-        initial_indices = default_indices
+        default_inputs.update({
+            'initial_separator': default_inputs['separator'],
+            'initial_columns': default_inputs['columns'],
+            'initial_row_start': default_inputs['row_start'],
+            'initial_row_end': default_inputs['row_end'],
+            'initial_total_indices': default_inputs['total_indices'],
+        })
 
-    file_layout = [
-        [sg.Text('Excel Workbook Options', relief='ridge', size=(38,1),
+    layout = [
+        [sg.Text('Excel Workbook Options', relief='ridge', size=(38, 1),
                  justification='center', pad=(0,(15, 10)))],
         [sg.Text('Sheet to use:'),
-         sg.InputCombo(default_sheets, size=(17, 4), key='sheet',
-                       default_value=default_sheet, disabled=disable_excel,
-                       readonly=True, enable_events=True)],
+         sg.Combo(default_inputs['sheets'], size=(17, 4), key='sheet',
+                  default_value=default_inputs['sheet'], disabled=disable_excel,
+                  readonly=True, enable_events=True)],
         [sg.Text('First Column:'),
-         sg.InputCombo(default_column_list, size=(17, 4),
-                       key='first_col', readonly=True,
-                       default_value=default_first_col,
-                       disabled=disable_excel, enable_events=True)],
+         sg.Combo(default_inputs['excel_columns'], size=(17, 4),
+                  key='first_col', readonly=True,
+                  default_value=default_inputs['first_column'],
+                  disabled=disable_excel, enable_events=True)],
         [sg.Text('Last Column:'),
-         sg.InputCombo(default_column_list, size=(17, 4), key='last_col',
-                       readonly=True, default_value=default_last_col,
-                       disabled=disable_excel, enable_events=True)],
+         sg.Combo(default_inputs['excel_columns'], size=(17, 4), key='last_col',
+                  readonly=True, default_value=default_inputs['last_column'],
+                  disabled=disable_excel, enable_events=True)],
         [sg.Text('Number of columns per dataset:'),
-         sg.Input(key='repeat_unit', default_text=default_repeat_unit,
+         sg.Input(default_inputs['repeat_unit'], key='repeat_unit',
                   do_not_clear=True, disabled=disable_excel,
                   size=(3, 1), enable_events=True)],
-        [sg.Text('Other Filetype Options', relief='ridge', size=(38 ,1),
-                 justification='center', pad=(5,(25, 10)))],
+        [sg.Text('Other Filetype Options', relief='ridge', size=(38, 1),
+                 justification='center', pad=(5, (25, 10)))],
         [sg.Text('Separator (eg. , or ;)', size=(20, 1)),
-         sg.Input(key='separator', default_text=initial_separator,
+         sg.Input(default_inputs['initial_separator'], key='separator',
                   disabled=disable_other, do_not_clear=True, size=(5, 1))],
         [sg.Text('=' * 34, pad=(5, (10, 10)))],
         [sg.Text('Enter data columns,\n separated by commas:',
                  tooltip='Starts at 0'),
-         sg.Input(key='columns', default_text=initial_columns,
+         sg.Input(default_inputs['initial_columns'], key='columns',
                   do_not_clear=True, tooltip='Starts at 0', size=(10, 1),
                   enable_events=True, disabled=disable_bottom)],
         [sg.Text('Start row:', tooltip='Starts at 0', size=(8, 1)),
-         sg.Input(key='row_start', default_text=initial_row_start,
+         sg.Input(default_inputs['initial_row_start'], key='row_start',
                   do_not_clear=True, size=(5, 1), disabled=disable_bottom,
                   tooltip='Starts at 0')],
         [sg.Text('End row: ', tooltip='Counts up from bottom. Starts at 0',
                  size=(8, 1)),
-         sg.Input(key='row_end', default_text=initial_row_end,
+         sg.Input(default_inputs['initial_row_end'], key='row_end',
                   do_not_clear=True, size=(5, 1), disabled=disable_bottom,
                   tooltip='Counts up from bottom. Starts at 0')]
     ]
 
     if file is None:
-        file_layout.insert(0, 
+        layout.insert(
+            0,
             [sg.InputText('Choose a file', key='file', enable_events=True,
                           disabled=True, size=(28, 1), pad=(5, (10, 5))),
              sg.FileBrowse(key='file_browse', target='file', pad=(5, (10, 5)),
@@ -555,26 +610,27 @@ def select_file_gui(data_source=None, file=None):
                                        ("CSV", "*.csv"),
                                        ("Text Files", "*.txt")))]
         )
-    if data_source is not None: #TODO change this for when DataSource can have more than two unique variables
+    if data_source is not None:
         for variable in data_source.unique_variables:
-            
-            file_layout.extend([
+            layout.extend([
                 [sg.Text(f'Column of {variable} data:'),
-                 sg.InputCombo(initial_indices, default_value=initial_x_index,
-                               key='x_index', readonly=True, size=(3, 1),
-                               disabled=disable_bottom)]
+                 sg.Combo(default_inputs['initial_total_indices'],
+                          default_inputs['initial_total_indices'][
+                              default_inputs['variable_indices'][variable]
+                          ],
+                          size=(3, 1), readonly=True,
+                          key=f'index_{variable}', disabled=disable_bottom)]
             ])
 
-    file_layout.extend([
-        [sg.Button('Next', bind_return_key=True, pad=(5, (15, 5)),
-                   button_color=PROCEED_COLOR),
-         sg.Button('Test Import', pad=(5, (15, 5)))]
+    layout.extend([
+        [sg.Button('Test Import', pad=(5, (15, 5))),
+         sg.Button('Next', bind_return_key=True, pad=(5, (15, 5)),
+                   button_color=PROCEED_COLOR)]
     ])
 
-    window = sg.Window('Data Import', file_layout)
-    #TODO add validations before trying importing
+    window = sg.Window('Data Import', layout)
     while True:
-        event, values = window.Read()
+        event, values = window.read()
 
         if event == sg.WIN_CLOSED:
             safely_close_window(window)
@@ -584,111 +640,265 @@ def select_file_gui(data_source=None, file=None):
                 continue
 
             elif values['file'].endswith('xlsx'):
-
-                dataframes = pd.read_excel(values['file'], None, None)
+                dataframes = pd.read_excel(values['file'], None, None,
+                                           convert_float=False)
                 sheet_names = [*dataframes.keys()]
                 sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
-                window['sheet'].Update(values=sheet_names, value=sheet_names[0],
-                                       disabled=False)
+                window['sheet'].update(values=sheet_names, value=sheet_names[0],
+                                       readonly=True)
                 col_list = [f'Column {num}' for num in range(sheet_0_len)]
-                window['first_col'].Update(values=col_list, value=col_list[0],
-                                           disabled=False)
-                window['last_col'].Update(values=col_list, value=col_list[-1],
-                                          disabled=False)
-                window['repeat_unit'].Update(value=sheet_0_len, disabled=False)
-                window['separator'].Update(value='', disabled=True)
-                window['columns'].Update(value=', '.join(str(num) for num in range(sheet_0_len)),
-                                         disabled=False)
-                window['row_start'].Update(value='0', disabled=False)
-                window['row_end'].Update(value='0', disabled=False)
+                window['first_col'].update(values=col_list, value=col_list[0],
+                                           readonly=True)
+                window['last_col'].update(values=col_list, value=col_list[-1],
+                                          readonly=True)
+                window['repeat_unit'].update(value=sheet_0_len, disabled=False)
+                window['separator'].update(value='', disabled=True)
+                window['columns'].update(
+                    value=', '.join(str(num) for num in range(sheet_0_len)),
+                    disabled=False
+                )
+                window['row_start'].update(value='0', disabled=False)
+                window['row_end'].update(value='0', disabled=False)
+
+                if not any('repeat_unit' in entry for entry in validations['integers']):
+                    validations['integers'].append(
+                        ['repeat_unit', 'number of columns per dataset']
+                    )
+
                 if data_source is not None:
-                    indices = [num for num in range(sheet_0_len)]
-                    window['x_index'].Update(values=indices, set_to_index=0,
-                                             disabled=False)
-                    window['y_index'].Update(values=indices, set_to_index=1,
-                                             disabled=False)
+                    _assign_indices(
+                        window, [num for num in range(sheet_0_len)],
+                        default_inputs['variable_indices']
+                    )
 
             else:
-                window['sheet'].Update(values=[], value='', disabled=True)
-                window['first_col'].Update(values=[], value='', disabled=True)
-                window['last_col'].Update(values=[], value='', disabled=True)
-                window['repeat_unit'].Update(value='', disabled=True)
-                window['separator'].Update(value=default_separator, disabled=False)
-                window['columns'].Update(value=default_columns, disabled=False)
-                window['row_start'].Update(value=default_row_start, disabled=False)
-                window['row_end'].Update(value=default_row_end, disabled=False)
+                window['sheet'].update(values=[], value='', disabled=True)
+                window['first_col'].update(values=[], value='', disabled=True)
+                window['last_col'].update(values=[], value='', disabled=True)
+                window['repeat_unit'].update(value='', disabled=True)
+                window['separator'].update(value=default_inputs['separator'],
+                                           disabled=False)
+                window['columns'].update(value=default_inputs['columns'],
+                                         disabled=False)
+                window['row_start'].update(value=default_inputs['row_start'],
+                                           disabled=False)
+                window['row_end'].update(value=default_inputs['row_end'],
+                                         disabled=False)
+
+                for i, entry in enumerate(validations['integers']):
+                    if 'repeat_unit' in entry:
+                        del validations['integers'][i]
+                        break
+
                 if data_source is not None:
-                    window['x_index'].Update(values=default_indices,
-                                             set_to_index=default_x_index,
-                                             disabled=False)
-                    window['y_index'].Update(values=default_indices,
-                                             set_to_index=default_y_index,
-                                             disabled=False)
+                    for variable in data_source.unique_variables:
+                        window[f'index_{variable}'].update(
+                            values=default_inputs['total_indices'], readonly=True,
+                            set_to_index=default_inputs['variable_indices'][variable]
+                        )
 
         elif event == 'sheet':
             dataframe = dataframes[values['sheet']]
-            window['repeat_unit'].Update(value=len(dataframe.columns))
+            window['repeat_unit'].update(value=len(dataframe.columns))
             cols = [f'Column {num}' for num in range(len(dataframe.columns))]
-            window['first_col'].Update(values=cols, value=cols[0])
-            window['last_col'].Update(values=cols, value=cols[-1])
-            window['columns'].Update(value=', '.join(str(i) for i in range(len(dataframe.columns))))
+            window['first_col'].update(values=cols, value=cols[0])
+            window['last_col'].update(values=cols, value=cols[-1])
+            window['columns'].update(
+                value=', '.join(str(i) for i in range(len(dataframe.columns)))
+            )
+
             if data_source is not None:
-                indices = [num for num in range(len(dataframe.columns))]
-                window['x_index'].Update(values=indices, set_to_index=0)
-                window['y_index'].Update(values=indices, set_to_index=1)
+                _assign_indices(
+                    window, [num for num in range(len(dataframe.columns))],
+                    default_inputs['variable_indices']
+                )
 
         elif event in ('first_col', 'last_col'):
             first_col = int(values['first_col'].split(' ')[-1])
             last_col = int(values['last_col'].split(' ')[-1]) + 1
 
-            if (last_col - first_col) < int(values['repeat_unit']):
+            if (values['repeat_unit']
+                    and (last_col - first_col) < int(values['repeat_unit'])):
+
                 new_len = last_col - first_col
-                window['repeat_unit'].Update(value=new_len)
+                window['repeat_unit'].update(value=new_len)
                 update_text = [num for num in range(new_len)]
-                window['columns'].Update(value=', '.join(str(elem) for elem in update_text))
+                window['columns'].update(
+                    value=', '.join(str(elem) for elem in update_text)
+                )
+
                 if data_source is not None:
-                    window['x_index'].Update(values=update_text, set_to_index=0)
-                    window['y_index'].Update(values=update_text, set_to_index=1)
+                    _assign_indices(window, update_text,
+                                    default_inputs['variable_indices'])
 
         elif event == 'repeat_unit':
             try:
                 if values['repeat_unit'] != '':
                     update_text = [num for num in range(int(values['repeat_unit']))]
-                    window['columns'].Update(value=', '.join(str(elem) for elem in update_text))
+                    window['columns'].update(
+                        value=', '.join(str(elem) for elem in update_text)
+                    )
+
                     if data_source is not None:
-                        window['x_index'].Update(values=update_text, set_to_index=0)
-                        window['y_index'].Update(values=update_text, set_to_index=1)
-            except:
-                sg.Popup('Please enter an integer in "number of columns per dataset"',
+                        _assign_indices(window, update_text,
+                                        default_inputs['variable_indices'])
+            except ValueError:
+                sg.popup('Please enter an integer in "number of columns per dataset"',
                          title='Error')
 
         elif event == 'columns':
             if data_source is not None:
-                update_text = [entry for entry in values['columns'].replace(' ', '').split(',') if entry]
-                window['x_index'].Update(values=update_text, set_to_index=0)
-                window['y_index'].Update(values=update_text, set_to_index=1)
+                update_text = [
+                    entry for entry in values['columns'].replace(' ', '').split(',') if entry
+                ]
+                _assign_indices(window, update_text,
+                                default_inputs['variable_indices'])
 
-        elif event == 'Test Import':
-            test_file = file if file is not None else values['file']
-            raw_data_import(values, test_file)
-
-        elif event == 'Next':
+        elif event in ('Next', 'Test Import'):
             if (file is None) and (values['file'] == 'Choose a file'):
-                sg.Popup('Please choose a file', title='Error')
+                sg.popup('Please choose a file', title='Error')
                 continue
-            integers = [['row_start', 'start row'], ['row_end', 'end row']]
-            user_inputs = [['columns', 'data columns', int]]
-            import_file = file if file is not None else values['file']
 
-            if import_file.endswith('xlsx'):
-                integers.append(['repeat_unit', 'number of columns per dataset'])
-
-            close = validate_inputs(values, integers, None, None, user_inputs)
-            if close:
-                break
+            elif validate_inputs(values, **validations):
+                if event == 'Test Import':
+                    test_file = file if file is not None else values['file']
+                    raw_data_import(values, test_file)
+                else:
+                    break
 
     window.close()
     del window
 
+    if data_source is not None: # converts column numbers back to indices
+        column_numbers = [
+            int(num) for num in values['columns'].replace(' ', '').split(',') if num
+        ]
+
+        for key in [key for key in values if key.startswith('index_')]:
+            for col_num in column_numbers:
+                if int(values[key]) == col_num:
+                    values[key] = column_numbers.index(col_num)
+
     return values
+
+
+def _assign_indices(window, columns, variables):
+    """
+    Updates the indices for each variable based on the column length.
+
+    If there are more variables than available columns, the additional
+    variables will all be assigned to the last value in columns.
+
+    Parameters
+    ----------
+    window : sg.Window
+        The PySimpleGUI window update.
+    columns : list or tuple
+        A list or tuple of column numbers.
+    variables : dict
+        A dictionary with variable names as keys and their target indices
+        as values.
+
+    Notes
+    -----
+    The updated element in the window is a sg.Combo element.
+
+    """
+
+    for variable in variables:
+        if variables[variable] < len(columns):
+            index = variables[variable]
+        else:
+            index = len(columns) - 1
+
+        window[f'index_{variable}'].update(
+            values=columns, set_to_index=index, readonly=True
+        )
+
+
+def open_multiple_files():
+    """
+    Creates a prompt to open multiple files and add their contents to a dataframe.
+
+    Returns
+    -------
+    dataframes : list
+        A list of dataframes containing the imported data from the selected
+        files.
+
+    """
+
+    layout = [
+        [sg.Text('Enter number of files to open:'),
+         sg.Input('1', size=(10, 1), key='num_files')],
+        [sg.Text('')],
+        [sg.Button('Next', button_color=PROCEED_COLOR,
+                   bind_return_key=True, enable_events=True)]
+    ]
+    
+    window = sg.Window('Get Files', layout)
+    while True:
+        event, values = window.read()
+        
+        if event == sg.WIN_CLOSED:
+            num_files = False
+            break
+        else:
+            if validate_inputs(values, [['num_files', 'number of files']]):
+                num_files = int(values['num_files'])
+                break
+    
+    window.close()
+    del window
+    
+    dataframes = []
+    if num_files:
+        try:
+            for _ in range(int(num_files)):
+                import_values = select_file_gui()
+                dataframes.extend(
+                    raw_data_import(import_values, import_values['file'], False)
+                )
+        except (WindowCloseError, KeyboardInterrupt):
+            pass
+        
+    return dataframes
+
+
+def get_dpi_correction(dpi):
+    """
+    Calculates the correction factor needed to create a figure with the desired dpi.
+    
+    Necessary because some matplotlib backends (namely qt5Agg) will adjust
+    the dpi of the figure after creation. 
+
+    Parameters
+    ----------
+    dpi : float or int
+        The desired figure dpi.
+
+    Returns
+    -------
+    dpi_correction : float
+        The scaling factor needed to create a figure with the desired
+        dpi.
+        
+    Notes
+    -----
+    The matplotlib dpi correction occurs when the operating system display
+    scaling is set to any value not equal to 100% (at least on Windows,
+    other operating systems are unknown). This may cause issues when
+    using UHD monitors, but I cannot test.
+    
+    To get the desired dpi, simply create a figure with a dpi equal
+    to dpi * dpi_correction.
+
+    """
+    
+    with plt.rc_context({'interactive': False}):
+        dpi_correction = dpi / plt.figure('dpi_corr', dpi=dpi).get_dpi()
+        plt.close('dpi_corr')
+    
+    return dpi_correction
+    
