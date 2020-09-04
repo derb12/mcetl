@@ -7,6 +7,11 @@ within the other files.
 @author: Donald Erb
 Created on Wed Jul 15 14:26:59 2020
 
+Attributes
+----------
+PROCEED_COLOR : tuple(str, str)
+    The button color for all buttons that proceed to the next window.
+
 """
 
 
@@ -15,7 +20,6 @@ import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 
 
-#the button color for buttons that proceed to the next window.
 PROCEED_COLOR = ('white', '#00A949')
 
 

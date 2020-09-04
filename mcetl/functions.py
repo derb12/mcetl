@@ -14,8 +14,8 @@ Created on Fri Jul 31 16:22:51 2020
 """
 
 
-import string
 import itertools
+import string
 
 
 class FunctionBase:

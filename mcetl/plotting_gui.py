@@ -4,28 +4,57 @@
 @author: Donald Erb
 Created on Sun Jun 28 18:40:04 2020
 
+Attributes
+----------
+CANVAS_SIZE : tuple(int, int)
+    A tuple specifying the size of the figure canvas in the GUI. This
+    can be modified if the user wishes a larger or smaller canvas.
+COLORS : tuple(str)
+    A tuple with values that are used in GUIS to select the color to
+    plot with in matplotlib.
+HOLLOW_THICKNESS : float
+    The fraction of the marker that is filled when hollow; rethink this.
+LINE_MAPPING : dict
+    A dictionary with keys that are displayed in GUIs, and values that
+    are used by matplotlib to specify the line style.
+TIGHT_LAYOUT_PAD : float
+    The padding placed between the edge of the figure and the edge of
+    the canvas; used by matplotlib's tight_layout option.
+TIGHT_LAYOUT_H_PAD : float
+    The height (vertical) padding between axes in a figure; used by
+    matplotlib's tight_layout option.
+TIGHT_LAYOUT_W_PAD : float
+    The width (horizontal) padding between axes in a figure; used by
+    matplotlib's tight_layout option.
+
 """
 
 
-import string
-import json
-import itertools
-import traceback
-from pathlib import Path
 from collections import defaultdict
+import itertools
+import json
+from pathlib import Path
+import string
+import traceback
 
-import numpy as np
-import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
-import sympy as sp
+import numpy as np
+import pandas as pd
 import PySimpleGUI as sg
+import sympy as sp
 
 from . import utils
 
 
+CANVAS_SIZE = (800, 800)
+COLORS = (
+    'Black', 'Blue', 'Red', 'Green', 'Chocolate', 'Magenta',
+    'Cyan', 'Orange', 'Coral', 'Dodgerblue'
+)
+HOLLOW_THICKNESS = 0.3
 LINE_MAPPING = {
     'None': '',
     'Solid': '-',
@@ -37,18 +66,16 @@ LINE_MAPPING = {
                      + plt.rcParams['lines.dashdot_pattern'][1:]
                      + plt.rcParams['lines.dashdot_pattern'][-2:])
 }
-
-COLORS = ('Black', 'Blue', 'Red', 'Green', 'Chocolate', 'Magenta',
-          'Cyan', 'Orange', 'Coral', 'Dodgerblue')
 TIGHT_LAYOUT_PAD = 0.3
-TIGHT_LAYOUT_W_PAD = 0.6
 TIGHT_LAYOUT_H_PAD = 0.6
-HOLLOW_THICKNESS = 0.3 #fraction of the marker that is filled when hollow; rethink this
+TIGHT_LAYOUT_W_PAD = 0.6
 
-_FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
-_THEME_EXTENSION = '.figtheme'
-_CANVAS_SIZE = (800, 800)
+# column name for the blank columns inserted between data entries when saving data to csv
+_FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN' 
+# the default figure name used by matplotlib
 _PREVIEW_NAME = 'Preview'
+# the file extension for the json file containing all of the plot layout information
+_THEME_EXTENSION = '.figtheme'
 
 
 class PlotToolbar(NavigationToolbar2Tk):

@@ -12,10 +12,10 @@ Created on Mon Jun 15 08:38:19 2020
 
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 from lmfit import lineshapes
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import PySimpleGUI as sg
 
 

@@ -9,9 +9,9 @@ Created on Mon Sep  2 22:08:12 2019
 """
 
 
+import itertools
 from pathlib import Path
 import shutil
-import itertools
 
 import PySimpleGUI as sg
 

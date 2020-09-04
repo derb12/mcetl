@@ -9,9 +9,9 @@ Created on Sun May 24 15:18:18 2020
 
 from collections import defaultdict
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import PySimpleGUI as sg
 
 from . import peak_fitting
