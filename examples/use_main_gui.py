@@ -19,7 +19,7 @@ def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=
                 y = df[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[0][i][j]]
                 calc = [
-                    f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(x))
+                    f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, '')
@@ -34,7 +34,7 @@ def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=
 
 if __name__ == '__main__':
 
-    offset = CalculationFunction('offset', 'Intensity', offset_func, 1, {'offset: 1000'})
+    offset = CalculationFunction('offset', 'Intensity', offset_func, 1, {'offset': 1000})
     
     #Definitions for each data source
     xrd = DataSource(
