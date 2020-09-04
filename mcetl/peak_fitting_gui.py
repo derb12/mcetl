@@ -28,10 +28,6 @@ def _show_fit_plot(dataframe, gui_values):
         The dataframe that contains the x and y data.
     gui_values: dict
         A dictionary of values needed for plotting.
-        
-    Returns
-    -------
-    None
 
     """
 
@@ -97,12 +93,12 @@ def _show_fit_plot(dataframe, gui_values):
         ax.annotate(
             "", (x_max, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-            annotation_clip=False, 
+            annotation_clip=False,
         )
         ax.annotate(
             "", (x_min, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-            annotation_clip=False, 
+            annotation_clip=False,
         )
         ax.annotate(
             'Fitting range', (x_mid, ax_y[1] + (0.063*y_diff)), ha='center'
@@ -118,7 +114,7 @@ def _show_fit_plot(dataframe, gui_values):
 
         if gui_values['subtract_bkg']:
             ax.annotate(
-                "", (bkg_max, ax_y[0] - (0.01*y_diff)), 
+                "", (bkg_max, ax_y[0] - (0.01*y_diff)),
                 (bkg_mid, ax_y[0] - (0.01*y_diff)), annotation_clip=False,
                 arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
             )
@@ -153,7 +149,7 @@ def _show_fit_plot(dataframe, gui_values):
         elif peaks[1]:
             peak_list = [found_peaks]
             label_list = ['Found peaks']
-        
+
         if peak_list:
             ax.legend(
                 peak_list, label_list, frameon=False, ncol=2,
@@ -166,8 +162,9 @@ def _show_fit_plot(dataframe, gui_values):
     except Exception as e:
         sg.popup('Error creating plot:\n    ' + repr(e))
 
-#TODO split this up into several functions
-def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
+#TODO split this up into several functions?
+#TODO need to add/verify validations for plotting, peak finding, and background selection
+def fit_dataframe(dataframe, user_inputs=None):
     """
     Creates a GUI to select data from a dataframe for peak fitting.
 
@@ -247,21 +244,21 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
     peak_list = default_inputs['selected_peaks']
     #values if using manual background selection
     bkg_points = default_inputs['selected_bkg']
-    
-    headers = dataframe.columns
-    
-    if default_inputs['batch_fit']:
-        gui_values = default_inputs
 
-    else: #TODO move the gui creation and event loop to a separate function
+    headers = dataframe.columns
+
+    if default_inputs['batch_fit']:
+        values = default_inputs
+
+    else:
         available_models = [*peak_fitting.peak_transformer().keys()]
-    
+
         if (('Voigt' in default_inputs['model_list']) or
             ('VoigtModel' == default_inputs['default_model'])) :
             disable_vary_Voigt = False
         else:
             disable_vary_Voigt = True
-    
+
         automatic_layout = [
             [sg.Text('Peak x values, separated by commas (leave blank to just use peak finding):')],
             [sg.Input(key='peak_list', size=(50, 1),
@@ -306,7 +303,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
              sg.Input(key='bkg_x_max', size=(5, 1),
                       default_text=default_inputs['bkg_x_max'])],
         ]
-    
+
         bkg_layout = sg.TabGroup(
             [
                 [sg.Tab('Background Options', auto_bkg_layout, key='auto_bkg_tab',
@@ -405,32 +402,12 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                       pad=((50, 10), 5))],
             [peak_finding_layout],
         ]
-        #TODO put all validations into a single dictionary
-        integers = [
-            ['x_fit_index', 'x column'], ['y_fit_index', 'y column'],
-            ['poly_n', 'polynomial order'], ['num_resid_fits', 'number of residual fits']
-        ]
-        floats = [
-            ['x_min', 'x min'], ['x_max', 'x max'], ['height', 'minimum height'],
-            ['prominence', 'prominence'], ['peak_width', 'peak width'],
-            ['center_offset', 'center offset'], ['bkg_x_min', 'background x min'],
-            ['bkg_x_max', 'background x max'], ['min_resid', 'minimum residual height'],
-            ['max_sigma', 'maximum sigma']
-        ]
-        strings = [
-            ['sample_name', 'sample name'], ['x_label', 'x label'],
-            ['y_label', 'y label'], ['min_method', 'minimization method'],
-            ['default_model', 'default model'], ['bkg_type', 'background model']
-        ]
-        user_inputs = [
-            ['model_list', 'model list', str, True],
-            ['peak_list', 'peak x values', float, True]
-        ]
-    
-        col = sg.Column(column_layout, scrollable=True,
-                        vertical_scroll_only=True, size=(700, 500))
+
         layout = [
-            [sg.Frame('', [[col]])],
+            [sg.Frame('', [
+                [sg.Column(column_layout, scrollable=True,
+                           vertical_scroll_only=True, size=(700, 500))]
+            ])],
             [sg.Checkbox('Show Plots After Fitting', key='show_plots',
                          default=default_inputs['show_plots'])],
             [sg.Checkbox('Batch Fit (will not show this window again)',
@@ -439,12 +416,50 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
             [sg.Checkbox('Debug Fitting Process', key='debug',
                          default=default_inputs['debug'])],
             [sg.Text('')],
-            [sg.Button('Fit', bind_return_key=True, size=(6,1),
-                       button_color=('white','#00A949')),
+            [sg.Button('Fit', bind_return_key=True, size=(6, 1),
+                       button_color=utils.PROCEED_COLOR),
              sg.Button('Test Plot'),
              sg.Button('Show Data'),
              sg.Button('Reset to Default')]
         ]
+        validations = {
+            'integers': [
+                ['x_fit_index', 'x column'],
+                ['y_fit_index', 'y column'],
+                ['poly_n', 'polynomial order'],
+                ['num_resid_fits', 'number of residual fits']
+            ],
+            'floats': [
+                ['x_min', 'x min'],
+                ['x_max', 'x max'],
+                ['peak_width', 'peak width'],
+                ['bkg_x_min', 'background x min'],
+                ['bkg_x_max', 'background x max'],
+                ['height', 'minimum height'],
+                ['prominence', 'prominence'],
+                ['center_offset', 'center offset'],
+                ['min_resid', 'minimum residual height'],
+                ['max_sigma', 'maximum sigma']
+            ],
+            'strings': [
+                ['bkg_type', 'background model'],
+                ['min_method', 'minimization method'],
+                ['default_model', 'default model'],
+            ],
+            'user_inputs': [
+                ['sample_name', 'sample name', utils.string_to_unicode, False, None],
+                ['x_label', 'x label', utils.string_to_unicode, False, None],
+                ['y_label', 'y label', utils.string_to_unicode, False, None],
+                ['model_list', 'model list', str, True],
+                ['peak_list', 'peak x values', float, True]
+            ]
+        }
+
+        plot_validations = {
+            'integers': validations['integers'][:3],
+            'floats': validations['floats'][:5],
+            'strings': validations['strings'][:1],
+        }
 
         window = sg.Window('Peak Fitting', layout, finalize=True)
         if default_inputs['manual_peaks']:
@@ -453,9 +468,9 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
         if default_inputs['manual_bkg']:
             window['manual_bkg_tab'].select()
             window['automatic_bkg_tab'].update(visible=False)
-        
+
         while True:
-            event, gui_values = window.read()
+            event, values = window.read()
 
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
@@ -466,7 +481,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                 peak_list = []
 
             elif event == 'Test Plot':
-                _show_fit_plot(dataframe, gui_values)
+                _show_fit_plot(dataframe, values)
 
             elif event == 'Show Data':
                 data_window = utils.show_dataframes(dataframe)
@@ -476,7 +491,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     data_window = None
 
             elif event == 'Update Peak & Model Lists':
-                #updates values in the window from the peak selector plot
+                # updates values in the window from the peak selector plot
                 centers = [[peak[0][0], np.round(peak[1][0], 2)] for peak in peak_list]
                 sorted_peaks = sorted(centers, key=lambda x: x[1])
                 sorted_centers = ', '.join([str(center) for model, center in sorted_peaks])
@@ -486,14 +501,14 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                 window['model_list'].update(value=model_list)
                 if any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list):
                     window['vary_Voigt'].update(disabled=False)
-                elif gui_values['default_model'] not in ('VoigtModel', 'SkewedVoigtModel'):
+                elif values['default_model'] not in ('VoigtModel', 'SkewedVoigtModel'):
                     window['vary_Voigt'].update(disabled=True, value=False)
 
             elif event == 'bkg_selector':
                 plt.close('Background Selector')
                 try:
-                    x_index = int(gui_values['x_fit_index'])
-                    y_index = int(gui_values['y_fit_index'])
+                    x_index = int(values['x_fit_index'])
+                    y_index = int(values['y_fit_index'])
                     x_data = dataframe[headers[x_index]].astype(float)
                     y_data = dataframe[headers[y_index]].astype(float)
                     bkg_points = peak_fitting.background_selector(x_data, y_data,
@@ -503,40 +518,27 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
 
             elif event == 'Launch Peak Selector':
                 plt.close('Peak Selector')
-
-                integers_tmp = integers[:3]
-                floats_tmp = [['x_min','x min'], ['x_max','x max'],
-                              ['peak_width','peak width'],
-                              ['bkg_x_min','background x min'],
-                              ['bkg_x_max','background x max']]
-                strings_tmp = [['sample_name','sample name'],
-                               ['x_label','x label'],
-                               ['y_label','y label'],
-                               ['bkg_type','background model']]
-
-                proceed = utils.validate_inputs(gui_values, integers_tmp,
-                                                floats_tmp, strings_tmp)
-                if proceed:
+                if utils.validate_inputs(values, **plot_validations):
                     try:
                         headers = dataframe.columns
-                        x_index = int(gui_values['x_fit_index'])
-                        y_index = int(gui_values['y_fit_index'])
+                        x_index = int(values['x_fit_index'])
+                        y_index = int(values['y_fit_index'])
                         x_data = dataframe[headers[x_index]].astype(float)
                         y_data = dataframe[headers[y_index]].astype(float)
-                        x_min = float(gui_values['x_min']) if gui_values['x_min'] != '-inf' else -np.inf
-                        x_max = float(gui_values['x_max']) if gui_values['x_max'] != 'inf' else np.inf
-                        bkg_min = float(gui_values['bkg_x_min']) if gui_values['bkg_x_min'] != '-inf' else -np.inf
-                        bkg_max = float(gui_values['bkg_x_max']) if gui_values['bkg_x_max'] != 'inf' else np.inf
-                        subtract_bkg = gui_values['subtract_bkg']
-                        background_type = gui_values['bkg_type']
-                        bkg_min = float(gui_values['bkg_x_min']) if gui_values['bkg_x_min'] != '-inf' else -np.inf
-                        bkg_max = float(gui_values['bkg_x_max']) if gui_values['bkg_x_max'] != 'inf' else np.inf
-                        poly_n = int(gui_values['poly_n'])
-                        peak_width = float(gui_values['peak_width'])
-                        default_model = gui_values['default_model']
+                        x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
+                        x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
+                        bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
+                        bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
+                        subtract_bkg = values['subtract_bkg']
+                        background_type = values['bkg_type']
+                        bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
+                        bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
+                        poly_n = int(values['poly_n'])
+                        peak_width = float(values['peak_width'])
+                        default_model = values['default_model']
 
                         if subtract_bkg:
-                            if gui_values['manual_bkg']:
+                            if values['manual_bkg']:
                                 subtract_bkg = False
                                 y_subtracted = y_data.copy()
                                 if len(bkg_points) > 1:
@@ -584,7 +586,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     window['auto_bkg_tab'].update(visible=False)
 
             elif event == 'subtract_bkg':
-                if gui_values['subtract_bkg']:
+                if values['subtract_bkg']:
                     window['bkg_type'].update(visible=True)
                     window['poly_n'].update(visible=True)
                     window['bkg_x_min'].update(visible=True)
@@ -602,21 +604,21 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     window['bkg_selector'].update(disabled=True)
 
             elif event == 'bkg_type':
-                if gui_values['bkg_type'] == 'PolynomialModel':
+                if values['bkg_type'] == 'PolynomialModel':
                     window['poly_n'].update(visible=True)
                 else:
                     window['poly_n'].update(visible=False, value='0')
 
             elif event in ('model_list', 'default_model'):
-                tmp_model_list = [entry for entry in gui_values['model_list'].replace(' ', '').split(',') if entry != '']
+                tmp_model_list = [entry for entry in values['model_list'].replace(' ', '').split(',') if entry != '']
                 v_models = ['VoigtModel', 'SkewedVoigtModel']
-                if (any(model in v_models for model in tmp_model_list)) or (gui_values['default_model'] in v_models):
+                if (any(model in v_models for model in tmp_model_list)) or (values['default_model'] in v_models):
                     window['vary_Voigt'].update(disabled=False)
                 else:
                     window['vary_Voigt'].update(disabled=True, value=False)
 
             elif event == 'fit_residuals':
-                if gui_values['fit_residuals']:
+                if values['fit_residuals']:
                     window['min_resid'].update(visible=True)
                     window['num_resid_fits'].update(visible=True)
                 else:
@@ -624,18 +626,17 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     window['num_resid_fits'].update(visible=False, value=5)
 
             elif event =='Fit':
-                if ((not plt.fignum_exists('Peak Selector')) and
-                    (not plt.fignum_exists('Background Selector'))):
+                if (not plt.fignum_exists('Peak Selector')
+                        and not plt.fignum_exists('Background Selector')):
 
-                    close = utils.validate_inputs(gui_values, integers, floats,
-                                                  strings, user_inputs)
+                    close = utils.validate_inputs(values, **validations)
                 else:
                     sg.popup('Please close the Peak and/or Background Selection plots.')
                     continue
 
                 if close:
                     model_list = [entry for entry in
-                                  gui_values['model_list'].replace(' ', '').split(',')
+                                  values['model_list'].replace(' ', '').split(',')
                                   if entry != '']
                     for entry in model_list:
                         if entry not in available_models:
@@ -647,22 +648,22 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     continue
 
                 if close:
-                    if not gui_values['manual_peaks']:
+                    if not values['manual_peaks']:
 
-                        x_index = int(gui_values['x_fit_index'])
-                        y_index = int(gui_values['y_fit_index'])
+                        x_index = int(values['x_fit_index'])
+                        y_index = int(values['y_fit_index'])
                         x_data = dataframe[headers[x_index]]
                         y_data = dataframe[headers[y_index]]
-                        x_min = float(gui_values['x_min']) if gui_values['x_min'] != '-inf' else -np.inf
-                        x_max = float(gui_values['x_max']) if gui_values['x_max'] != 'inf' else np.inf
-                        height = float(gui_values['height'])
-                        prominence = float(gui_values['prominence']) if gui_values['prominence'] != 'inf' else np.inf
+                        x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
+                        x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
+                        height = float(values['height'])
+                        prominence = float(values['prominence']) if values['prominence'] != 'inf' else np.inf
                         if x_min == -np.inf:
                             x_min = min(x_data)
                         if x_max == np.inf:
                             x_max = max(x_data)
                         additional_peaks = [float(entry) for entry in
-                                            gui_values['peak_list'].replace(' ', '').split(',') if entry != '']
+                                            values['peak_list'].replace(' ', '').split(',') if entry != '']
 
                         peaks = peak_fitting.find_peak_centers(
                             x_data, y_data, additional_peaks,
@@ -684,57 +685,57 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
 
         plt.close('Fitting')
 
-    x_label = utils.string_to_unicode(gui_values['x_label'])
-    y_label = utils.string_to_unicode(gui_values['y_label'])
-    x_index = int(gui_values['x_fit_index'])
-    y_index = int(gui_values['y_fit_index'])
+    x_label = utils.string_to_unicode(values['x_label'])
+    y_label = utils.string_to_unicode(values['y_label'])
+    x_index = int(values['x_fit_index'])
+    y_index = int(values['y_fit_index'])
     x_data = dataframe[headers[x_index]]
     y_data = dataframe[headers[y_index]]
-    x_min = float(gui_values['x_min']) if gui_values['x_min'] != '-inf' else -np.inf
-    x_max = float(gui_values['x_max']) if gui_values['x_max'] != 'inf' else np.inf
-    default_model = gui_values['default_model']
-    vary_Voigt = gui_values['vary_Voigt']
-    center_offset = float(gui_values['center_offset'])
-    min_method = gui_values['min_method']
-    subtract_bkg = gui_values['subtract_bkg']
-    background_type = gui_values['bkg_type']
-    bkg_min = float(gui_values['bkg_x_min']) if gui_values['bkg_x_min'] != '-inf' else -np.inf
-    bkg_max = float(gui_values['bkg_x_max']) if gui_values['bkg_x_max'] != 'inf' else np.inf
-    max_sigma = float(gui_values['max_sigma']) if gui_values['max_sigma'] != 'inf' else np.inf
-    poly_n = int(gui_values['poly_n'])
-    fit_residuals = gui_values['fit_residuals']
-    min_resid = float(gui_values['min_resid'])
-    num_resid_fits = int(gui_values['num_resid_fits'])
-    debug = gui_values['debug']
+    x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
+    x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
+    default_model = values['default_model']
+    vary_Voigt = values['vary_Voigt']
+    center_offset = float(values['center_offset'])
+    min_method = values['min_method']
+    subtract_bkg = values['subtract_bkg']
+    background_type = values['bkg_type']
+    bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
+    bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
+    max_sigma = float(values['max_sigma']) if values['max_sigma'] != 'inf' else np.inf
+    poly_n = int(values['poly_n'])
+    fit_residuals = values['fit_residuals']
+    min_resid = float(values['min_resid'])
+    num_resid_fits = int(values['num_resid_fits'])
+    debug = values['debug']
 
-    if gui_values['manual_peaks']:
+    if values['manual_peaks']:
         peaks = sorted(peak_list, key=lambda x: x[1][0])
         additional_peaks = [peak[1][0] for peak in peaks]
         model_list = [peak[0][0] for peak in peaks]
         peak_width = [peak[1][2] for peak in peaks]
         peak_heights = [peak[1][1] for peak in peaks]
-        gui_values['selected_peaks'] = peak_list
+        values['selected_peaks'] = peak_list
         # ensures no additional peaks are found
         height = np.inf
         prominence = np.inf
 
     else:
         additional_peaks = [
-            float(entry) for entry in gui_values['peak_list'].replace(' ', '').split(',') if entry
+            float(entry) for entry in values['peak_list'].replace(' ', '').split(',') if entry
         ]
         model_list = [
-            entry for entry in gui_values['model_list'].replace(' ', '').split(',') if entry
+            entry for entry in values['model_list'].replace(' ', '').split(',') if entry
         ]
-        peak_width = float(gui_values['peak_width'])
+        peak_width = float(values['peak_width'])
         peak_heights = None
-        gui_values['selected_peaks'] = []
-        height = float(gui_values['height'])
-        prominence = float(gui_values['prominence']) if gui_values['prominence'] != 'inf' else np.inf
+        values['selected_peaks'] = []
+        height = float(values['height'])
+        prominence = float(values['prominence']) if values['prominence'] != 'inf' else np.inf
 
 
     if subtract_bkg:
-        if gui_values['manual_bkg']:
-            gui_values['selected_bkg'] = bkg_points
+        if values['manual_bkg']:
+            values['selected_bkg'] = bkg_points
             subtract_bkg = False
             y_subtracted = y_data.copy()
             if len(bkg_points) > 1:
@@ -750,7 +751,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                     y_subtracted[boundary] = y_line - line
             y_data = y_subtracted
         else:
-            gui_values['selected_bkg'] = []
+            values['selected_bkg'] = []
 
     fitting_results = peak_fitting.plugNchug_fit(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
@@ -829,7 +830,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
                              'A.I.C.',  'B.I.C.', 'minimization method']
     )
 
-    if gui_values['show_plots']:
+    if values['show_plots']:
         peak_fitting.plot_fit_results(x, y, fit_result, True, True)
         peak_fitting.plot_individual_peaks(
             x, y, individual_peaks[-1], fit_result[-1],
@@ -837,7 +838,7 @@ def fit_dataframe(dataframe, user_inputs=None): #TODO need to fix validations
         )
         plt.pause(0.01)
 
-    return fit_result, peaks_df, params_df, descriptors_df, gui_values
+    return fit_result, peaks_df, params_df, descriptors_df, values
 
 
 def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
@@ -1019,7 +1020,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         formats = [odd_bold_format, even_bold_format]
     for k, parameter in enumerate(descriptors_dataframe.index):
         worksheet.write(1 + k, 2 * (j + 1) + i + 1, parameter, formats[0])
-    
+
     worksheet.set_column((j + 1) * 2 + i + 1, (j + 1) * 2 + i + 1, 22, formats[0])
     worksheet.set_column((j + 1) * 2 + i + 2, (j + 1) * 2 + i + 2, 15, formats[1])
     worksheet.set_row(0, 18)
@@ -1075,13 +1076,15 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         A dictionary of changes to apply to matplotlib's rcParams file.
     save_when_done : bool, optional
         If True (default), then the Excel file will be saved once all dataframes
-        are fit. 
+        are fit.
 
     Returns
     -------
     fit_results : list
         A list of lists of lmfit.ModelResult objects, which give information
         for each of the fits done on the dataframes.
+    gui_values : dict, optional
+        A dictionary containing the default gui values to pass to fit_dataframe.
     proceed : bool
         True if the fitting gui was not exited from prematurely, otherwise,
         the value is False. Useful when calling this function from an
@@ -1090,7 +1093,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
     """
     #TODO check that mpl backend is interactive; if not, try to switch to tkAgg
-    rc_params = mpl_changes if mpl_changes is not None else {}
+    rc_params = mpl_changes.copy() if mpl_changes is not None else {}
     rc_params.update({
         'interactive': False,
         'figure.constrained_layout.use': False,
@@ -1100,7 +1103,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     dpi = rc_params.get('figure.dpi', plt.rcParams['figure.dpi'])
     dpi_scale = utils.get_dpi_correction(dpi)
     rc_params.update({'figure.dpi': dpi_scale * dpi})
-    
+
     if dataframe is not None and isinstance(dataframe, pd.DataFrame):
         fit_dataframes = [dataframe]
     else:
@@ -1118,12 +1121,12 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         try:
             with plt.rc_context(rc_params):
                 fit_output = fit_dataframe(dataframe, gui_values)
-                
+
         except (utils.WindowCloseError, KeyboardInterrupt):
             proceed = False
             break
-        
-        if not fit_output:
+
+        if not fit_output: #TODO for use later to allow skipping individual fits while still proceeding with fitting
             fit_results.append(None)
         else:
             fit_results.append(fit_output[0])
@@ -1135,9 +1138,9 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             if save_excel:
                 fit_to_excel(peak_df, params_df, descriptors_df,
                              writer, gui_values['sample_name'], plot_excel)
-    
+
     if save_excel and save_when_done and not all(entry is None for entry in fit_results):
         #save the Excel file
         writer.save()
-        
-    return fit_results, proceed
+
+    return fit_results, gui_values, proceed
