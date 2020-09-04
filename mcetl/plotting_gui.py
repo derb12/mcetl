@@ -709,9 +709,9 @@ def _create_figure(fig_kwargs, saving=False):
         dpi_scale = utils.get_dpi_correction(float(fig_kwargs['dpi']))
 
         if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
-            size_scale = _CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
+            size_scale = CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
         else:
-            size_scale = _CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
+            size_scale = CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
 
         dpi = float(fig_kwargs['dpi']) * dpi_scale * size_scale
 
@@ -1187,8 +1187,8 @@ def _select_plot_type(user_inputs=None):
                        button_color=utils.PROCEED_COLOR)]
          ]),
          sg.Column([
-             [sg.Canvas(key='example_canvas', size=_CANVAS_SIZE, pad=(0, 0))]
-         ], size=(_CANVAS_SIZE[0] + 10, _CANVAS_SIZE[1] + 10), pad=(20, 0))]
+             [sg.Canvas(key='example_canvas', size=CANVAS_SIZE, pad=(0, 0))]
+         ], size=(CANVAS_SIZE[0] + 10, CANVAS_SIZE[1] + 10), pad=(20, 0))]
     ]
 
     fig = _create_figure(fig_kwargs)
@@ -1734,20 +1734,20 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 [sg.Text('')]
             ]
 
-            label_tabs.append([
+            label_tabs.append(
                 [sg.Tab(label,
                         [[sg.Column(column_layout, scrollable=True,
                                     vertical_scroll_only=True, size=(750, 650))]],
                         key=f'label_tab_{i}{j}')]
-            ])
+            )
 
         axis_label = axes[key]['Main Axis'].get_label().split(', ')
-        axes_tabs.append([
+        axes_tabs.append(
             [sg.Tab(f'R{axis_label[0].split(" ")[1]}, C{axis_label[1].split(" ")[1]}',
                     [[sg.TabGroup(label_tabs, key=f'label_tabgroup_{i}',
                                   tab_background_color=sg.theme_background_color())]],
                     key=f'tab_{i}')]
-        ])
+        )
 
     layout = [
         [sg.Menu([
@@ -1773,9 +1773,9 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                        button_color=('white', '#00A949'))]
         ], key='options_column'),
          sg.Column([
-            [sg.Canvas(key='controls_canvas', pad=(0, 0), size=(_CANVAS_SIZE[0], 10))],
-            [sg.Canvas(key='fig_canvas', size=_CANVAS_SIZE, pad=(0, 0))]
-         ], size=(_CANVAS_SIZE[0] + 40, _CANVAS_SIZE[1] + 50), pad=(10, 0))
+            [sg.Canvas(key='controls_canvas', pad=(0, 0), size=(CANVAS_SIZE[0], 10))],
+            [sg.Canvas(key='fig_canvas', size=CANVAS_SIZE, pad=(0, 0))]
+         ], size=(CANVAS_SIZE[0] + 40, CANVAS_SIZE[1] + 50), pad=(10, 0))
         ]
     ]
 
@@ -1783,7 +1783,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     window = sg.Window('Plot Options', layout, resizable=True, finalize=True)
     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
                            window['controls_canvas'].TKCanvas)
-    window['options_column'].expand(True, True) #expands the column when window changes size
+    window['options_column'].expand(True, True) # expands the column when window changes size
 
     return window
 
