@@ -7,25 +7,25 @@ Created on Tue May 5 17:08:53 2020
 """
 
 
-import os
-from pathlib import Path
 import itertools
 import json
+import os
+from pathlib import Path
 import traceback
 
 import pandas as pd
-import xlwings as xw
 import PySimpleGUI as sg
+import xlwings as xw
 
-from . import utils
-from .file_organizer import file_finder, file_mover
-from .datasource import DataSource
-from .peak_fitting_gui import launch_peak_fitting_gui
-from .plotting_gui import launch_plotting_gui
+from mcetl import utils
+from mcetl.file_organizer import file_finder, file_mover
+from mcetl.datasource import DataSource
+from mcetl.peak_fitting_gui import launch_peak_fitting_gui
+from mcetl.plotting_gui import launch_plotting_gui
 
 
 def _generate_excel(dataframe, sample_names, data_source, subheader_names,
-                    excel_writer, plot_options, sheet_name=None, plot_excel=False):
+                    excel_writer, plot_options, sheet_name, plot_excel):
     """
     Creates an Excel sheet from data within a list of dataframes.
 
@@ -45,9 +45,9 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
         information about the Excel file being created.
     plot_options : dict
         A dictionary of options used to create the Excel plot if plot_excel is True.
-    sheet_name: str, optional
+    sheet_name: str
         The Excel sheet name.
-    plot_excel : bool, optional
+    plot_excel : bool
         If True, will create a simple plot in Excel using the data_source's
         x_plot_index and y_plot_index.
 
@@ -60,20 +60,16 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
     (odd_header_format, even_header_format, odd_colnum_format,
      even_colnum_format) = excel_book.formats[2:6]
 
-    #Ensures that the sheet name is unique so it does not overwrite data
+    # Ensures that the sheet name is unique so it does not overwrite data
     num = 1
-    if sheet_name is not None:
-        sheet_base = sheet_name
-    else:
-        sheet_base = 'Sheet'
-        sheet_name = 'Sheet_1'
+    sheet_base = sheet_name
     while True:
         close_loop = True
         for sheet in excel_writer.sheets:
             if sheet_name.lower() == sheet.lower():
+                sheet_name = f'{sheet_base}_{num}'
                 num += 1
                 close_loop = False
-                sheet_name = f'{sheet_base}_{num}'
                 break
         if close_loop:
             break
@@ -86,7 +82,7 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
     )
     worksheet = excel_writer.sheets[sheet_name]
 
-    #Modifies the formatting to look good in Excel
+    # Modifies the formatting to look good in Excel
     for i in range(len(input_dataframes)):
         if i % 2 == 0:
             formats = [even_header_format, even_colnum_format]
@@ -105,7 +101,7 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
             12.5, formats[1]
         )
 
-    #changes row height in Excel
+    # changes row height in Excel
     worksheet.set_row(first_row, 18)
     worksheet.set_row(first_row + 1, 44)
 
@@ -113,14 +109,14 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
 
         x_col = plot_options['x_plot_index']
         y_col = plot_options['y_plot_index']
-        x_min = float(plot_options['x_min']) if plot_options['x_min'] else None
-        x_max = float(plot_options['x_max']) if plot_options['x_max'] else None
-        y_min = float(plot_options['y_min']) if plot_options['y_min'] else None
-        y_max = float(plot_options['y_max']) if plot_options['y_max'] else None
+        x_min = plot_options['x_min']
+        x_max = plot_options['x_max']
+        y_min = plot_options['y_min']
+        y_max = plot_options['y_max']
+        
         x_reverse = False
         y_reverse = False
-
-        #reverses x or y axes if min > max
+        # reverses x or y axes if min > max
         if None not in (x_min, x_max) and x_min > x_max:
             x_reverse = True
             x_min, x_max = x_max, x_min
@@ -132,13 +128,14 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
         x_crossing = 'max' if x_reverse else None
         y_crossing = 'max' if y_reverse else None
 
-        chart = excel_book.add_chart({'type': 'scatter',
-                                      'subtype':'straight'})
+        chart = excel_book.add_chart(
+            {'type': 'scatter', 'subtype':'straight'}
+        )
         #TODO plot every measurement for each sample, but skip summary sections
         for i in range(len(input_dataframes)):
             df_xcol = dataframe.columns[i*len(subheader_names) + x_col]
 
-            #categories is the x column and values is the y column
+            # categories is the x column and values is the y column
             chart.add_series({
                 'name': [sheet_name, first_row, i*len(subheader_names)],
                 'categories':[
@@ -183,12 +180,6 @@ def _select_processing_options(data_sources):
     -------
     values : dict
         A dictionary containing the processing options.
-
-    Raises
-    ------
-    WindowCloseError
-        The exception is raised if the window is closed by pressing the
-        'X' button in the interface.
 
     """
 
@@ -337,7 +328,7 @@ def _select_processing_options(data_sources):
 
     values['append_file'] = values['append_file'] == 'Append to existing file'
 
-    #removes unneeded keys
+    # removes unneeded keys
     for key in ('file_save_as', 'save_as', 'single_file', 'tab'):
         del values[key]
 
@@ -650,7 +641,7 @@ def _fit_data(datasets, data_source, sample_names, column_headers,
     """
     
     # changes some defaults for the plot formatting to look nice
-    mpl_changes = {
+    mpl_changes = { #TODO maybe allow this to be an input into the main gui function
         'font.serif': 'Times New Roman',
         'font.family': 'serif',
         'font.size': 12,
@@ -677,8 +668,8 @@ def _fit_data(datasets, data_source, sample_names, column_headers,
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
-    #allows exiting from the peak fitting GUI early, if desired or because of
-    #an exception, while still continuing with the program
+    # allows exiting from the peak fitting GUI early, if desired or because of
+    # an exception, while still continuing with the program
     try:
 
         default_inputs = {
@@ -698,7 +689,7 @@ def _fit_data(datasets, data_source, sample_names, column_headers,
                         'sample_name': f'{sample_names[i][j]}_{k}_fit'
                     })
 
-                    fit_output, proceed = launch_peak_fitting_gui(
+                    fit_output, default_inputs, proceed = launch_peak_fitting_gui(
                         entry, default_inputs, excel_writer,
                         options['save_fitting'], options['plot_fit_excel'],
                         mpl_changes, False)
@@ -758,13 +749,9 @@ def _move_files(files):
         A nested list of lists of lists of strings corresponding
         to file paths.
 
-    Returns
-    -------
-    None.
-
     """
 
-    text_layout = [[sg.Text(f'Dataset {i+1}')] for i in range(len(files))]
+    text_layout = [[sg.Text(f'Dataset {i + 1}')] for i in range(len(files))]
     files_layout = [
         [sg.Input('', key=f'folder_{i}', enable_events=True,
                   disabled=True),
@@ -790,51 +777,51 @@ def _move_files(files):
                   enable_events=True, disabled=len(files) == 1)]
     ]
 
-    window = sg.Window('Move Files', layout)
-    while True:
-        event, values = window.read()
+    try:
+        window = sg.Window('Move Files', layout)
+        while True:
+            event, values = window.read()
 
-        if event == sg.WIN_CLOSED:
-            utils.safely_close_window(window)
+            if event == sg.WIN_CLOSED:
+                utils.safely_close_window(window)
 
-        elif 'folder_' in event:
-            if values['same_folder']:
-                folder = values['folder_0']
+            elif event.startswith('folder_') and values['same_folder']:
                 for i in range(1, len(files)):
-                    window[f'folder_{i}'].update(value=folder)
+                    window[f'folder_{i}'].update(value=values['folder_0'])
 
-        elif event == 'same_folder':
-            if values['same_folder']:
-                folder = values['folder_0']
-                for i in range(1, len(files)):
-                    window[f'folder_{i}'].update(value=folder)
-                    window[f'button_{i}'].update(disabled=True)
-            else:
-                for i in range(1, len(files)):
-                    window[f'button_{i}'].update(disabled=False)
+            elif event == 'same_folder':
+                if values['same_folder']:
+                    for i in range(1, len(files)):
+                        window[f'folder_{i}'].update(value=values['folder_0'])
+                        window[f'button_{i}'].update(disabled=True)
+                else:
+                    for i in range(1, len(files)):
+                        window[f'button_{i}'].update(disabled=False)
 
-        elif event == 'Submit':
-            close = True
-            for i in range(len(files)):
-                if values[f'folder_{i}'] == '':
-                    close = False
-                    sg.popup('Please enter folders for all datasets',
-                             title='Error')
+            elif event == 'Submit':
+                if any(not values[key] for key in values if key.startswith('folder_')):
+                    sg.popup('Please enter folders for all datasets', title='Error')
+                else:
                     break
-            if close:
-                break
 
-    window.close()
-    del window
+        window.close()
+        del window
+    
+    except (utils.WindowCloseError, KeyboardInterrupt):
+        print('\nMoving files manually ended early.\nMoving on with program.')
 
-    if values is not None and None not in values.values():
-        folders = [values[f'folder_{i}'] for i in range(len(files))]
-        #TODO need to check that this still works once there are multiple files per sample
-        for i, file_list in enumerate(files):
-            #Will automatically rename files if there is already a file with
-            #the same name in the destination folder.
-            file_mover(file_list, new_folder=folders[i],
-                       skip_same_files=False)
+    else:
+        try:
+            folders = [values[f'folder_{i}'] for i in range(len(files))]
+            for i, file_list in enumerate(files):
+                # Will automatically rename files if there is already a file with
+                # the same name in the destination folder.
+                file_mover(file_list, new_folder=folders[i],
+                           skip_same_files=False)
+        except Exception:
+            print('\nException occured during moving files:\n')
+            print(traceback.format_exc())
+            print('Moving on with program.')
 
 
 def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
@@ -856,10 +843,6 @@ def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
     alternate_name : str, optional
         If append_file is True, this is the file path string
         for the actual file. The default is None.
-
-    Returns
-    -------
-    None.
 
     """
 
@@ -953,7 +936,6 @@ def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
                         app.kill()
 
 
-#TODO split this up into multiple function; maybe allow going back?
 def launch_main_gui(data_sources):
     """
     Goes through all of the windows to find files, process/plot/fit data, and save to Excel.
@@ -1099,38 +1081,46 @@ def launch_main_gui(data_sources):
             column_headers = []
             plot_options = []
 
-            label_values = _select_column_labels(
+            labels = _select_column_labels(
                 dataframes, data_source, processing_options
             )
 
-            for i, label_dict in enumerate(label_values):
+            for values in labels:
                 
-                sheet_names.append(values['sheet_name'])
-                column_headers.append([values[f'data_header_{j}'] for j in range(len(total_cols))])
-                sample_names.append([values[f'sample_name_{j}']for j in range(len(dataframe_list))])
+                sheet_names.append(utils.string_to_unicode(values['sheet_name']))
+                sample_names.append(
+                    utils.string_to_unicode([
+                        values[key] for key in values if key.startswith('sample_name')
+                    ])
+                )
+                column_headers.append(
+                    utils.string_to_unicode([
+                        values[key] for key in values if key.startswith('data_label')
+                    ])
+                )
 
-                if processing_options['plot_data_excel']:
-                    plot_dict = {}
-                    for entry in ('x_plot_index', 'y_plot_index', 'x_label',
-                                  'y_label', 'x_min', 'x_max', 'y_min', 'y_max'):
-                        plot_dict[entry] = values.pop(entry)
-                    plot_options.append(plot_dict)
+                if processing_options['process_data']:
+                    for prefix in ('calculation_label', 'sample_summary_label',
+                                   'dataset_summary_label'):
+                        column_headers[-1].extend(
+                            utils.string_to_unicode([
+                                values[key] for key in values if key.startswith(prefix)
+                            ])
+                        )
 
-            sheet_names = utils.string_to_unicode(sheet_names)
-            column_headers = [
-                utils.string_to_unicode(input_list) for input_list in column_headers
-            ]
-            sample_names = [
-                utils.string_to_unicode(input_list) for input_list in sample_names
-            ]
-            for entry in plot_options:
-                if entry is not None:
-                    entry['x_label'] = utils.string_to_unicode(entry['x_label'])
-                    entry['y_label'] = utils.string_to_unicode(entry['y_label'])
-                    entry['x_plot_index'] = int(entry['x_plot_index'])
-                    entry['y_plot_index'] = int(entry['y_plot_index'])
-                    data_source.x_plot_index = entry['x_plot_index']
-                    data_source.y_plot_index = entry['y_plot_index']
+                if not processing_options['plot_data_excel']:
+                    plot_options.append(None)
+                else:
+                    plot_options.append({
+                        'x_label': utils.string_to_unicode(values['x_label']),
+                        'y_label': utils.string_to_unicode(values['y_label']),
+                        'x_plot_index': int(values['x_plot_index']),
+                        'y_plot_index': int(values['y_plot_index']),
+                        'x_min':  float(values['x_min']) if values['x_min'] else None,
+                        'x_max':  float(values['x_max']) if values['x_max'] else None,
+                        'y_min':  float(values['y_min']) if values['y_min'] else None,
+                        'y_max':  float(values['y_max']) if values['y_max'] else None
+                    })
 
         # Collects each set of data into a single dataframe and applies formulas according
         # to the selected data source
@@ -1163,7 +1153,7 @@ def launch_main_gui(data_sources):
                 merged_dataframes = data_source.do_python_functions(merged_dataframes)
 
             # split data back into individual dataframes
-            dataframes = data_source.split_into_measurements(merged_dataframes)
+            dataframes = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
         """
@@ -1191,15 +1181,15 @@ def launch_main_gui(data_sources):
                 writer, processing_options
             )
 
-        # Handles moving files
-        if processing_options['move_files']:
-            _move_files(files)
-
         # Handles saving the Excel file and transferring sheets if appending to an existing file
         if processing_options['save_excel']:
             _save_excel_file(
                 processing_options['append_file'], writer, excel_filename, final_name
             )
+
+        # Handles moving files
+        if processing_options['move_files']:
+            _move_files(files)
 
         # Handles plotting in python
         if processing_options['plot_python']:
@@ -1211,3 +1201,66 @@ def launch_main_gui(data_sources):
         print(traceback.format_exc())
 
     return dataframes, fit_results, plot_results
+
+if __name__ == '__main__':
+
+    import numpy as np
+    from mcetl import CalculationFunction
+
+    def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
+        """Example CalculationFunction with named kwargs"""
+
+        for i, sample in enumerate(calc_indices):
+            for j, calc_col in enumerate(sample):
+                if excel_columns is not None:
+                    y = df[target_indices[0][i][j]]
+                    y_col = excel_columns[target_indices[0][i][j]]
+                    calc = [
+                        f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(y))
+                    ]
+
+                    df[calc_col] = np.where(~np.isnan(y), calc, '')
+                else:
+                    y_col = df[df.columns[target_indices[0][i][j]]]
+                    df[df.columns[calc_col]] = y_col + offset
+
+            offset += offset
+
+        return df
+
+    offset = CalculationFunction('offset', 'Intensity', offset_func, 1, {'offset': 1000})
+    
+    #Definitions for each data source
+    xrd = DataSource(
+        name='XRD',
+        column_labels=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
+        functions=offset, column_numbers=[1, 2],
+        start_row=1, end_row=0, separator=',',
+        xy_plot_indices=[0, 2], file_type='csv', num_files=1,
+        unique_variables=['2\u03B8', 'Intensity']
+    )
+    
+    """
+    ftir = DataSource('FTIR', ['Wavenumber (1/cm)','Absorbance (a.u.)',
+                                     'Offset Absorbance (a.u.)'],
+                                     ['offset', 'normalize', 'fit_peaks'], [0, 1],
+                                     1, 0, 0, ',', [0, 1], [0, 2], 'csv')
+    raman = DataSource('Raman', ['Raman Shift (1/cm)','Intensity (a.u.)',
+                                      'Offset Intensity (a.u.)'],
+                                      ['offset', 'normalize', 'fit_peaks'], [0, 1],
+                                      1, 0, 0, '\\t', [0, 1], [0, 2], 'txt')
+    tga = DataSource('TGA', ['Temperature (\u00B0C)', 'Time (min)',
+                                    'Mass (%)', 'Mass Loss Rate (%/\u00B0C)',
+                                    'Fraction Mass Lost'],
+                                    ['negative_derivative', 'max_x', 'fit_peaks',
+                                     'fractional_change'],
+                                    [0, 1, 2], None, 34, 0, ';', [0, 2], [0, 2], 'txt')
+    """
+    
+    other = DataSource('Other')
+    
+    #Put all DataSource objects in this tuple in order to use them
+    data_sources = (xrd, other)
+    
+    #call the main function with data_sources as the input
+    dataframes, fit_results, plot_results = launch_main_gui(data_sources)
