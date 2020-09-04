@@ -15,13 +15,14 @@ import traceback
 
 import pandas as pd
 import PySimpleGUI as sg
-import xlwings as xw
+if os.name == 'nt':
+    import xlwings as xw
 
-from mcetl import utils
-from mcetl.file_organizer import file_finder, file_mover
-from mcetl.datasource import DataSource
-from mcetl.peak_fitting_gui import launch_peak_fitting_gui
-from mcetl.plotting_gui import launch_plotting_gui
+from . import utils
+from .file_organizer import file_finder, file_mover
+from .datasource import DataSource
+from .peak_fitting_gui import launch_peak_fitting_gui
+from .plotting_gui import launch_plotting_gui
 
 
 def _generate_excel(dataframe, sample_names, data_source, subheader_names,
@@ -113,7 +114,7 @@ def _generate_excel(dataframe, sample_names, data_source, subheader_names,
         x_max = plot_options['x_max']
         y_min = plot_options['y_min']
         y_max = plot_options['y_max']
-        
+
         x_reverse = False
         y_reverse = False
         # reverses x or y axes if min > max
@@ -384,7 +385,15 @@ def _create_column_labels_window(
     for i in range(len(dataset)):
         default_inputs.update({f'sample_name_{i}': ''})
         validations['user_inputs'].append([
-            f'sample_name_{i}', f'sample name {i + 1}', 
+            f'sample_name_{i}', f'sample name {i + 1}',
+            utils.string_to_unicode, True, None
+        ])
+
+    if processing_options['process_data'] and data_source.dataset_summary_functions:
+        i += 1
+        default_inputs.update({f'sample_name_{i}': 'Summary'})
+        validations['user_inputs'].append([
+            f'sample_name_{i}', f'sample name {i + 1}',
             utils.string_to_unicode, True, None
         ])
 
@@ -425,9 +434,17 @@ def _create_column_labels_window(
 
     for i in range(len(dataset)):
         labels_layout.append(
-        [sg.Text(f'    Sample {i + 1}'),
-         sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
-                  key=f'sample_name_{i}', do_not_clear=True)]
+            [sg.Text(f'    Sample {i + 1}'),
+             sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
+                      key=f'sample_name_{i}', do_not_clear=True)]
+        )
+
+    if processing_options['process_data'] and data_source.dataset_summary_functions:
+        i += 1
+        labels_layout.append(
+            [sg.Text(f'    Summary'),
+             sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
+                      key=f'sample_name_{i}', do_not_clear=True)]
         )
 
     labels_layout.extend([
@@ -449,7 +466,7 @@ def _create_column_labels_window(
 
     if processing_options['process_data']:
         calc_labels = ('Calculation', 'Sample Summary', 'Dataset Summary')
-        
+
         for j, label_list in enumerate(labels[1:]):
             if label_list:
                 labels_layout.append([sg.Text(f'{calc_labels[j]} Labels:')])
@@ -482,14 +499,15 @@ def _create_column_labels_window(
             ['y_label', 'y axis label', utils.string_to_unicode, False, None],
         ])
 
+        available_cols = labels[0] + labels[1] if processing_options['process_data'] else labels[0]
         plot_layout = [
             [sg.Text('')],
             [sg.Text('Column of x data for plotting:'),
-             sg.Combo([f'{col}' for col in range(len(labels[0]) + len(labels[1]))],
+             sg.Combo([f'{col}' for col in range(len(available_cols))],
                       key='x_plot_index', readonly=True, size=(3, 1),
                       default_value=default_inputs['x_plot_index'])],
             [sg.Text('Column of y data for plotting:'),
-             sg.Combo([f'{col}' for col in range(len(labels[0]) + len(labels[1]))],
+             sg.Combo([f'{col}' for col in range(len(available_cols))],
                       key='y_plot_index', readonly=True, size=(3, 1),
                       default_value=default_inputs['y_plot_index'])],
             [sg.Text('X axis label:'),
@@ -556,7 +574,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
         labels, as well as the Excel plot options, if plotting in Excel.
         Each entry in the list corresponds to one dataset.
 
-    """    
+    """
 
     label_values = [{} for _ in dataframes]
     location = (None, None)
@@ -582,13 +600,13 @@ def _select_column_labels(dataframes, data_source, processing_options):
                      ' (m/s\\u00B2) creates Acceleration (m/s\u00B2)\n'),
                     title='Common Unicode'
                 )
-            
+
             elif event in ('Back', 'Next', 'Finish'):
                 if utils.validate_inputs(values, **validations):
                     label_values[j].update(values)
                     location = window.current_location()
                     window.close()
-                    
+
                     if event == 'Back':
                         j -= 1
                     else:
@@ -639,7 +657,7 @@ def _fit_data(datasets, data_source, sample_names, column_headers,
         the value will be None.
 
     """
-    
+
     # changes some defaults for the plot formatting to look nice
     mpl_changes = { #TODO maybe allow this to be an input into the main gui function
         'font.serif': 'Times New Roman',
@@ -693,9 +711,9 @@ def _fit_data(datasets, data_source, sample_names, column_headers,
                         entry, default_inputs, excel_writer,
                         options['save_fitting'], options['plot_fit_excel'],
                         mpl_changes, False)
-                    
+
                     results[i][j].extend(fit_output)
-                    
+
                     if not proceed:
                         raise utils.WindowCloseError
 
@@ -806,7 +824,7 @@ def _move_files(files):
 
         window.close()
         del window
-    
+
     except (utils.WindowCloseError, KeyboardInterrupt):
         print('\nMoving files manually ended early.\nMoving on with program.')
 
@@ -1086,7 +1104,7 @@ def launch_main_gui(data_sources):
             )
 
             for values in labels:
-                
+
                 sheet_names.append(utils.string_to_unicode(values['sheet_name']))
                 sample_names.append(
                     utils.string_to_unicode([
@@ -1201,66 +1219,3 @@ def launch_main_gui(data_sources):
         print(traceback.format_exc())
 
     return dataframes, fit_results, plot_results
-
-if __name__ == '__main__':
-
-    import numpy as np
-    from mcetl import CalculationFunction
-
-    def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
-        """Example CalculationFunction with named kwargs"""
-
-        for i, sample in enumerate(calc_indices):
-            for j, calc_col in enumerate(sample):
-                if excel_columns is not None:
-                    y = df[target_indices[0][i][j]]
-                    y_col = excel_columns[target_indices[0][i][j]]
-                    calc = [
-                        f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(y))
-                    ]
-
-                    df[calc_col] = np.where(~np.isnan(y), calc, '')
-                else:
-                    y_col = df[df.columns[target_indices[0][i][j]]]
-                    df[df.columns[calc_col]] = y_col + offset
-
-            offset += offset
-
-        return df
-
-    offset = CalculationFunction('offset', 'Intensity', offset_func, 1, {'offset': 1000})
-    
-    #Definitions for each data source
-    xrd = DataSource(
-        name='XRD',
-        column_labels=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
-        functions=offset, column_numbers=[1, 2],
-        start_row=1, end_row=0, separator=',',
-        xy_plot_indices=[0, 2], file_type='csv', num_files=1,
-        unique_variables=['2\u03B8', 'Intensity']
-    )
-    
-    """
-    ftir = DataSource('FTIR', ['Wavenumber (1/cm)','Absorbance (a.u.)',
-                                     'Offset Absorbance (a.u.)'],
-                                     ['offset', 'normalize', 'fit_peaks'], [0, 1],
-                                     1, 0, 0, ',', [0, 1], [0, 2], 'csv')
-    raman = DataSource('Raman', ['Raman Shift (1/cm)','Intensity (a.u.)',
-                                      'Offset Intensity (a.u.)'],
-                                      ['offset', 'normalize', 'fit_peaks'], [0, 1],
-                                      1, 0, 0, '\\t', [0, 1], [0, 2], 'txt')
-    tga = DataSource('TGA', ['Temperature (\u00B0C)', 'Time (min)',
-                                    'Mass (%)', 'Mass Loss Rate (%/\u00B0C)',
-                                    'Fraction Mass Lost'],
-                                    ['negative_derivative', 'max_x', 'fit_peaks',
-                                     'fractional_change'],
-                                    [0, 1, 2], None, 34, 0, ';', [0, 2], [0, 2], 'txt')
-    """
-    
-    other = DataSource('Other')
-    
-    #Put all DataSource objects in this tuple in order to use them
-    data_sources = (xrd, other)
-    
-    #call the main function with data_sources as the input
-    dataframes, fit_results, plot_results = launch_main_gui(data_sources)
