@@ -312,7 +312,7 @@ class DataSource:
         for i, sample in enumerate(dataset):
             for j, dataframe in enumerate(sample):
                 reference = {
-                    variable: [int(import_values[i][j][f'index_{variable}'])] for variable in self.unique_variables
+                    variable: [import_values[i][j][f'index_{variable}']] for variable in self.unique_variables
                 }
                 start_index = len(dataframe.columns)
 
@@ -459,7 +459,7 @@ class DataSource:
 
                 # add sample spacings
                 start_index = len(sample[-1].columns)
-                for num in range(start_index, self.sample_separation + start_index):
+                for num in range(start_index, start_index + self.sample_separation):
                     sample[-1][num] = pd.Series(np.nan, dtype=np.float16)
 
         # merges the references into one for each dataset

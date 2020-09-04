@@ -396,11 +396,10 @@ def raw_data_import(window_values, file, show_popup=True):
         row_end = int(window_values['row_end'])
         separator = window_values['separator'] if window_values['separator'] != '' else None
         column_numbers = [
-            int(i) for i in window_values['columns'].replace(' ', '').split(',') if i != ''
+            int(num) for num in window_values['columns'].replace(' ', '').split(',') if num
         ]
 
         if file.endswith('.xlsx'):
-
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1
             columns = [num for num in range(first_col, last_col)]
@@ -412,13 +411,10 @@ def raw_data_import(window_values, file, show_popup=True):
             )
 
             column_indices = [num + first_col for num in column_numbers]
-
             dataframes = []
             for num in range(max(1, len(total_dataframe.columns) // repeat_unit)):
                 indices = [(num * repeat_unit) + elem for elem in column_indices]
-                dataframe = total_dataframe[indices]
-                dataframe.columns = [*range(len(dataframe.columns))]
-                dataframes.append(dataframe)
+                dataframes.append(total_dataframe[indices])
 
         else:
             dataframes = [
@@ -430,6 +426,7 @@ def raw_data_import(window_values, file, show_popup=True):
 
         if not show_popup:
             for i, dataframe in enumerate(dataframes):
+                dataframe.columns = [*range(len(dataframe.columns))]
                 dataframes[i] = optimize_memory(dataframe)
 
         else:
@@ -451,15 +448,15 @@ def raw_data_import(window_values, file, show_popup=True):
                             window_1.close()
                             window_1_open = False
 
-                    event = window_0.read(100)[0]
-                    if event == sg.WIN_CLOSED:
+                    event_0 = window_0.read(100)[0]
+                    if event_0 == sg.WIN_CLOSED:
                         window_0.close()
                         window_0_open = False
 
             del window_0
             if file.endswith('.xlsx') and len(dataframes) > 1:
                 del window_1
-            dataframes = None # to clean up memory, df is not needed
+            dataframes = None # to clean up memory, dataframe is not needed
 
         return dataframes
 
@@ -486,7 +483,7 @@ def select_file_gui(data_source=None, file=None):
 
     """
 
-    # defaults for if there is no file specified
+    # default values for if there is no file specified
     default_inputs = {
         'row_start': 0 if data_source is None else data_source.start_row,
         'row_end': 0 if data_source is None else data_source.end_row,
@@ -643,7 +640,6 @@ def select_file_gui(data_source=None, file=None):
                 continue
 
             elif values['file'].endswith('xlsx'):
-
                 dataframes = pd.read_excel(values['file'], None, None,
                                            convert_float=False)
                 sheet_names = [*dataframes.keys()]
@@ -723,7 +719,7 @@ def select_file_gui(data_source=None, file=None):
             last_col = int(values['last_col'].split(' ')[-1]) + 1
 
             if (values['repeat_unit']
-                and (last_col - first_col) < int(values['repeat_unit'])):
+                    and (last_col - first_col) < int(values['repeat_unit'])):
 
                 new_len = last_col - first_col
                 window['repeat_unit'].update(value=new_len)
@@ -773,6 +769,16 @@ def select_file_gui(data_source=None, file=None):
 
     window.close()
     del window
+
+    if data_source is not None: # converts column numbers back to indices
+        column_numbers = [
+            int(num) for num in values['columns'].replace(' ', '').split(',') if num
+        ]
+
+        for key in [key for key in values if key.startswith('index_')]:
+            for col_num in column_numbers:
+                if int(values[key]) == col_num:
+                    values[key] = column_numbers.index(col_num)
 
     return values
 
