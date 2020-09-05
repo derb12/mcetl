@@ -31,9 +31,7 @@ Features
 
 
 Credits
-
 -------
-
 
 This package was initially created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
 
