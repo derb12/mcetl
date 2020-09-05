@@ -11,14 +11,14 @@ You can contribute in many ways:
 Types of Contributions
 ----------------------
 
-Report Bugs
+Bugs
 ~~~~~~~~~~~
 
 Report bugs at https://github.com/derb12/mcetl/issues.
 
 If you are reporting a bug, please include:
 
-* Your operating system name and version.
+* Your operating system name, python version, and mcetl version.
 * Any details about your local setup that might be helpful in troubleshooting.
 * Detailed steps to reproduce the bug.
 

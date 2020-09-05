@@ -31,9 +31,19 @@ import mcetl
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc',
-              'sphinx.ext.napoleon',
-              'sphinx.ext.viewcode']
+extensions = [
+    'autoapi.extension',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode'
+]
+
+# Settings for autoapi extension
+# autoapi gets the docstrings for all public modules in the package
+autoapi_type = 'python'
+autoapi_dirs = ['../mcetl']
+#autoapi_root = '/api'
+autoapi_options = ['private_members']
+#autoapi_add_toctree_entry = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
