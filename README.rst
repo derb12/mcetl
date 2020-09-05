@@ -21,19 +21,6 @@ mcetl is a simple Extract-Transform-Load framework focused on materials characte
 * Open Source: BSD 3-clause license
 * Documentation: https://mcetl.readthedocs.io.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-   Summary
-   Installation
-   Usage
-   Future Plans
-   Contributing
-   Recent Changes
-   Author
-   Credits
-
 
 Summary
 -------
@@ -115,7 +102,7 @@ The characterization techniques produced by that function include:
 * Differential scanning calorimetry (DSC)
 
 
-Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/examples
+Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/tree/master/exampleshttps://github.com/derb12/mcetl/examples
 
 The examples include:
 
@@ -129,7 +116,7 @@ The examples include:
 Future Plans
 ------------
 
-Planned features in later releases:
+Planned features for later releases:
 
 Short term
 ~~~~~~~~~~
