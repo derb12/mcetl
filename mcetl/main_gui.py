@@ -196,7 +196,7 @@ def _select_processing_options(data_sources):
         [sg.Radio('Multiple Files', 'options_radio', default=True,
                   key='multiple_files', enable_events=True)],
         [sg.Check('Use Previous Search', key='use_last_search',
-                  disabled=last_search_disabled, pad=((40, 0),(1, 0)))],
+                  disabled=last_search_disabled, pad=((40, 0), (1, 0)))],
         [sg.Radio('Single File', 'options_radio', key='single_file',
                   enable_events=True)],
         [sg.Text('Select All Boxes That Apply', relief='ridge',
@@ -442,7 +442,7 @@ def _create_column_labels_window(
     if processing_options['process_data'] and data_source.dataset_summary_functions:
         i += 1
         labels_layout.append(
-            [sg.Text(f'    Summary'),
+            [sg.Text('    Summary'),
              sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
                       key=f'sample_name_{i}', do_not_clear=True)]
         )

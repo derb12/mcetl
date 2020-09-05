@@ -5,10 +5,10 @@
 from setuptools import setup, find_packages
 
 with open('README.rst') as readme_file:
-    readme = readme_file.read()
+    long_description = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
+with open('CHANGELOG.rst') as history_file:
+    changelog = history_file.read()
 
 requirements = [
     'lmfit',
@@ -50,7 +50,7 @@ setup(
     description="A simple Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
     license="BSD license",
-    long_description=readme + '\n\n' + history,
+    long_description=long_description + '\n\n' + changelog,
     include_package_data=True,
     keywords='mcetl',
     name='mcetl',
