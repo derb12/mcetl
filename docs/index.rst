@@ -1,6 +1,9 @@
 Welcome to mcetl's documentation!
 =================================
 
+.. image:: logo.png
+
+
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
 

@@ -23,11 +23,11 @@ requirements = [
 ]
 
 setup_requirements = [
-    'pytest-runner',
+    #'pytest-runner',
 ]
 
 test_requirements = [
-    'pytest>=3',
+    #'pytest>=3',
 ]
 
 setup(
@@ -49,6 +49,13 @@ setup(
     ],
     description="A simple Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
+    extras_require={
+        'docs': [
+            'sphinx',
+            'sphinx-rtd-theme',
+            'sphinx-autoapi'
+        ]
+    },
     license="BSD license",
     long_description=long_description + '\n\n' + changelog,
     include_package_data=True,
