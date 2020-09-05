@@ -1,6 +1,6 @@
-============================================================================
-mcetl, A Materials Characterization focused Extract-Transform-Load framework
-============================================================================
+=========================================================
+mcetl (Materials Characterization Extract-Transform-Load)
+=========================================================
 
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg
@@ -16,8 +16,9 @@ mcetl, A Materials Characterization focused Extract-Transform-Load framework
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
 
-* Free software: BSD 3-clause license
+* Open Source: BSD 3-clause license
 * Documentation: https://mcetl.readthedocs.io.
+
 
 
 Features
@@ -26,5 +27,16 @@ Features
 * TODO
 
 
+.. include:: ../CHANGELOG.rst
 
+
+Credits
+-------
+
+This package was initially created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
 
