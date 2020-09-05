@@ -49,7 +49,6 @@ setup(
     ],
     description="A simple Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
-    extras_require={'documentation_compilation': ['sphinx', 'sphinx_autoapi']},
     license="BSD license",
     long_description=long_description + '\n\n' + changelog,
     include_package_data=True,
