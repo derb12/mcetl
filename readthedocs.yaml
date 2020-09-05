@@ -1,0 +1,13 @@
+
+version: 2
+
+# Build PDF as well as the html documentation
+formats:
+    - pdf
+
+python:
+  version: 3.7
+  install:
+  - requirements: requirements/requirements-documentation.txt
+  - method: setuptools
+    path: .
