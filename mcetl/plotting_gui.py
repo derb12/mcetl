@@ -10,7 +10,7 @@ CANVAS_SIZE : tuple(int, int)
     A tuple specifying the size of the figure canvas in the GUI. This
     can be modified if the user wishes a larger or smaller canvas.
 COLORS : tuple(str)
-    A tuple with values that are used in GUIS to select the color to
+    A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
 HOLLOW_THICKNESS : float
     The fraction of the marker that is filled when hollow; rethink this.

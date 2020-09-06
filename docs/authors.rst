@@ -2,4 +2,4 @@
 Author
 ======
 
-* Donald Erb <donnie.erb@gmail.co
+* Donald Erb <donnie.erb@gmail.com>

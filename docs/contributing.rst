@@ -11,8 +11,8 @@ You can contribute in many ways:
 Types of Contributions
 ----------------------
 
-Bugs
-~~~~~~~~~~~
+Bugs Reports
+~~~~~~~~~~~~
 
 Report bugs at https://github.com/derb12/mcetl/issues.
 
@@ -23,7 +23,7 @@ If you are reporting a bug, please include:
 * Detailed steps to reproduce the bug.
 
 Feedback
-~~~~~~~~~~~~~~~
+~~~~~~~~
 
 The best way to send feedback is to file an issue at https://github.com/derb12/mcetl/issues.
 
@@ -33,7 +33,7 @@ If you are proposing a feature:
 * Keep the scope as narrow as possible, to make it easier to implement.
 
 Pull Requests
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 Pull requests are welcomed for this project. When submitting a pull request, follow similar procedures for feedback, namely:
 

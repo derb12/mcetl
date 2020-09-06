@@ -17,7 +17,7 @@ mcetl (Materials Characterization Extract-Transform-Load)
 
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
-
+* For python 3.7+
 * Open Source: BSD 3-clause license
 * Documentation: https://mcetl.readthedocs.io.
 
@@ -122,6 +122,8 @@ Short term
 ~~~~~~~~~~
 
 * Develop tests for all modules in the package.
+* Transfer documentation from PDF/Word files to automatic documentation with Sphinx, or at least a mix the two.
+* Improve usage with already created Excel files.
 * Switch from xlwings and xlsxwriter to openpyxl, allowing appending to Excel files on mac and linux systems.
 
 
@@ -140,8 +142,8 @@ Contributions are welcome, and they are greatly appreciated.
 
 You can contribute in many ways:
 
-Bugs
-~~~~~~~~~~~
+Bugs Reports
+~~~~~~~~~~~~
 
 Report bugs at https://github.com/derb12/mcetl/issues.
 
@@ -152,7 +154,7 @@ If you are reporting a bug, please include:
 * Detailed steps to reproduce the bug.
 
 Feedback
-~~~~~~~~~~~~~~~
+~~~~~~~~
 
 The best way to send feedback is to file an issue at https://github.com/derb12/mcetl/issues.
 
@@ -162,7 +164,7 @@ If you are proposing a feature:
 * Keep the scope as narrow as possible, to make it easier to implement.
 
 Pull Requests
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 Pull requests are welcomed for this project. When submitting a pull request, follow similar procedures for feedback, namely:
 
