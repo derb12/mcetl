@@ -11,8 +11,7 @@ Created on Sat Aug 22 13:49:50 2020
 import numpy as np
 import pandas as pd
 from mcetl import (DataSource, SeparationFunction, CalculationFunction,
-                   SummaryFunction)
-from mcetl import utils
+                   SummaryFunction, utils)
 
 
 def f(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
