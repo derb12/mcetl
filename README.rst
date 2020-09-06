@@ -10,8 +10,11 @@ mcetl (Materials Characterization Extract-Transform-Load)
         :target: https://mcetl.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
+.. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
+        :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 .. image:: docs/logo.png
+   :align: center
 
 
 
@@ -20,6 +23,10 @@ mcetl is a simple Extract-Transform-Load framework focused on materials characte
 * For python 3.7+
 * Open Source: BSD 3-clause license
 * Documentation: https://mcetl.readthedocs.io.
+
+
+.. contents:: **Table of Contents**
+    :depth: 1
 
 
 Summary
@@ -41,12 +48,6 @@ To install mcetl, run this command in your terminal:
     $ pip install mcetl
 
 This is the preferred method to install mcetl, as it will always install the most recent stable release.
-
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
-
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
 
 
 From Github
@@ -102,15 +103,16 @@ The characterization techniques produced by that function include:
 * Differential scanning calorimetry (DSC)
 
 
-Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/tree/master/exampleshttps://github.com/derb12/mcetl/examples
-
-The examples include:
+`Example programs`_  are available to show basic usage of mcetl. The examples include:
 
 * Generating raw data
 * Using the main GUI
 * Using the peak fitting GUI
 * Using the plotting GUI
 * Reopening a figure saved with the plotting GUI
+
+
+.. _Example programs: https://github.com/derb12/mcetl/tree/master/examples
 
 
 Future Plans
@@ -122,6 +124,7 @@ Short term
 ~~~~~~~~~~
 
 * Develop tests for all modules in the package.
+* Switch from print statements to logging.
 * Transfer documentation from PDF/Word files to automatic documentation with Sphinx, or at least a mix the two.
 * Improve usage with already created Excel files.
 * Switch from xlwings and xlsxwriter to openpyxl, allowing appending to Excel files on mac and linux systems.
