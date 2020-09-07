@@ -159,6 +159,7 @@ def validate_inputs(window_values, integers=None, floats=None,
     The display text will be the text that is shown to the user if the value
     of window_values[key] fails the validation.
 
+    #TODO maybe use this function to also convert the inputs to the desired type
     """
 
     if integers is not None:
@@ -207,7 +208,7 @@ def validate_inputs(window_values, integers=None, floats=None,
 
             try:
                 inputs = [
-                    ent for ent in window_values[entry[0]].replace(' ', '').split(separator) if ent
+                    ent.strip() for ent in window_values[entry[0]].split(separator) if ent
                 ]
                 if inputs:
                     [entry[2](inpt) for inpt in inputs]
