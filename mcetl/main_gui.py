@@ -53,9 +53,10 @@ def _collect_column_labels(dataframes, data_source, labels, options):
         for j in range(len(labels[i]['sample_names'])):
             for entry_num in range(1, len(dataset[j]) + 1):
                 for label in labels[i]['column_labels']:
-                    labels[i]['total_labels'].append(
-                        f'{label} {entry_num}' if data_source.label_entries and len(dataset[j]) > 1 else label
-                    )
+                    if data_source.label_entries and len(dataset[j]) > 1:
+                        labels[i]['total_labels'].append(f'{label} {entry_num}')
+                    else:
+                        labels[i]['total_labels'].append(label)
                 
                 if options['process_data'] and entry_num != len(dataset[j]):
                     labels[i]['total_labels'].extend([
@@ -179,8 +180,9 @@ def _generate_excel(dataframes, data_source, labels,
             x_max = plot_options[i]['x_max']
             y_min = plot_options[i]['y_min']
             y_max = plot_options[i]['y_max']
-            last_row = len(dataset)
-
+            last_row = len(dataset) + 1 + first_row
+            index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
+            
             x_reverse = False
             y_reverse = False
             # reverses x or y axes if min > max
@@ -193,23 +195,28 @@ def _generate_excel(dataframes, data_source, labels,
                 y_min, y_max = y_max, y_min
 
             chart = excel_book.add_chart({'type': 'scatter', 'subtype':'straight'})
-            #TODO plot every measurement for each sample, but skip summary sections
-            # index_modifier = -1 if labels[0]['sample_summary_labels'] else 0
             location = first_col
             for j in range(len(labels[i]['sample_names'])):
-                # categories is the x column and values is the y column
-                chart.add_series({
-                    'name': [sheet_name, first_row, location],
-                    'categories':[
-                        sheet_name, first_row + 2, location + x_col,
-                        last_row + 1, location + x_col
-                    ],
-                    'values':[
-                        sheet_name, first_row + 2, location + y_col,
-                        last_row + 1, location + y_col
-                    ],
-                    'line': {'width': 2}
-                })
+                for k in range(len(data_source.lengths[i]) + index_modifier):
+                    # categories is the x column and values is the y column
+                    chart.add_series({
+                        'name': [sheet_name, first_row, location],
+                        'categories':[
+                            sheet_name,
+                            first_row + 2,
+                            location + sum(data_source.lengths[i][j][:k]) + x_col,
+                            last_row,
+                            location + sum(data_source.lengths[i][j][:k]) + x_col
+                        ],
+                        'values':[
+                            sheet_name,
+                            first_row + 2,
+                            location + sum(data_source.lengths[i][j][:k]) + y_col,
+                            last_row,
+                            location + sum(data_source.lengths[i][j][:k]) + y_col
+                        ],
+                        'line': {'width': 2}
+                    })
 
                 location += sum(data_source.lengths[i][j])
 
@@ -758,12 +765,15 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
                 'y_label': labels[i]['column_labels'][data_source.y_plot_index]
             })
 
-            # Use the sample names so that dataset summary dataframes are not used. #TODO later allow them, once skipping is implemented
-            for j, sample in enumerate(labels[i]['sample_names']):
-                for k, entry in enumerate(dataset[j]):
-                    default_inputs.update({
-                        'sample_name': f'{sample}_{k}_fit'
-                    })
+            for j, sample in enumerate(dataset):
+                sample_names = labels[i]['sample_names'] + labels[i]['summary_name']
+                for k, entry in enumerate(sample):
+                    if len(sample) > 1:
+                        name = f'{sample_names[j]}_{k + 1}_fit'
+                    else:
+                        name = sample_names[j]
+                    
+                    default_inputs.update({'sample_name': name})
 
                     fit_output, default_inputs, proceed = launch_peak_fitting_gui(
                         entry, default_inputs, excel_writer,
