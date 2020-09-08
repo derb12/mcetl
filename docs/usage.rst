@@ -17,7 +17,7 @@ A window will then appear to select the data file(s) to be fitted or plotted.
 
 Files for example data from characterization techniques can be created using::
 
-    mcetl.generate_raw_data.generate_raw_data()
+    mcetl.raw_data.generate_raw_data()
 
 
 The characterization techniques produced by that function include:

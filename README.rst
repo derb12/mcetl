@@ -2,6 +2,9 @@
 mcetl
 =====
 
+.. image:: docs/logo.png
+   :align: center
+
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg
         :target: https://pypi.python.org/pypi/mcetl
@@ -12,9 +15,6 @@ mcetl
 
 .. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
-
-.. image:: docs/logo.png
-   :align: center
 
 
 
@@ -91,7 +91,7 @@ A window will then appear to select the data file(s) to be fitted or plotted.
 
 Files for example data from characterization techniques can be created using::
 
-    mcetl.generate_raw_data.generate_raw_data()
+    mcetl.raw_data.generate_raw_data()
 
 
 The characterization techniques produced by that function include:
