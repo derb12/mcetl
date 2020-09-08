@@ -9,7 +9,7 @@ Created on Sat Aug 22 13:01:37 2020
 if __name__ == '__main__':
 
     import numpy as np
-    from mcetl import CalculationFunction, SummaryFunction
+    from mcetl import CalculationFunction, SummaryFunction, DataSource, launch_main_gui
 
     def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
         """Example CalculationFunction with named kwargs"""

@@ -1759,16 +1759,9 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
         [sg.Column([
             [sg.TabGroup(axes_tabs, key='axes_tabgroup',
                          tab_background_color=sg.theme_background_color())],
-            [sg.Column([
-                [sg.Button('Update Figure'),
-                 sg.Button('Show Data')]
-            ], pad=((3, 5), 5)),
-             sg.Column([
-                 [sg.Button('Reset to Defaults')]
-             ], element_justification='right', pad=((200, 5), 5))],
-            [sg.Text('')],
             [sg.Button('Back'),
-             sg.Button('Save Image'),
+             sg.Button('Update Figure'),
+             sg.Button('Reset to Defaults'),
              sg.Button('Continue', bind_return_key=True,
                        button_color=('white', '#00A949'))]
         ], key='options_column'),
@@ -2519,7 +2512,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
         A dictionary of plt.Axes objects from a reloaded session.
     input_values : dict, optional
         The values needed to recreate the previous gui window from
-        a reloaded figure.
+        a reloaded figure, or to set some default values. #TODO need to allow a list of dictionaries to set defaults for each dataset
 
     Returns
     -------

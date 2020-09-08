@@ -1,6 +1,6 @@
-=========================================================
-mcetl (Materials Characterization Extract-Transform-Load)
-=========================================================
+=====
+mcetl
+=====
 
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg

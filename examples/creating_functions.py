@@ -145,7 +145,7 @@ import_vals = [[[] for sample in dataset] for dataset in dataframes]
 for i, dataset in enumerate(dataframes):
     for j, sample in enumerate(dataset):
         for k, measurement in enumerate(sample):
-            import_vals[i][j].append({'index_x': '1', 'index_y': '0'})
+            import_vals[i][j].append({'index_x': 1, 'index_y': 0})
             sample[k] = utils.optimize_memory(measurement)
 
 
