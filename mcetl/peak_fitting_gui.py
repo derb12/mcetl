@@ -177,25 +177,28 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     Returns
     -------
-    fit_result : list
-        A list of lmfit.ModelResult objects, which give information for each
-        of the fits done on the dataset.
-    peaks_df : pd.DataFrame
-        The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
-        and the background, if present.
-    params_df : pd.DataFrame
-        The dataframe containing the value and standard error
-        associated with all of the parameters in the fitting
-        (eg. coefficients for the baseline, areas and sigmas for each peak).
-    descriptors_df : pd.DataFrame
-        The dataframe which contains some additional information about the fitting.
-        Currently has the adjusted r squared, reduced chi squared, the Akaike
-        information criteria, the Bayesian information criteria, and the minimization
-        method used for fitting.
-    gui_values : dict
-        The values selected in the GUI for all of the various fields, which
-        can be used to reuse the values from a past interation.
+    tuple or bool
+        If peak fitting was skipped for an entry, then False is returned. Otherwise,
+        a tuple is returned with the following entries:
+            fit_result : list
+                A list of lmfit.ModelResult objects, which give information for each
+                of the fits done on the dataset.
+            peaks_df : pd.DataFrame
+                The dataframe containing the x and y data, the y data
+                for every individual peak, the summed y data of all peaks,
+                and the background, if present.
+            params_df : pd.DataFrame
+                The dataframe containing the value and standard error
+                associated with all of the parameters in the fitting
+                (eg. coefficients for the baseline, areas and sigmas for each peak).
+            descriptors_df : pd.DataFrame
+                The dataframe which contains some additional information about the fitting.
+                Currently has the adjusted r squared, reduced chi squared, the Akaike
+                information criteria, the Bayesian information criteria,
+                and the minimization method used for fitting.
+            gui_values : dict
+                The values selected in the GUI for all of the various fields, which
+                can be used to reuse the values from a past interation.
 
     """
 
@@ -236,10 +239,9 @@ def fit_dataframe(dataframe, user_inputs=None):
         'selected_bkg': []
     }
 
-    user_inputs = user_inputs if user_inputs is not None else {}
-
     #assigns the values from user_inputs to keys in default_inputs
-    default_inputs.update(user_inputs)
+    if user_inputs is not None:
+        default_inputs.update(user_inputs)
     # values if using manual peak selection
     peak_list = default_inputs['selected_peaks']
     #values if using manual background selection
@@ -420,7 +422,8 @@ def fit_dataframe(dataframe, user_inputs=None):
                        button_color=utils.PROCEED_COLOR),
              sg.Button('Test Plot'),
              sg.Button('Show Data'),
-             sg.Button('Reset to Default')]
+             sg.Button('Reset to Default'),
+             sg.Button('Skip Fitting')]
         ]
         validations = {
             'integers': [
@@ -474,6 +477,16 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
+
+            elif event == 'Skip Fitting':
+                skip = sg.popup_yes_no(
+                        'Peak fitting will be skipped for this entry.\n\nProceed?\n',
+                        title='Skip Fitting'
+                    )
+                if skip == 'Yes':
+                    window.close()
+                    del window
+                    return False
 
             elif event == 'Reset to Default':
                 window.fill(default_inputs)
@@ -1126,7 +1139,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             proceed = False
             break
 
-        if not fit_output: #TODO for use later to allow skipping individual fits while still proceeding with fitting
+        if not fit_output: # Fitting was skipped for the data entry
             fit_results.append(None)
         else:
             fit_results.append(fit_output[0])

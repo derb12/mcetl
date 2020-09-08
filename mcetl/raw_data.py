@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
+from . import utils
+
 
 __all__ = ['generate_raw_data']
 
@@ -92,8 +94,8 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     if num_data % 2 == 1:
         num_data += 1
     x = np.linspace(10, 90, 500)
-    background =  0.4 * ((75 - x)**2) #equivalent to 0.4*x^2 - 60*x + 2250
-    #[amplitude, center, sigma, fraction]
+    background =  0.4 * ((75 - x)**2) # equivalent to 0.4*x^2 - 60*x + 2250
+    # [amplitude, center, sigma, fraction]
     params = [
         [3000, 18, 0.3, 0.5],
         [5000, 32, 0.2, 0.5],
@@ -109,8 +111,9 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     for i in range(num_data):
         noise = 10 * np.random.randn(len(x))
         y = background + noise
-        data_dict[f'y_{i+1}'], new_params = _generate_peaks(x, y, lineshapes.pvoigt,
-                                                            params, param_var)
+        data_dict[f'y_{i+1}'], new_params = _generate_peaks(
+            x, y, lineshapes.pvoigt, params, param_var
+        )
         param_list.append(new_params)
 
     data = {'x': x}
@@ -140,7 +143,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
         data_df.to_csv(Path(ti_path, f'{sample_name}.csv'),
                        columns=['x', f'y_{i+1}'], float_format='%.2f',
                        header=['2theta', 'Counts'], index_label='Number')
-         #Same data as as for Ti, just included to make more files
+         # Same data as as for Ti, just included to make more files
         data_df.to_csv(Path(fe_path, f'{sample_name_2}.csv'),
                        columns=['x', f'y_{i+1}'], float_format='%.2f',
                        header=['2theta', 'Counts'], index_label='Number')
@@ -192,10 +195,10 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
         num_data += 1
 
     x = np.linspace(500, 4000, 2000)
-    background = (- 0.06 / 1500) * x + 0.08 #equivalent to 0.08 - 0.00004*x
-    background[x > 2000] = (0.03 / 2000) * x[x > 2000] - 0.03 #equivalent to -0.03 + 0.000015*x
+    background = (- 0.06 / 1500) * x + 0.08 # equivalent to 0.08 - 0.00004*x
+    background[x > 2000] = (0.03 / 2000) * x[x > 2000] - 0.03 # equivalent to -0.03 + 0.000015*x
 
-    #[amplitude, center, sigma]
+    # [amplitude, center, sigma]
     params = [
         [9, 900, 20],
         [15, 1200, 10],
@@ -215,8 +218,9 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
     for i in range(num_data):
         noise = 0.002 * np.random.randn(len(x))
         y = background + noise
-        data_dict[f'y_{i+1}'], new_params = _generate_peaks(x, y, lineshapes.gaussian,
-                                                            params, param_var)
+        data_dict[f'y_{i+1}'], new_params = _generate_peaks(
+            x, y, lineshapes.gaussian, params, param_var
+        )
         param_list.append(new_params)
 
     data = {'x': x}
@@ -294,7 +298,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     x = np.linspace(200, 2600, 1000)
     background = 0.000001 * x
 
-    #[amplitude, center, sigma]
+    # [amplitude, center, sigma]
     params = [[300, 1180, 90], [500, 1500, 80]]
     params2 = [[3000, 1350, 50], [2000, 1590, 40]]
     param_var = [400, 10, 20]
@@ -304,11 +308,12 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     for i in range(num_data):
         noise = 0.1 * np.random.randn(len(x))
         y = background + noise
-        temp_y, gaussian_params = _generate_peaks(x, y, lineshapes.gaussian,
-                                                  params, param_var)
-        data_dict[f'y_{i+1}'], lorentz_params = _generate_peaks(x, temp_y,
-                                                                lineshapes.lorentzian,
-                                                                params2, param_var)
+        temp_y, gaussian_params = _generate_peaks(
+            x, y, lineshapes.gaussian, params, param_var
+        )
+        data_dict[f'y_{i+1}'], lorentz_params = _generate_peaks(
+            x, temp_y, lineshapes.lorentzian, params2, param_var
+        )
         param_list.append(sorted([*gaussian_params, *lorentz_params],
                                  key=lambda x: x[1]))
 
@@ -391,7 +396,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     x = np.linspace(20, 1000, data_points)
     background = 0 * x
 
-    #[amplitude, center, sigma]
+    # [amplitude, center, sigma]
     params = [[1, 200, 60], [10, 400, 20], [5, 700, 30]]
     param_var = [10, 20, 10]
 
@@ -400,13 +405,14 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     for i in range(num_data):
         noise = 0.005 * np.random.randn(len(x))
         y = background + noise
-        mass_loss, new_params = _generate_peaks(x, y, lineshapes.step, params,
-                                                param_var, **{'form': 'logistic'})
+        mass_loss, new_params = _generate_peaks(
+            x, y, lineshapes.step, params, param_var, **{'form': 'logistic'}
+        )
         cooling = noise + mass_loss[-1]
         data_dict[f'y_{i+1}'] = 100 - np.array([*mass_loss, *cooling])
         param_list.append(new_params)
 
-    #adds in the cooling section
+    # adds in the cooling section
     x = np.array([*x, *np.linspace(1000, 20, data_points)])
     time = x / 5
     segment = np.array([*[1] * data_points, *[2] * data_points])
@@ -503,7 +509,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     x_cooling = np.linspace(200, 50, data_points)
     background = 0 * x_heating
 
-    #[amplitude, center, sigma]
+    # [amplitude, center, sigma]
     params_heating = [[-100, 150, 5]]
     params_cooling = [[100, 100, 5]]
     param_var = [50, 10, 3]
@@ -512,17 +518,19 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     param_list = []
     for i in range(num_data):
         noise = 0.005 * np.random.randn(len(x_heating))
-        heating, new_params_heating = _generate_peaks(x_heating, background + noise,
-                                                      lineshapes.gaussian,
-                                                      params_heating, param_var)
-        cooling, new_params_cooling = _generate_peaks(x_cooling, background + noise + 5,
-                                                      lineshapes.gaussian,
-                                                      params_cooling, param_var)
+        heating, new_params_heating = _generate_peaks(
+            x_heating, background + noise, lineshapes.gaussian,
+            params_heating, param_var
+        )
+        cooling, new_params_cooling = _generate_peaks(
+            x_cooling, background + noise + 5, lineshapes.gaussian,
+            params_cooling, param_var
+        )
 
         data_dict[f'y_{i+1}'] = np.array([*heating, *cooling])
         param_list.append([*new_params_heating, *new_params_cooling])
 
-    #adds in the cooling section
+    # adds in the cooling section
     x = np.array([*x_heating, *x_cooling])
     time = x / 10
     segment = np.array([*[1] * data_points, *[2] * data_points])
@@ -618,7 +626,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     x_cooling = np.linspace(200, 50, data_points)
     background = 0 * x_heating
 
-    #[amplitude, center, sigma]
+    # [amplitude, center, sigma]
     params_heating = [[-100, 150, 5]]
     params_cooling = [[100, 100, 5]]
     param_var = [50, 10, 3]
@@ -627,17 +635,19 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     param_list = []
     for i in range(num_data):
         noise = 0.005 * np.random.randn(len(x_heating))
-        heating, new_params_heating = _generate_peaks(x_heating, background + noise,
-                                                      lineshapes.gaussian,
-                                                      params_heating, param_var)
-        cooling, new_params_cooling = _generate_peaks(x_cooling, background + noise + 5,
-                                                      lineshapes.gaussian,
-                                                      params_cooling, param_var)
+        heating, new_params_heating = _generate_peaks(
+            x_heating, background + noise, lineshapes.gaussian,
+            params_heating, param_var
+        )
+        cooling, new_params_cooling = _generate_peaks(
+            x_cooling, background + noise + 5, lineshapes.gaussian,
+            params_cooling, param_var
+        )
 
         data_dict[f'y_{i+1}'] = np.array([*heating, *cooling])
         param_list.append([*new_params_heating, *new_params_cooling])
 
-    #adds in the cooling section
+    # adds in the cooling section
     x = np.array([*x_heating, *x_cooling])
     time = x / 10
     segment = np.array([*[1] * data_points, *[2] * data_points])
@@ -692,7 +702,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
         plt.close('dsc')
 
 
-def generate_raw_data(directory=None, num_data=6, show_plots=True):
+def generate_raw_data(directory=None, num_files=None, show_plots=None):
     """
     Generates data for all of the techniques in this file.
     
@@ -701,49 +711,75 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
     
     Parameters
     ----------
-    directory : Path or str
-        The file path to the Raw Data folder.
-    num_data : int
-        The number of files to create.
-    show_plots : bool
+    directory : str, optional
+        The file path to place the Raw Data folder.
+    num_files : int, optional
+        The number of files to create per characterization technique.
+    show_plots : bool, optional
         If True, will show plots of the created data. If False, will close
         the created figures and not show the plots.
         
+    Notes
+    -----
+    Currently supported characterization techniques include:
+        XRD
+        FTIR
+        Raman
+        TGA
+        DSC
+
     """
     
-    #set the random seed so that data is repeatable
+    # set the random seed so that data is repeatable
     np.random.seed(1)
     data_path = None
 
-    if not directory:
-        #layout for window to select where to put the raw data folder
-        layout = [
-            [sg.Text('Select destination for Raw Data folder', size=(35, 1))],
-            [sg.InputText('', disabled=True, text_color='black'),
-             sg.FolderBrowse(key='folder')],
-            [sg.Button('Submit', bind_return_key=True)]
-        ]
-    
-        window = sg.Window('Folder Selection', layout)
+    defaults = {
+        'folder': directory if directory is not None else '',
+        'num_files': num_files if num_files is not None else '',
+        'show_plots': show_plots if show_plots is not None else True
+    }
+
+    validations = {
+        'strings': [['folder', 'Raw Data folder']],
+        'integers' : [['num_files', 'number of files']]
+    }
+
+    # layout for window to select where to put the raw data folder
+    layout = [
+        [sg.Text('Select destination for Raw Data folder')],
+        [sg.Input(defaults['folder'], key='folder', size=(35, 1),
+                  disabled=True, text_color='black'),
+         sg.FolderBrowse(key='browse', target='folder')],
+        [sg.Text('Number of files per characterization technique:'),
+         sg.Input(defaults['num_files'], key='num_files', size=(5, 1))],
+        [sg.Text('')],
+        [sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR),
+         sg.Check('Show Plots', defaults['show_plots'], key='show_plots')]
+    ]
+
+    try:
+        window = sg.Window('Raw Data Generation', layout)
         while True:
             event, values = window.read()
             if event == sg.WIN_CLOSED:
-                values['folder'] = False
-                break
-            elif event == 'Submit' and values['folder'] == '':
-                sg.Popup('Please select a folder.')
-            else:
-                break
+                utils.safely_close_window(window)
+            
+            elif event == 'Submit':
+                if utils.validate_inputs(values, **validations):
+                    break
     
-        window.close()
-        del window, layout
-
-        if values['folder']:
-            data_path = Path(values['folder'], 'Raw Data')
+    except (utils.WindowCloseError, KeyboardInterrupt):
+        pass
+    
     else:
-        data_path = Path(directory, 'Raw Data')
+        window.close()
+        del window
+
+        data_path = Path(values['folder'], 'Raw Data')
+        num_data = int(values['num_files'])
+        show = values['show_plots']
     
-    if data_path is not None:
         data_path.mkdir(parents=True, exist_ok=True)
 
         with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
@@ -751,14 +787,10 @@ def generate_raw_data(directory=None, num_data=6, show_plots=True):
             
         # ensures that plots are not shown until plt.show() is called.
         with plt.rc_context({'interactive': False}):
-            #creates all of the data
-            _generate_XRD_data(data_path, num_data, show_plots)
-            _generate_FTIR_data(data_path, num_data, show_plots)
-            _generate_Raman_data(data_path, num_data, show_plots)
-            _generate_TGA_data(data_path, num_data, show_plots)
-            _generate_DSC_data(data_path, num_data, show_plots)
+            # creates all of the data
+            _generate_XRD_data(data_path, num_data, show)
+            _generate_FTIR_data(data_path, num_data, show)
+            _generate_Raman_data(data_path, num_data, show)
+            _generate_TGA_data(data_path, num_data, show)
+            _generate_DSC_data(data_path, num_data, show)
         
-
-if __name__ == '__main__':
-
-    generate_raw_data(num_data=6)

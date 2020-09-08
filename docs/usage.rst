@@ -29,7 +29,7 @@ The characterization techniques produced by that function include:
 * Differential scanning calorimetry (DSC)
 
 
-Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/examples
+Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/tree/master/examples
 
 The examples include:
 

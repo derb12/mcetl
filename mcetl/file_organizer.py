@@ -365,13 +365,15 @@ def _get_keywords(
     window.close()
     del window
 
-    kw_1_tmp = [values[f'keyword_1_{i}'] for i in range(num_keyword_1)]
-    kw_2_tmp = [values[f'keyword_2_{i}'] for i in range(num_keyword_2)]
-    kw_1_tmp2 = [kw.replace('  ', '').replace(' ', '').split(',') for kw in kw_1_tmp]
-    kw_2_tmp2 = [kw.replace('  ', '').replace(' ', '').split(',') for kw in kw_2_tmp]
+    kw_1_tmp = [values[f'keyword_1_{i}'].split(',') for i in range(num_keyword_1)]
+    kw_2_tmp = [values[f'keyword_2_{i}'].split(',') for i in range(num_keyword_2)]
     # deletes repeated entries to reduce the permutations and search time
-    keyword_1 = [set(kw_entries) for kw_entries in kw_1_tmp2]
-    keyword_2 = [set(kw_entries) for kw_entries in kw_2_tmp2]
+    keyword_1 = [
+        set(entry.strip() for entry in kw_entries if entry) for kw_entries in kw_1_tmp
+    ]
+    keyword_2 = [
+        set(entry.strip() for entry in kw_entries if entry) for kw_entries in kw_2_tmp
+    ]
 
     file_directory = Path(num_kw_values['folder'])
     # in case the extension is given as something like .csv instead of csv
@@ -441,7 +443,7 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
         for k, keyword2 in enumerate(keyword_2):
             # Tries each variation of (keyword1, keyword2) and collects all files that fit
             keywords = [*keyword1, *keyword2]
-            permutations = ['*'.join(p) for p in itertools.permutations(keywords) if p != '']
+            permutations = ['*'.join(p) for p in itertools.permutations(keywords) if p]
             for permutation in permutations:
                 search_term = _prepare_for_search(f'*{permutation}*.{file_type}')
                 found_files[j][k].extend(file_directory.rglob(search_term))

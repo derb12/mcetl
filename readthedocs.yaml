@@ -1,13 +1,19 @@
+# yaml file for configuring how readthedocs processes the documentation
+# Refer to https://docs.readthedocs.io/en/stable/config-file/v2.html for details.
 
+# Version of readthedoc's config style
 version: 2
 
-# Build PDF as well as the html documentation
-formats:
-    - pdf
+# Path to sphinx's configuration file
+sphinx:
+  configuration: docs/conf.py
 
+# Build PDF file as well as the html documentation
+formats:
+  - pdf
+
+# Additional requirements for the documentation
 python:
   version: 3.7
   install:
-  - requirements: requirements/requirements-documentation.txt
-  - method: setuptools
-    path: .
+    - requirements: requirements/requirements-documentation.txt

@@ -1,6 +1,6 @@
-=========================================================
-mcetl (Materials Characterization Extract-Transform-Load)
-=========================================================
+=====
+mcetl
+=====
 
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg
@@ -10,29 +10,23 @@ mcetl (Materials Characterization Extract-Transform-Load)
         :target: https://mcetl.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
+.. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
+        :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 .. image:: docs/logo.png
+   :align: center
 
 
 
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
-
+* For python 3.7+
 * Open Source: BSD 3-clause license
 * Documentation: https://mcetl.readthedocs.io.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
 
-   Summary
-   Installation
-   Usage
-   Future Plans
-   Contributing
-   Recent Changes
-   Author
-   Credits
+.. contents:: **Table of Contents**
+    :depth: 1
 
 
 Summary
@@ -54,12 +48,6 @@ To install mcetl, run this command in your terminal:
     $ pip install mcetl
 
 This is the preferred method to install mcetl, as it will always install the most recent stable release.
-
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
-
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
 
 
 From Github
@@ -115,9 +103,7 @@ The characterization techniques produced by that function include:
 * Differential scanning calorimetry (DSC)
 
 
-Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/examples
-
-The examples include:
+`Example programs`_  are available to show basic usage of mcetl. The examples include:
 
 * Generating raw data
 * Using the main GUI
@@ -126,15 +112,21 @@ The examples include:
 * Reopening a figure saved with the plotting GUI
 
 
+.. _Example programs: https://github.com/derb12/mcetl/tree/master/examples
+
+
 Future Plans
 ------------
 
-Planned features in later releases:
+Planned features for later releases:
 
 Short term
 ~~~~~~~~~~
 
 * Develop tests for all modules in the package.
+* Switch from print statements to logging.
+* Transfer documentation from PDF/Word files to automatic documentation with Sphinx, or at least a mix the two.
+* Improve usage with already created Excel files.
 * Switch from xlwings and xlsxwriter to openpyxl, allowing appending to Excel files on mac and linux systems.
 
 
@@ -153,8 +145,8 @@ Contributions are welcome, and they are greatly appreciated.
 
 You can contribute in many ways:
 
-Bugs
-~~~~~~~~~~~
+Bugs Reports
+~~~~~~~~~~~~
 
 Report bugs at https://github.com/derb12/mcetl/issues.
 
@@ -165,7 +157,7 @@ If you are reporting a bug, please include:
 * Detailed steps to reproduce the bug.
 
 Feedback
-~~~~~~~~~~~~~~~
+~~~~~~~~
 
 The best way to send feedback is to file an issue at https://github.com/derb12/mcetl/issues.
 
@@ -175,7 +167,7 @@ If you are proposing a feature:
 * Keep the scope as narrow as possible, to make it easier to implement.
 
 Pull Requests
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 Pull requests are welcomed for this project. When submitting a pull request, follow similar procedures for feedback, namely:
 

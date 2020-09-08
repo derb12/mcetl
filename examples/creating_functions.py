@@ -11,8 +11,7 @@ Created on Sat Aug 22 13:49:50 2020
 import numpy as np
 import pandas as pd
 from mcetl import (DataSource, SeparationFunction, CalculationFunction,
-                   SummaryFunction)
-from mcetl import utils
+                   SummaryFunction, utils)
 
 
 def f(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
@@ -146,7 +145,7 @@ import_vals = [[[] for sample in dataset] for dataset in dataframes]
 for i, dataset in enumerate(dataframes):
     for j, sample in enumerate(dataset):
         for k, measurement in enumerate(sample):
-            import_vals[i][j].append({'index_x': '1', 'index_y': '0'})
+            import_vals[i][j].append({'index_x': 1, 'index_y': 0})
             sample[k] = utils.optimize_memory(measurement)
 
 
