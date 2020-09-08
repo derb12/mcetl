@@ -35,13 +35,26 @@ class DataSource:
     """
 
     def __init__(
-            self, name, column_labels=None, functions=None,
-            column_numbers=None, start_row=0, end_row=0, separator=None,
-            unique_variables=None, unique_variable_indices=None,
-            xy_plot_indices=None, file_type=None, num_files=1,
-            figure_rcParams=None, excel_writer_kwargs=None,
-            sample_separation=0, entry_separation=0,
-            excel_row_offset=0, excel_column_offset=0
+            self,
+            name,
+            functions=None,
+            column_labels=None,
+            column_numbers=None,
+            start_row=0,
+            end_row=0,
+            separator=None,
+            file_type=None,
+            num_files=1,
+            unique_variables=None,
+            unique_variable_indices=None,
+            xy_plot_indices=None,
+            figure_rcParams=None,
+            excel_writer_kwargs=None,
+            excel_row_offset=0,
+            excel_column_offset=0,
+            entry_separation=0,
+            sample_separation=0,
+            label_entries=True
         ):
         """
         DataSource initialization.
@@ -81,6 +94,9 @@ class DataSource:
             DESCRIPTION. The default is 0.
         entry_separation : TYPE, optional
             DESCRIPTION. The default is 0.
+        label_entries : bool, optional
+            If True, will add a number to the column labels for each
+            entry in a sample.
 
         Raises
         ------
@@ -92,6 +108,7 @@ class DataSource:
             DESCRIPTION.
 
         """
+
         if name:
             self.name = name
         else:
@@ -111,6 +128,7 @@ class DataSource:
         self.entry_separation = entry_separation
         self.excel_row_offset = excel_row_offset
         self.excel_column_offset = excel_column_offset
+        self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
         self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
 
@@ -203,7 +221,7 @@ class DataSource:
 
         """
 
-        #TODO rename the keys to make more sense
+        #TODO rename the keys to make their usage more clear
         self.excel_formats = {
             'odd_header_format': {
                 'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2,
@@ -453,8 +471,7 @@ class DataSource:
                 for k, entry in enumerate(sample):
                     if k < len(sample) - 1:
                         start_index = len(entry.columns)
-                        for num in range(start_index,
-                                         start_index + self.entry_separation):
+                        for num in range(start_index, start_index + self.entry_separation):
                             entry[num] = pd.Series(np.nan, dtype=np.float16)
 
                 # add sample spacings
