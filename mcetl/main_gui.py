@@ -219,7 +219,7 @@ def _write_to_excel(dataframes, data_source, labels,
                     chart.append(series)
                 location += sum(data_source.lengths[i][j])
 
-            worksheet.add_chart(chart)
+            worksheet.add_chart(chart, 'D8')
 
 
 def _select_processing_options(data_sources):

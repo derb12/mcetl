@@ -67,7 +67,7 @@ DEFAULT_FITTING_FORMATS = {
             horizontal='center', vertical='center', wrap_text=True
         )
     },
-    'fittig_columns_even': {
+    'fitting_columns_even': {
         'fill': PatternFill(
             fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
         ),
