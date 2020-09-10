@@ -9,79 +9,52 @@ Created on Tue May 5 17:08:53 2020
 
 import itertools
 import json
-import os
 from pathlib import Path
 import traceback
 
+from openpyxl.styles import NamedStyle
 import pandas as pd
 import PySimpleGUI as sg
-if os.name == 'nt': #TODO remove this after switching to openpyxl
-    import xlwings as xw
 
 from mcetl import utils
-from mcetl.file_organizer import file_finder, file_mover
 from mcetl.datasource import DataSource
+from mcetl.file_organizer import file_finder, file_mover
 from mcetl.peak_fitting_gui import launch_peak_fitting_gui
 from mcetl.plotting_gui import launch_plotting_gui
 
 
-def _collect_column_labels(dataframes, data_source, labels, options):
+def _save_excel_file(append_file, excel_writer):
     """
-    Collects all labels and condenses them into a single list of labels per dataset.
-
-    Also adds in blank labels for spacer columns between entries and samples.
+    Handles saving the Excel file and the various exceptions that can occur.
 
     Parameters
     ----------
-    dataframes : list
-        A list of lists of lists of pd.DataFrame objects, containing the all
-        the data to process.
-    data_source : DataSource
-        The DataSource object for the data.
-    labels : list(dict)
-        A list of dictionaries. Each dictionary contains all of the
-        sample names and column labels for a dataset.
-    options : dict
-        The dictionary that contains information about which
-        processing steps will be conducted.
+    append_file : bool
+        If True, will save a temporary file and then append the sheets to the
+        destination file.
+    excel_writer : pd.ExcelWriter
+        The pandas ExcelWriter object that contains all of the
+        information about the Excel file being created.
 
     """
 
-    for i, dataset in enumerate(dataframes):
-        labels[i]['total_labels'] = []
+    # Ensures that the folder destination exist
+    Path(excel_writer.path).parent.mkdir(parents=True, exist_ok=True)
 
-        for j in range(len(labels[i]['sample_names'])):
-            for entry_num in range(1, len(dataset[j]) + 1):
-                for label in labels[i]['column_labels']:
-                    if data_source.label_entries and len(dataset[j]) > 1:
-                        labels[i]['total_labels'].append(f'{label} {entry_num}')
-                    else:
-                        labels[i]['total_labels'].append(label)
-                
-                if options['process_data'] and entry_num != len(dataset[j]):
-                    labels[i]['total_labels'].extend([
-                        '' for _ in range(data_source.entry_separation)
-                    ])
-            
-            if options['process_data']:
-                if labels[i]['sample_summary_labels']:
-                    labels[i]['total_labels'].extend([
-                        *['' for _ in range(data_source.entry_separation)],
-                        *[label for label in labels[i]['sample_summary_labels']]
-                    ])
+    try_to_save = True
+    while try_to_save:
+        try:
+            excel_writer.save()
+            print('\nSaved Excel file.')
+            break
 
-                labels[i]['total_labels'].extend([
-                    '' for _ in range(data_source.sample_separation)
-                ])
-
-        if options['process_data'] and labels[i]['dataset_summary_labels']:
-            labels[i]['total_labels'].extend([
-                *[label for label in labels[i]['dataset_summary_labels']],
-                *['' for _ in range(data_source.sample_separation)]
-            ])
+        except PermissionError:
+            try_to_save = sg.popup_ok(
+                '\nTrying to overwrite Excel file. Please close the file.\n'
+            )
 
 
-def _generate_excel(dataframes, data_source, labels,
+def _write_to_excel(dataframes, data_source, labels,
                     excel_writer, plot_excel, plot_options):
     """
     Creates an Excel sheet from data within a list of dataframes.
@@ -111,67 +84,84 @@ def _generate_excel(dataframes, data_source, labels,
 
     """
 
-    excel_book = excel_writer.book
-    first_row = data_source.excel_row_offset
-    first_col = data_source.excel_column_offset
+    from openpyxl.utils.dataframe import dataframe_to_rows
 
-    (odd_header_format, even_header_format, odd_colnum_format,
-     even_colnum_format) = excel_book.formats[2:6]
+    if plot_excel:
+        from openpyxl.chart import Reference, Series, ScatterChart
+        from openpyxl.chart.series import SeriesLabel, StrRef
+        from openpyxl.utils.cell import get_column_letter
+
+    first_row = data_source.excel_row_offset + 1 # openpyxl uses 1-based indices
+    first_column = data_source.excel_column_offset + 1
 
     for i, dataset in enumerate(dataframes):
-
-        # Ensures that the sheet name is unique so it does not overwrite data
-        num = 1
+        # Ensures that the sheet name is unique so it does not overwrite data;
+        # not needed for openpyxl, but just a precaution
+        current_sheets = [sheet.title.lower() for sheet in excel_writer.book.worksheets]
         sheet_name = labels[i]['sheet_name']
         sheet_base = sheet_name
+        num = 1
         while True:
-            close_loop = True
-            for sheet in excel_writer.sheets:
-                if sheet_name.lower() == sheet.lower():
-                    sheet_name = f'{sheet_base}_{num}'
-                    num += 1
-                    close_loop = False
-                    break
-            if close_loop:
+            if sheet_name.lower() not in current_sheets:
                 break
-
-        dataset.to_excel(
-            excel_writer, sheet_name=sheet_name, index=False, startrow=2 + first_row,
-            startcol=first_col, header=False
-        )
-        worksheet = excel_writer.sheets[sheet_name]
-
-        subheaders = iter(labels[i]['total_labels'])
-        location = first_col
-        # Modifies the formatting to look good in Excel
-        for j, name in enumerate(labels[i]['sample_names'] + labels[i]['summary_name']):
-
-            if j % 2 == 0:
-                formats = [even_header_format, even_colnum_format]
             else:
-                formats = [odd_header_format, odd_colnum_format]
+                sheet_name = f'{sheet_base}_{num}'
+                num += 1
 
-            worksheet.merge_range(
-                first_row, location,
-                first_row, location + sum(data_source.lengths[i][j]) - 1,
-                name, formats[0]
+        worksheet = excel_writer.book.create_sheet(sheet_name)
+
+        # Header values and formatting
+        for j, header in enumerate(labels[i]['sample_names'] + labels[i]['summary_name']):
+            if j % 2 == 0:
+                suffix = 'even'
+            else:
+                suffix = 'odd'
+
+            cell = worksheet.cell(
+                row=first_row,
+                column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
+                value=header
             )
-            for k in range(sum(data_source.lengths[i][j])):
-                worksheet.write(
-                    first_row + 1, location + k,
-                    next(subheaders), formats[0]
+            cell.style = 'header_' + suffix
+            worksheet.merge_cells(
+                start_row=first_row,
+                start_column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
+                end_row=first_row,
+                end_column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j + 1]) - 1
+            )
+
+        # Subheader values and formatting
+        flattened_lengths = [*itertools.chain(*data_source.lengths[i])]
+        subheaders = iter(labels[i]['total_labels'])
+        for j, entry in enumerate(flattened_lengths):
+            if j % 2 == 0:
+                suffix = 'even'
+            else:
+                suffix = 'odd'
+
+            for col_index in range(entry):
+                cell = worksheet.cell(
+                    row=first_row + 1,
+                    column=first_column + col_index + sum(flattened_lengths[:j]),
+                    value=next(subheaders)
                 )
+                cell.style = 'subheader_' + suffix
 
-            worksheet.set_column(
-                location, location + sum(data_source.lengths[i][j]) - 1,
-                12.5, formats[1]
-            )
+        # Dataset values and formatting
+        rows = dataframe_to_rows(dataset, index=False, header=False)
+        for row_index, row in enumerate(rows, first_row + 2):
+            entry = 1
+            suffix = 'even'
+            cycle = itertools.cycle(['odd', 'even'])
+            for column_index, value in enumerate(row, first_column):
+                if (column_index + 1 - first_column) > sum(flattened_lengths[:entry]):
+                    suffix = next(cycle)
+                    entry += 1
+                cell = worksheet.cell(row=row_index, column=column_index, value=value)
+                cell.style = 'columns_' + suffix
 
-            location += sum(data_source.lengths[i][j])
-
-        # Changes row height in Excel
-        worksheet.set_row(first_row, 18)
-        worksheet.set_row(first_row + 1, 30)
+        worksheet.row_dimensions[first_row].height = 18
+        worksheet.row_dimensions[first_row + 1].height = 30
 
         if plot_excel:
             x_col = plot_options[i]['x_plot_index']
@@ -182,60 +172,79 @@ def _generate_excel(dataframes, data_source, labels,
             y_max = plot_options[i]['y_max']
             last_row = len(dataset) + 1 + first_row
             index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
-            
-            x_reverse = False
-            y_reverse = False
-            # reverses x or y axes if min > max
+
+            # Reverses x or y axes if min > max
             if None not in (x_min, x_max) and x_min > x_max:
                 x_reverse = True
                 x_min, x_max = x_max, x_min
+            else:
+                x_reverse = False
 
             if None not in (y_min, y_max) and y_min > y_max:
                 y_reverse = True
                 y_min, y_max = y_max, y_min
+            else:
+                y_reverse = False
 
-            chart = excel_book.add_chart({'type': 'scatter', 'subtype':'straight'})
-            location = first_col
+            axes_attributes = {
+                'x_axis': {
+                    'title': plot_options[i]['x_label'],
+                    'crosses': 'max' if y_reverse else 'min',
+                    'scaling': {
+                        'min': x_min,
+                        'max': x_max,
+                        'orientation': 'maxMin' if x_reverse else 'minMax'
+                    }
+                },
+                'y_axis': {
+                    'title': plot_options[i]['y_label'],
+                    'crosses': 'max' if x_reverse else 'min',
+                    'scaling': {
+                        'min': y_min,
+                        'max': y_max,
+                        'orientation': 'maxMin' if y_reverse else 'minMax'
+                    }
+                }
+            }
+
+            chart = ScatterChart()
+            for axis in axes_attributes:
+                for axis_attribute, value in axes_attributes[axis].items():
+                    if isinstance(value, dict):
+                        for internal_attribute, internal_value in value.items():
+                            setattr(
+                                getattr(getattr(chart, axis), axis_attribute),
+                                internal_attribute, internal_value
+                            )
+                    else:
+                        setattr(getattr(chart, axis), axis_attribute, value)
+
+            location = first_column
             for j in range(len(labels[i]['sample_names'])):
-                for k in range(len(data_source.lengths[i]) + index_modifier):
-                    # categories is the x column and values is the y column
-                    chart.add_series({
-                        'name': [sheet_name, first_row, location],
-                        'categories':[
-                            sheet_name,
-                            first_row + 2,
-                            location + sum(data_source.lengths[i][j][:k]) + x_col,
-                            last_row,
-                            location + sum(data_source.lengths[i][j][:k]) + x_col
-                        ],
-                        'values':[
-                            sheet_name,
+                for k in range(len(data_source.lengths[i][j]) + index_modifier):
+                    series = Series(
+                        Reference(
+                            worksheet,
+                            location + sum(data_source.lengths[i][j][:k]) + y_col,
                             first_row + 2,
                             location + sum(data_source.lengths[i][j][:k]) + y_col,
-                            last_row,
-                            location + sum(data_source.lengths[i][j][:k]) + y_col
-                        ],
-                        'line': {'width': 2}
-                    })
-
+                            last_row
+                        ),
+                        xvalues=Reference(
+                            worksheet,
+                            location + sum(data_source.lengths[i][j][:k]) + x_col,
+                            first_row + 2,
+                            location + sum(data_source.lengths[i][j][:k]) + x_col,
+                            last_row
+                        )
+                    )
+                    series.title = SeriesLabel(
+                        StrRef(f"'{sheet_name}'!{get_column_letter(location)}{first_row}")
+                    )
+                    chart.append(series)
                 location += sum(data_source.lengths[i][j])
 
-            chart.set_x_axis({
-                'name': plot_options[i]['x_label'],
-                'min': x_min,
-                'max': x_max,
-                'reverse': x_reverse,
-                'crossing': 'max' if x_reverse else None
-            })
-            chart.set_y_axis({
-                'name': plot_options[i]['y_label'],
-                'min': y_min,
-                'max': y_max,
-                'reverse': y_reverse,
-                'crossing': 'max' if y_reverse else None
-            })
-
-            worksheet.insert_chart('D8', chart)
+            worksheet.add_chart(chart)
 
 
 def _select_processing_options(data_sources):
@@ -479,7 +488,8 @@ def _create_column_labels_window(
         )
 
     default_inputs.update(gui_inputs)
-    default_inputs.update({'sheet_name': f'Sheet {index + 1}'})
+    if 'sheet_name' not in default_inputs:
+        default_inputs['sheet_name'] = f'Sheet {index + 1}'
 
     if options['save_excel']:
         header = 'Sheet Name: '
@@ -682,12 +692,69 @@ def _select_column_labels(dataframes, data_source, processing_options):
                     else:
                         if i < len(dataframes) - 1:
                             label_values[i + 1].update(values)
+                            label_values[i + 1].pop('sheet_name')
                         break
 
         window.close()
         window = None
 
     return label_values
+
+
+def _collect_column_labels(dataframes, data_source, labels, options):
+    """
+    Collects all labels and condenses them into a single list of labels per dataset.
+
+    Also adds in blank labels for spacer columns between entries and samples.
+
+    Parameters
+    ----------
+    dataframes : list
+        A list of lists of lists of pd.DataFrame objects, containing the all
+        the data to process.
+    data_source : DataSource
+        The DataSource object for the data.
+    labels : list(dict)
+        A list of dictionaries. Each dictionary contains all of the
+        sample names and column labels for a dataset.
+    options : dict
+        The dictionary that contains information about which
+        processing steps will be conducted.
+
+    """
+
+    for i, dataset in enumerate(dataframes):
+        labels[i]['total_labels'] = []
+
+        for j in range(len(labels[i]['sample_names'])):
+            for entry_num in range(1, len(dataset[j]) + 1):
+                for label in labels[i]['column_labels']:
+                    if data_source.label_entries and len(dataset[j]) > 1:
+                        labels[i]['total_labels'].append(f'{label} {entry_num}')
+                    else:
+                        labels[i]['total_labels'].append(label)
+
+                if options['process_data'] and entry_num != len(dataset[j]):
+                    labels[i]['total_labels'].extend([
+                        '' for _ in range(data_source.entry_separation)
+                    ])
+
+            if options['process_data']:
+                if labels[i]['sample_summary_labels']:
+                    labels[i]['total_labels'].extend([
+                        *['' for _ in range(data_source.entry_separation)],
+                        *[label for label in labels[i]['sample_summary_labels']]
+                    ])
+
+                labels[i]['total_labels'].extend([
+                    '' for _ in range(data_source.sample_separation)
+                ])
+
+        if options['process_data'] and labels[i]['dataset_summary_labels']:
+            labels[i]['total_labels'].extend([
+                *[label for label in labels[i]['dataset_summary_labels']],
+                *['' for _ in range(data_source.sample_separation)]
+            ])
 
 
 def _fit_data(datasets, data_source, labels, excel_writer, options):
@@ -703,6 +770,9 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
     labels : list(dict)
         A list of dictionaries containing the sample names and column
         labels for each dataset.
+    excel_writer : pd.ExcelWriter
+        The pandas ExcelWriter object that contains all of the
+        information about the Excel file being created.
     options : dict
         A dictionary containing the relevent keys 'save_fitting' and
         'plot_fit_excel' which determine whether the fit results
@@ -772,7 +842,7 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
                         name = f'{sample_names[j]}_{k + 1}_fit'
                     else:
                         name = sample_names[j]
-                    
+
                     default_inputs.update({'sample_name': name})
 
                     fit_output, default_inputs, proceed = launch_peak_fitting_gui(
@@ -820,7 +890,7 @@ def _plot_data(datasets, data_source):
     """
 
     plot_datasets = []
-    for dataset in datasets: # flattens the dataset to a single list per dataset
+    for dataset in datasets: # Flattens the dataset to a single list per dataset
         plot_datasets.append([*itertools.chain(*dataset)])
 
     return launch_plotting_gui(plot_datasets, data_source.figure_rcParams)
@@ -911,118 +981,6 @@ def _move_files(files):
             print('Moving on with program.')
 
 
-def _save_excel_file(append_file, excel_writer, file_name, alternate_name=None):
-    """
-    Handles saving the Excel file and the various exceptions that can occur.
-
-    Parameters
-    ----------
-    append_file : bool
-        If True, will save a temporary file and then append the sheets to the
-        destination file.
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
-    file_name : str
-        The string of the file path for the file to save with
-        the input excel_writer. If append_file is True, this
-        will correspond to a temporary file that will be deleted.
-    alternate_name : str, optional
-        If append_file is True, this is the file path string
-        for the actual file. The default is None.
-
-    """
-
-    #ensures that the folder destinations exist
-    Path(file_name).parent.mkdir(parents=True, exist_ok=True)
-    if alternate_name is not None:
-        Path(alternate_name).parent.mkdir(parents=True, exist_ok=True)
-
-    try_to_save = True
-    while try_to_save:
-        try:
-            excel_writer.save() # raises PermissionError if file is open
-
-            if append_file:
-                print('\nSaved temporary file...')
-            else:
-                print('\nSaved Excel file.')
-            break
-
-        except PermissionError:
-            try_to_save = sg.popup_ok(
-                '\nTrying to overwrite Excel file. Please close the file.\n'
-            )
-
-    if append_file and try_to_save:
-        if os.name != 'nt': # will only do this in Windows (os.name=='nt' for windows)
-            print((
-                '\nAppending not supported for this os system. Please manually '
-                f'copy the sheets from "{file_name}"'
-            ))
-        else:
-            close_file = True
-            try:
-                #checks if the file is open; raises PermissionError if so
-                Path(alternate_name).rename(alternate_name)
-
-                app = xw.App(visible=False)
-                app.screen_updating = False
-                workbook_1 = xw.Book(file_name)
-                workbook_2 = xw.Book(alternate_name)
-
-            except PermissionError:
-                close_file = False
-                app = xw.apps.active
-                app.screen_updating = False
-                workbook_1 = xw.Book(file_name)
-
-                #cycles through Excel instances
-                for open_app in xw.apps:
-                    #cycles through open Excel workbooks to find the right file
-                    for book in open_app.books:
-                        if Path(alternate_name).name == book.name:
-                            workbook_2 = book
-                            break
-
-            finally:
-                #use another try-except here because xlwings/win32com is error prone
-                try:
-                    #creates a temporary sheet at the end of the workbook
-                    #will put all copied worksheets before this sheet because
-                    #using after does not work with Copy (creates new workbook rather than copying)
-                    workbook_2.sheets.add('temp_sheet_unique_name',
-                                          after=workbook_2.sheets[-1])
-                    temp_sheet = workbook_2.sheets[-1]
-                    #copies all sheets from workbook_1 to workbook_2
-                    for sheet in workbook_1.sheets:
-                        sheet.api.Copy(Before=temp_sheet.api)
-
-                    print('Appended Excel file and saved.')
-                    workbook_1.close()
-                    Path(file_name).unlink(True)
-
-                except Exception as e:
-                    print(repr(e))
-                    print('\nAppending sheets potentially failed. Check the '\
-                          'Excel file, and potentially copy the sheets from '\
-                          f'"{file_name}" if it exists.')
-
-                finally:
-                    for sheet in workbook_2.sheets:
-                        if 'temp_sheet_unique_name' in sheet.name:
-                            sheet.delete()
-                            break
-
-                    app.screen_updating = True
-                    workbook_2.app.screen_updating = True
-                    workbook_2.save()
-
-                    if close_file:
-                        workbook_2.close()
-                        app.kill()
-
-
 def launch_main_gui(data_sources):
     """
     Goes through all of the windows to find files, process/plot/fit data, and save to Excel.
@@ -1053,7 +1011,7 @@ def launch_main_gui(data_sources):
 
     Notes
     -----
-    The entire function is wrapped in a try-except-finally block. If the user exits the
+    The entire function is wrapped in a try-except block. If the user exits the
     program early by exiting out of a GUI, a custom WindowCloseError exception is
     thrown, which is just passed, allowing the program is close without error.
     If other exceptions occur, their traceback is printed.
@@ -1064,12 +1022,12 @@ def launch_main_gui(data_sources):
     fit_results = None
     plot_results = None
 
-    try:
-        if not isinstance(data_sources, (list, tuple)):
-            data_sources = [data_sources]
-        if any(not isinstance(data_source, DataSource) for data_source in data_sources):
-            raise TypeError("Only DataSource objects can be used in the main gui.")
+    if not isinstance(data_sources, (list, tuple)):
+        data_sources = [data_sources]
+    if any(not isinstance(data_source, DataSource) for data_source in data_sources):
+        raise TypeError("Only DataSource objects can be used in the main gui.")
 
+    try:
         processing_options = _select_processing_options(data_sources)
 
         # Specifying the selected data source
@@ -1080,23 +1038,7 @@ def launch_main_gui(data_sources):
                 break
 
         if not processing_options['save_excel']:
-            writer = None
-        else:
-            excel_filename = processing_options['file_name']
-
-            if processing_options['append_file'] and Path(excel_filename).exists():
-                final_name = excel_filename
-                excel_filename = str(
-                    Path.cwd().joinpath('temporary_file_to_be_deleted.xlsx')
-                )
-            else:
-                processing_options['append_file'] = False
-                final_name = None
-
-            writer = pd.ExcelWriter(excel_filename, engine='xlsxwriter') #TODO later add mode here to be either 'a' or 'w' after switching to openpyxl
-            # Formatting styles for the Excel workbook
-            for excel_format in data_source.excel_formats:
-                writer.book.add_format(data_source.excel_formats[excel_format])
+            writer = None # Set so that it exists for peak fitting
 
         # Selection of raw data files
         if processing_options['multiple_files']:
@@ -1105,8 +1047,9 @@ def launch_main_gui(data_sources):
                         'previous_search.json'), 'r') as old_search:
                     files = json.load(old_search)
             else:
-                files = file_finder(file_type=data_source.file_type,
-                                    num_files=data_source.num_files)
+                files = file_finder(
+                    file_type=data_source.file_type, num_files=data_source.num_files
+                )
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
                 with open(Path(__file__).parent.resolve().joinpath(
@@ -1201,30 +1144,45 @@ def launch_main_gui(data_sources):
                         'y_min': float(values['y_min']) if values['y_min'] else None,
                         'y_max': float(values['y_max']) if values['y_max'] else None
                     })
-            
+
             _collect_column_labels(dataframes, data_source, labels, processing_options)
 
-        # Collects each set of data into a single dataframe and applies
-        # formulas according to the selected data source
         if processing_options['save_excel'] or processing_options['process_data']:
 
             if processing_options['process_data']:
-                # perform separation functions
+                # Perform separation functions
                 dataframes, import_vals = data_source.do_separation_functions(
                     dataframes, import_vals
                 )
-                # assign reference indices for all relevant columns
+                # Assign reference indices for all relevant columns
                 data_source.set_references(dataframes, import_vals)
 
-            # merge dataframes for each dataset
+            # Merge dataframes for each dataset
             merged_dataframes = data_source.merge_datasets(dataframes)
-            dataframes = None # frees up memory
-            
+            dataframes = None # Frees up memory
+
             if processing_options['save_excel'] and processing_options['process_data']:
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
-                _generate_excel(
+                if (processing_options['append_file']
+                        and Path(processing_options['file_name']).exists()):
+                    mode = 'a'
+                else:
+                    processing_options['append_file'] = False
+                    mode = 'w'
+
+                writer =  pd.ExcelWriter(
+                    processing_options['file_name'], engine='openpyxl', mode=mode
+                )
+                # Formatting styles for the Excel workbook
+                for style, kwargs in data_source.excel_formats.items():
+                    try:
+                        writer.book.add_named_style(NamedStyle(style, **kwargs))
+                    except ValueError: # Style already exists in the workbook
+                        pass
+
+                _write_to_excel(
                     merged_dataframes, data_source, labels, writer,
                     processing_options['plot_data_excel'], plot_options
                 )
@@ -1232,21 +1190,18 @@ def launch_main_gui(data_sources):
             if processing_options['process_data']:
                 merged_dataframes = data_source.do_python_functions(merged_dataframes)
 
-            # split data back into individual dataframes
+            # Split data back into individual dataframes
             dataframes = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
-
-        # Specifies column names
+        # Assigns column names to the dataframes
         if any((processing_options['process_data'],
-                processing_options['save_excel'],
                 processing_options['fit_peaks'],
                 processing_options['plot_python'])):
-            
+
             pass #TODO later assign column headers for all dfs based on labels['total_columns']
 
         """
-        save this for later to put into the DataSource
         #renames dataframe columns if there are repeated terms,
         #since it causes issues for plotting and fitting
         if any((plot_python, fit_peaks)):
@@ -1269,11 +1224,9 @@ def launch_main_gui(data_sources):
                 dataframes, data_source, labels, writer, processing_options
             )
 
-        # Handles saving the Excel file and transferring sheets if appending to an existing file
+        # Handles saving the Excel file
         if processing_options['save_excel']:
-            _save_excel_file(
-                processing_options['append_file'], writer, excel_filename, final_name
-            )
+            _save_excel_file(processing_options['append_file'], writer)
 
         # Handles moving files
         if processing_options['move_files']:
@@ -1281,7 +1234,7 @@ def launch_main_gui(data_sources):
 
         # Handles plotting in python
         if processing_options['plot_python']:
-            plot_results = _plot_data(dataframes, data_source) #TODO later pass labels 
+            plot_results = _plot_data(dataframes, data_source) #TODO later pass labels
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
@@ -1289,6 +1242,7 @@ def launch_main_gui(data_sources):
         print(traceback.format_exc())
 
     return dataframes, fit_results, plot_results
+
 
 if __name__ == '__main__':
 
@@ -1334,8 +1288,9 @@ if __name__ == '__main__':
         xy_plot_indices=[0, 2], file_type='csv', num_files=1,
         unique_variables=['2\u03B8', 'Intensity'],
         entry_separation=2, sample_separation=3,
-        excel_row_offset=3,
-        excel_column_offset=2,
+        excel_row_offset=0,
+        excel_column_offset=0,
+        label_entries=True
     )
 
     """
