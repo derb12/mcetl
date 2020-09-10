@@ -14,7 +14,7 @@ import numpy as np
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 
-from .utils import optimize_memory
+from .utils import optimize_memory, DEFAULT_FITTING_FORMATS
 from .functions import SeparationFunction, CalculationFunction, SummaryFunction
 
 
@@ -283,80 +283,7 @@ class DataSource:
                 'alignment': Alignment(horizontal='center', vertical='center'),
                 'number_format': '0.00',
             },
-            'fitting_header_even': {
-                'font': Font(size=12, bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='F9B381', end_color='F9B381'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'fitting_header_odd': {
-                'font': Font(size=12, bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='73A2DB', end_color='73A2DB'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'fitting_subheader_even': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'fitting_subheader_odd': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'fittig_columns_even': {
-                'fill': PatternFill(
-                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-                ),
-                'alignment': Alignment(horizontal='center', vertical='center'),
-                'number_format': '0.00',
-            },
-            'fitting_columns_odd': {
-                'fill': PatternFill(
-                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-                ),
-                'alignment': Alignment(horizontal='center', vertical='center'),
-                'number_format': '0.00',
-            },
-            'fitting_descriptors_even': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-                ),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                ),
-                'number_format': '0.000',
-            },
-            'fitting_descriptors_odd': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-                ),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                ),
-                'number_format': '0.000',
-            }
+            **DEFAULT_FITTING_FORMATS
         }
 
         if format_kwargs is not None:

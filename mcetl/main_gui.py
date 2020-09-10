@@ -23,37 +23,6 @@ from mcetl.peak_fitting_gui import launch_peak_fitting_gui
 from mcetl.plotting_gui import launch_plotting_gui
 
 
-def _save_excel_file(append_file, excel_writer):
-    """
-    Handles saving the Excel file and the various exceptions that can occur.
-
-    Parameters
-    ----------
-    append_file : bool
-        If True, will save a temporary file and then append the sheets to the
-        destination file.
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
-
-    """
-
-    # Ensures that the folder destination exist
-    Path(excel_writer.path).parent.mkdir(parents=True, exist_ok=True)
-
-    try_to_save = True
-    while try_to_save:
-        try:
-            excel_writer.save()
-            print('\nSaved Excel file.')
-            break
-
-        except PermissionError:
-            try_to_save = sg.popup_ok(
-                '\nTrying to overwrite Excel file. Please close the file.\n'
-            )
-
-
 def _write_to_excel(dataframes, data_source, labels,
                     excel_writer, plot_excel, plot_options):
     """
@@ -1244,7 +1213,7 @@ def launch_main_gui(data_sources):
 
         # Handles saving the Excel file
         if processing_options['save_excel']:
-            _save_excel_file(processing_options['append_file'], writer)
+            utils.save_excel_file(writer)
 
         # Handles moving files
         if processing_options['move_files']:
