@@ -175,10 +175,12 @@ Pull requests are welcomed for this project. When submitting a pull request, fol
 * Keep the scope as narrow as possible, to make it easier to implement.
 
 
-Recent Changes
+Changelog
 --------------
 
-* TODO
+`Changelog`_
+
+.. _Changelog: https://github.com/derb12/mcetl/tree/master/CHANGELOG.rst
 
 
 Author

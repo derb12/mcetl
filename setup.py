@@ -8,9 +8,6 @@ from setuptools import setup, find_packages
 with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
-with open('CHANGELOG.rst') as history_file:
-    changelog = history_file.read()
-
 requirements = [
     'lmfit',
     'matplotlib>=3.1',
@@ -57,7 +54,7 @@ setup(
         ]
     },
     license="BSD license",
-    long_description=long_description + '\n\n' + changelog,
+    long_description=long_description,
     include_package_data=True,
     keywords='mcetl',
     name='mcetl',
