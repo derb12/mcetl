@@ -314,7 +314,7 @@ def show_dataframes(dataframes, title='Raw Data'):
         return window
 
 
-def optimize_memory(dataframe):
+def optimize_memory(dataframe, convert_objects=False):
     """
     Optimizes dataframe memory usage by converting data types.
 
@@ -326,6 +326,9 @@ def optimize_memory(dataframe):
     ----------
     dataframe : pd.DataFrame
         The dataframe to optimize.
+    convert_objects : bool, optional
+        If True, will attempt to convert columns with object dtype
+        if the pandas version is >= 1.0.0.
         
     Returns
     -------
@@ -336,12 +339,28 @@ def optimize_memory(dataframe):
     -----
     Only converts int and float numeric types, not numpy types like float64,
     float 32, int16, etc.
+
+    convert_objects is needed because currently, when object columns
+    are converted to a dtype of string, the row becomes a StringArray object,
+    which does not have the tolist() method curently implemented
+    (as of pandas version 1.0.5). openpyxl's dataframe_to_rows method
+    uses each row's tolist() method to convert the dataframe into a
+    generator of rows, so having a StringArray row without a tolist
+    method causes an exception when using openpyxl's dataframe_to_rows.
+    This could be alleviated by using dataframe.to_excel to write to
+    Excel directly rather than using dataframe_to_rows, but using the
+    dataframe_to_rows offers a significant speed increase (using openpyxl's
+    method results in a speed increae of ~ 30% since the cells are only
+    iterated over once. If using dataframe.to_excel and then formatting,
+    it requires iterating over all cells twice). I would
+    rather have a speed increase with the downside of more memory usage.
+    The dtypes can be still converted to string after writing to Excel, though.
     
     """
 
     optimized_df = dataframe.copy()
     
-    if int(pd.__version__.split('.')[0]) > 0:
+    if int(pd.__version__.split('.')[0]) > 0 and convert_objects:
         # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:

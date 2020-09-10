@@ -4,13 +4,15 @@
 @author: Donald Erb
 Created on Fri Jul 31 16:22:51 2020
 
+#TODO need to update all docstrings
 """
 
 
 import itertools
 
-import pandas as pd
 import numpy as np
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+import pandas as pd
 
 from .utils import optimize_memory
 from .functions import SeparationFunction, CalculationFunction, SummaryFunction
@@ -49,7 +51,7 @@ class DataSource:
             unique_variable_indices=None,
             xy_plot_indices=None,
             figure_rcParams=None,
-            excel_writer_kwargs=None,
+            excel_writer_formats=None,
             excel_row_offset=0,
             excel_column_offset=0,
             entry_separation=0,
@@ -88,8 +90,19 @@ class DataSource:
         figure_rcParams : dict, optional
             A dictionary containing any changes to matplotlib's rcParams.
             The default is None.
-        excel_writer_kwargs : TYPE, optional
-            DESCRIPTION. The default is None.
+        excel_writer_formats : dict(dict), optional
+            A dictionary of styles to overwrite the default settings for the
+            pd.ExcelWriter. The following keys are used when writing data
+            from files to Excel:
+                'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
+                'columns_even', 'columns_odd'
+            The following keys are used when writing data from mcetl's peak
+            fitting to Excel:
+                'fitting_header_even', 'fitting_header_odd', 'fitting_subheader_even',
+                'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
+                'fitting_descriptors_even', 'fitting_descriptors_odd'
+            The values for the dictionaries must also be dictionaries, with
+            keys corresponding to keyword inputs for openpyxl's NamedStyle.
         sample_separation : TYPE, optional
             DESCRIPTION. The default is 0.
         entry_separation : TYPE, optional
@@ -193,7 +206,7 @@ class DataSource:
             self.y_plot_index = 1
 
         # sets excel_formats attribute
-        self._create_excel_writer_formats(excel_writer_kwargs)
+        self._create_excel_writer_formats(excel_writer_formats)
 
 
     def __str__(self):
@@ -208,12 +221,6 @@ class DataSource:
         """
         Sets the excel_formats attribute for the DataSource.
 
-        Contains the keys:
-            odd_header_format, even_header_format,
-            odd_column_number_format, even_column_number_format,
-            odd_fit_header_format, even_fit_header_format,
-            odd_bold_format, even_bold_format
-
         Parameters
         ----------
         format_kwargs : dict
@@ -221,39 +228,134 @@ class DataSource:
 
         """
 
-        #TODO rename the keys to make their usage more clear
         self.excel_formats = {
-            'odd_header_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2,
-                'bold':True, 'bg_color':'DBEDFF', 'font_size':12, 'bottom': True
+            'header_even': {
+                'font': Font(size=12, bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='F9B381', end_color='F9B381'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
             },
-            'even_header_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2,
-                'bold':True, 'bg_color':'FFEAD6', 'font_size':12, 'bottom': True
+            'header_odd': {
+                'font': Font(size=12, bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='73A2DB', end_color='73A2DB'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
             },
-            'odd_column_number_format': {
-                'num_format': '0.00', 'bg_color':'DBEDFF', 'text_v_align': 2,
-                'text_h_align': 2
+            'subheader_even': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
             },
-            'even_column_number_format': {
-                'num_format': '0.00', 'bg_color':'FFEAD6', 'text_v_align': 2,
-                'text_h_align': 2
+            'subheader_odd': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
             },
-            'odd_fit_header_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-                'bg_color':'73A2DB', 'font_size':12, 'bottom': True
+            'columns_even': {
+                'fill': PatternFill(
+                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+                ),
+                'alignment': Alignment(horizontal='center', vertical='center'),
+                'number_format': '0.00',
             },
-            'even_fit_header_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-                'bg_color':'F9B381', 'font_size':12, 'bottom': True
+            'columns_odd': {
+                'fill': PatternFill(
+                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+                ),
+                'alignment': Alignment(horizontal='center', vertical='center'),
+                'number_format': '0.00',
             },
-            'odd_bold_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-                'bg_color':'DBEDFF', 'font_size':11, 'num_format': '0.000'
+            'fitting_header_even': {
+                'font': Font(size=12, bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='F9B381', end_color='F9B381'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
             },
-            'even_bold_format': {
-                'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-                'bg_color':'FFEAD6', 'font_size':11, 'num_format': '0.000'
+            'fitting_header_odd': {
+                'font': Font(size=12, bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='73A2DB', end_color='73A2DB'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
+            },
+            'fitting_subheader_even': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
+            },
+            'fitting_subheader_odd': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+                ),
+                'border': Border(bottom=Side(style='thin')),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                )
+            },
+            'fittig_columns_even': {
+                'fill': PatternFill(
+                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+                ),
+                'alignment': Alignment(horizontal='center', vertical='center'),
+                'number_format': '0.00',
+            },
+            'fitting_columns_odd': {
+                'fill': PatternFill(
+                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+                ),
+                'alignment': Alignment(horizontal='center', vertical='center'),
+                'number_format': '0.00',
+            },
+            'fitting_descriptors_even': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+                ),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                ),
+                'number_format': '0.000',
+            },
+            'fitting_descriptors_odd': {
+                'font': Font(bold=True),
+                'fill': PatternFill(
+                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+                ),
+                'alignment': Alignment(
+                    horizontal='center', vertical='center', wrap_text=True
+                ),
+                'number_format': '0.000',
             }
         }
 
@@ -589,8 +691,8 @@ class DataSource:
                     self.excel_column_offset, self.excel_row_offset
                 )
 
-            # optimizes memory usage after calculations
-            processed_dataframes.append(optimize_memory(dataset))
+            # Optimizes memory usage after calculations
+            processed_dataframes.append(optimize_memory(dataset, bool(index)))
 
         return processed_dataframes
 
@@ -614,7 +716,6 @@ class DataSource:
         """
 
         return self._do_functions(dataframes, 0)
-
 
 
     def do_python_functions(self, dataframes):
