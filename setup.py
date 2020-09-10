@@ -3,7 +3,6 @@
 """The setup script."""
 
 
-import os
 from setuptools import setup, find_packages
 
 with open('README.rst') as readme_file:
@@ -16,15 +15,12 @@ requirements = [
     'lmfit',
     'matplotlib>=3.1',
     'numpy',
+    'openpyxl',
     'pandas',
     'pysimplegui>=4.28',
     'scipy',
     'sympy',
-    'xlsxwriter' # eventually replace with openpyxl
 ]
-
-if os.name == 'nt':
-    requirements.append('xlwings') # eventually replace with openpyxl
 
 setup_requirements = [
     #'pytest-runner',
