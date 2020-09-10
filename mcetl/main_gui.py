@@ -186,14 +186,16 @@ def _write_to_excel(dataframes, data_source, labels,
             else:
                 y_reverse = False
 
-            axes_attributes = {
+            chart_attributes = {
+                'title': plot_options[i]['chart_title'] if plot_options[i]['chart_title'] else None,
                 'x_axis': {
                     'title': plot_options[i]['x_label'],
                     'crosses': 'max' if y_reverse else 'min',
                     'scaling': {
                         'min': x_min,
                         'max': x_max,
-                        'orientation': 'maxMin' if x_reverse else 'minMax'
+                        'orientation': 'maxMin' if x_reverse else 'minMax',
+                        'logBase': 10 if plot_options[i]['x_log_scale'] else None
                     }
                 },
                 'y_axis': {
@@ -202,22 +204,26 @@ def _write_to_excel(dataframes, data_source, labels,
                     'scaling': {
                         'min': y_min,
                         'max': y_max,
-                        'orientation': 'maxMin' if y_reverse else 'minMax'
+                        'orientation': 'maxMin' if y_reverse else 'minMax',
+                        'logBase': 10 if plot_options[i]['y_log_scale'] else None
                     }
                 }
             }
 
             chart = ScatterChart()
-            for axis in axes_attributes:
-                for axis_attribute, value in axes_attributes[axis].items():
-                    if isinstance(value, dict):
-                        for internal_attribute, internal_value in value.items():
-                            setattr(
-                                getattr(getattr(chart, axis), axis_attribute),
-                                internal_attribute, internal_value
-                            )
-                    else:
-                        setattr(getattr(chart, axis), axis_attribute, value)
+            for key, attribute in chart_attributes.items():
+                if not isinstance(attribute, dict):
+                    setattr(chart, key, attribute)
+                else:
+                    for axis_attribute, value in attribute.items():
+                        if not isinstance(value, dict):
+                            setattr(getattr(chart, key), axis_attribute, value)
+                        else:
+                            for internal_attribute, internal_value in value.items():
+                                setattr(
+                                    getattr(getattr(chart, key), axis_attribute),
+                                    internal_attribute, internal_value
+                                )                            
 
             location = first_column
             for j in range(len(labels[i]['sample_names'])):
@@ -458,7 +464,10 @@ def _create_column_labels_window(
         'y_min': '',
         'y_max': '',
         'x_label': data_source.column_labels[data_source.x_plot_index],
-        'y_label': data_source.column_labels[data_source.y_plot_index]
+        'y_label': data_source.column_labels[data_source.y_plot_index],
+        'x_log_scale': False,
+        'y_log_scale': False,
+        'chart_title': ''
     }
 
     for i in range(len(dataset)):
@@ -565,7 +574,7 @@ def _create_column_labels_window(
     ]
 
     if not options['plot_data_excel']:
-        main_section = labels_column
+        main_section = [sg.Frame('', [labels_column])]
     else:
         validations['user_inputs'].extend([
             ['x_min', 'x min', float , True, None],
@@ -574,11 +583,13 @@ def _create_column_labels_window(
             ['y_max', 'y max', float , True, None],
             ['x_label', 'x axis label', utils.string_to_unicode, False, None],
             ['y_label', 'y axis label', utils.string_to_unicode, False, None],
+            ['chart_title', 'chart title', utils.string_to_unicode, True, None]
         ])
 
         available_cols = labels[0] + labels[1] if options['process_data'] else labels[0]
         plot_layout = [
-            [sg.Text('')],
+            [sg.Text('Chart title:'),
+             sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],
             [sg.Text('Column of x data for plotting:'),
              sg.Combo([f'{col}' for col in range(len(available_cols))],
                       key='x_plot_index', readonly=True, size=(3, 1),
@@ -600,7 +611,11 @@ def _create_column_labels_window(
             [sg.Text('    Y min:', size=(8, 1)),
              sg.Input(default_inputs['y_min'], key='y_min', size=(5, 1)),
              sg.Text('    Y max:', size=(8, 1)),
-             sg.Input(default_inputs['y_max'], key='y_max', size=(5, 1))]
+             sg.Input(default_inputs['y_max'], key='y_max', size=(5, 1))],
+            [sg.Text('Use logorithmic scale?')],
+            [sg.Check('X axis', default_inputs['x_log_scale'],
+                      key='x_log_scale', pad=((20, 5), 5)),
+             sg.Check('Y axis', default_inputs['y_log_scale'], key='y_log_scale')]
         ]
 
         main_section = [
@@ -1137,12 +1152,15 @@ def launch_main_gui(data_sources):
                     plot_options.append({
                         'x_label': utils.string_to_unicode(values['x_label']),
                         'y_label': utils.string_to_unicode(values['y_label']),
+                        'chart_title' : utils.string_to_unicode(values['chart_title']),
                         'x_plot_index': int(values['x_plot_index']),
                         'y_plot_index': int(values['y_plot_index']),
                         'x_min': float(values['x_min']) if values['x_min'] else None,
                         'x_max': float(values['x_max']) if values['x_max'] else None,
                         'y_min': float(values['y_min']) if values['y_min'] else None,
-                        'y_max': float(values['y_max']) if values['y_max'] else None
+                        'y_max': float(values['y_max']) if values['y_max'] else None,
+                        'x_log_scale': values['x_log_scale'],
+                        'y_log_scale': values['y_log_scale']
                     })
 
             _collect_column_labels(dataframes, data_source, labels, processing_options)
