@@ -4,8 +4,6 @@
 @author: Donald Erb
 Created on Sun Jun 28 18:40:04 2020
 
-#TODO fix the GUIs for saving and loading theme files, and do not allow user input.
-
 Attributes
 ----------
 CANVAS_SIZE : tuple(int, int)
@@ -167,9 +165,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 })
 
     filename = sg.popup_get_file(
-        'Select the filename.', title='Save Figure Options', save_as=True,
-        file_types=((f"Theme Files (*{_THEME_EXTENSION})",
-                     f"*{_THEME_EXTENSION}"),)
+        '', no_window=True, save_as=True,
+        file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
     )
 
     if filename:
@@ -245,8 +242,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
 
     if filename is None:
         filename = sg.popup_get_file(
-            'Select the data file.', title='Load Data File',
-            file_types=(('CSV Files (*.csv)', '*.csv'),)
+            '', file_types=(('CSV Files (*.csv)', '*.csv'),), no_window=True
         )
 
     figures = None
@@ -315,12 +311,12 @@ def _load_theme_file(filename):
     """
 
     with open(filename, 'r') as f:
-        file = f.readlines()
+        theme_file = f.readlines()
 
-    fig_kwargs = json.loads(file[1])
-    gui_values = json.loads(file[3])
-    rc_changes = json.loads(file[5])
-    annotations = json.loads(file[7])
+    fig_kwargs = json.loads(theme_file[1])
+    gui_values = json.loads(theme_file[3])
+    rc_changes = json.loads(theme_file[5])
+    annotations = json.loads(theme_file[7])
 
     with plt.rc_context({'interactive': False}):
         fig, axes = _create_figure_components(**fig_kwargs)
@@ -357,29 +353,32 @@ def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
 
     Returns
     -------
-    axes : dict
-        The dictionary of plt.Axes objects, with annotations added to them.
-    gui_values : dict
-        A dictionary that contains all the information to create the figure
-        and set the values in the plot options gui.
-    fig_kwargs : dict
-        The dictionary to recreate the loaded figure.
+    new_theme : tuple
+        If a theme file is not selected, an empty tuple is returned. Otherwise,
+        a tuple with three entries is returned, with the entries being:
+            axes : dict
+                The dictionary of plt.Axes objects, with annotations added to them.
+            gui_values : dict
+                A dictionary that contains all the information to create the figure
+                and set the values in the plot options gui.
+            fig_kwargs : dict
+                The dictionary to recreate the loaded figure.
 
     """
 
-    filename = sg.popup_get_file('Select the theme file.', title='Load Figure Theme',
-                                 file_types=((f"Theme Files (*{_THEME_EXTENSION})",
-                                              f"*{_THEME_EXTENSION}"),))
+    filename = sg.popup_get_file(
+        '', no_window=True,
+        file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
+    )
 
     if filename:
         fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(filename)
         del rc_changes
+        new_theme = (axes, gui_values, fig_kwargs)
     else:
-        axes = current_axes
-        gui_values = current_values
-        fig_kwargs = current_fig_kwargs
+        new_theme = ()
 
-    return axes, gui_values, fig_kwargs
+    return new_theme
 
 
 def _save_image_options(figure):
@@ -394,7 +393,6 @@ def _save_image_options(figure):
     figure : plt.Figure
         The matplotlib Figure to save.
 
-    #TODO saving to tiff with compression works on PIL 6.1.0 but fails on PIL 7.2.0. Figure out why.
     """
 
     extension_mapping = {
@@ -2578,17 +2576,20 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     window.un_hide()
                 # load the options required to recreate a figure layout
                 elif event.startswith('Load Figure'):
-                    window.close()
-                    window = None
-                    plt.close(_PREVIEW_NAME)
-                    old_axes, values, fig_kwargs = _load_figure_theme(
-                        axes, values, fig_kwargs
-                    )
-                    fig, axes = _create_figure_components(**fig_kwargs)
-                    window = _create_plot_options_gui(
-                        data, fig, axes, values, old_axes, **fig_kwargs
-                    )
+                    window.hide()
+                    new_figure_theme = _load_figure_theme(axes, values, fig_kwargs)
 
+                    if not new_figure_theme:
+                        window.un_hide()
+                    else:
+                        window.close()
+                        window = None
+                        plt.close(_PREVIEW_NAME)
+                        old_axes, values, fig_kwargs = new_figure_theme
+                        fig, axes = _create_figure_components(**fig_kwargs)
+                        window = _create_plot_options_gui(
+                            data, fig, axes, values, old_axes, **fig_kwargs
+                        )
                 # show tables of data
                 elif event == 'Show Data':
                     data_window = utils.show_dataframes(data, 'Data').finalize()

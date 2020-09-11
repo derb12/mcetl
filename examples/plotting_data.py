@@ -13,7 +13,7 @@ Created on Sat Aug 22 17:34:39 2020
 from mcetl import launch_plotting_gui
 
 
-# changes some defaults for the plot formatting
+# changes for matploblib's rcParams to change the plot format
 changes = {
     'font.serif': 'Times New Roman',
     'font.family': 'serif',
