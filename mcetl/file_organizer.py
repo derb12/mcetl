@@ -498,8 +498,7 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
                              \n    Secondary keyword: {kw2_keywords}')],
                     [sg.Listbox(key='listbox', values=files,
                                 size=(max(len(str(file)) for file in files) + 3, 8),
-                                select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED,
-                                bind_return_key=True)],
+                                select_mode='multiple', bind_return_key=True)],
                     [sg.Button('Submit', button_color=PROCEED_COLOR)]
                 ]
 

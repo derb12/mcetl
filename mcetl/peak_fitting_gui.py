@@ -250,7 +250,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     bkg_points = default_inputs['selected_bkg']
     headers = dataframe.columns
 
-    if default_inputs['batch_fit']:
+    if default_inputs['batch_fit']: #TODO need to ensure that there is data in the x and y columns, otherwise it will throw an exception
         values = default_inputs
 
     else:
@@ -500,8 +500,8 @@ def fit_dataframe(dataframe, user_inputs=None):
             elif event == 'Show Data':
                 data_window = utils.show_dataframes(dataframe)
                 if data_window is not None:
-                    data_window.read()
-                    data_window.close()
+                    data_window.finalize().TKroot.grab_set()
+                    data_window.read(close=True)
                     data_window = None
 
             elif event == 'Update Peak & Model Lists':

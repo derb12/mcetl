@@ -389,12 +389,11 @@ def show_dataframes(dataframes, title='Raw Data'):
 
         window = sg.Window(title, layout, resizable=True)
 
-    except Exception as e:
+    except Exception as e: #TODO do I still need this try-except block?
         sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
         window = None
 
-    finally:
-        return window
+    return window
 
 
 def optimize_memory(dataframe, convert_objects=False):

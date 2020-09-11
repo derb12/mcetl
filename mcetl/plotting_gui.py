@@ -4,6 +4,8 @@
 @author: Donald Erb
 Created on Sun Jun 28 18:40:04 2020
 
+#TODO fix the GUIs for saving and loading theme files, and do not allow user input.
+
 Attributes
 ----------
 CANVAS_SIZE : tuple(int, int)
@@ -71,7 +73,7 @@ TIGHT_LAYOUT_H_PAD = 0.6
 TIGHT_LAYOUT_W_PAD = 0.6
 
 # column name for the blank columns inserted between data entries when saving data to csv
-_FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN' 
+_FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 # the default figure name used by matplotlib
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information
@@ -196,8 +198,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                     df = dataframe.copy()
                     df.columns = [f'{col}_{i}' for col in df.columns]
                     if i != len(data) - 1:
-                        df[f'{_FILLER_COLUMN_NAME}.{i}'] = pd.Series(np.nan,
-                                                                     dtype=np.float32)
+                        df[f'{_FILLER_COLUMN_NAME}_{i}'] = pd.Series(np.nan,
+                                                                     dtype=np.float16)
                     saved_data.append(df)
 
                 with open(filename, 'w') as f:
@@ -392,6 +394,7 @@ def _save_image_options(figure):
     figure : plt.Figure
         The matplotlib Figure to save.
 
+    #TODO saving to tiff with compression works on PIL 6.1.0 but fails on PIL 7.2.0. Figure out why.
     """
 
     extension_mapping = {
@@ -498,7 +501,7 @@ def _save_image_options(figure):
                 window_open = False
 
                 if layout_2:
-                    window_2 = sg.Window(f'Options for {values["extension"]}',
+                    window_2 = sg.Window(f'Options for {file_extension.upper()}',
                                          layout_2)
                     while True:
                         event_2, save_dict = window_2.read()
@@ -533,8 +536,10 @@ def _save_image_options(figure):
                     except Exception as e:
                         sg.popup(
                             (f'Save failed...\n\nSaving to "{file_extension}" may not '
-                             f'be supported by matplotlib, or an additional error may '
-                             f'have occured.\n\nError:\n    {repr(e)}\n'),
+                             'be supported by matplotlib, or an additional error may '
+                             'have occured.\nIf trying to save to tiff/tif, try saving '
+                             'without compression.'
+                             f'\n\nError:\n    {repr(e)}\n'),
                             title='Error'
                         )
                         window_open = True
@@ -571,7 +576,6 @@ def _get_image_options(extension):
     """
 
     if extension == 'JPEG':
-
         extension_layout = [
             [sg.Text('JPEG Quality (1-95):'),
              sg.Slider((1, 95), plt.rcParams['savefig.jpeg_quality'],
@@ -635,15 +639,17 @@ def _convert_to_pillow_kwargs(arg):
 
     Return
     ------
-    arg_dict[arg] : None or str
+    arg_mapping[arg] : None or str
         The keyword in pillow associated with the input arg string.
+
     """
 
-    arg_dict = {'None': None, 'Deflate': 'tiff_deflate',
-                'LZW': 'tiff_lzw', 'Pack Bits': 'packbits',
-                'JPEG': 'jpeg'}
+    arg_mapping = {
+        'None': None, 'Deflate': 'tiff_deflate', 'LZW': 'tiff_lzw',
+        'Pack Bits': 'packbits', 'JPEG': 'jpeg'
+    }
 
-    return arg_dict[arg]
+    return arg_mapping[arg]
 
 
 def _create_figure_components(saving=False, **fig_kwargs):
@@ -1363,7 +1369,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'secondary_y_label_{i}{j}': '',
                 f'secondary_y_label_offset_{i}{j}': plt.rcParams['axes.labelpad'],
                 f'secondary_y_expr_{i}{j}': '',
-                f'show_legend_{i}{j}': True if 'Invisible' not in axis.get_label() else False,
+                f'show_legend_{i}{j}': True,
                 f'legend_cols_{i}{j}': 1 if len(data) < 5 else 2,
                 f'legend_auto_{i}{j}': True,
                 f'legend_auto_loc_{i}{j}': 'best',
@@ -1386,34 +1392,25 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'y_minor_grid_{i}{j}': False,
             })
 
-            # Options for each data entry #TODO maybe make this into a loop to clean it up
-            default_inputs.update({f'plot_boolean_{i}{j}{k}': True if 'Invisible' not in axis.get_label() else False
-                                    for k in range(len(data))})
-            default_inputs.update({f'x_col_{i}{j}{k}': '0'
-                                    for k in range(len(data))})
-            default_inputs.update({f'y_col_{i}{j}{k}': '1'
-                                    for k in range(len(data))})
-            default_inputs.update({f'label_{i}{j}{k}': f'Data {k+1}'
-                                    for k in range(len(data))})
-            default_inputs.update({f'offset_{i}{j}{k}': 0
-                                    for k in range(len(data))})
-            default_inputs.update({f'marker_color_{i}{j}{k}': next(marker_colors)
-                                    for k in range(len(data))})
-            default_inputs.update({f'marker_style_{i}{j}{k}': next(marker_cycler)
-                                    for k in range(len(data))})
-            default_inputs.update({f'marker_fill_{i}{j}{k}': 'Filled'
-                                    for k in range(len(data))})
-            default_inputs.update({f'marker_size_{i}{j}{k}': marker_size
-                                    for k in range(len(data))})
-            default_inputs.update({f'line_color_{i}{j}{k}': next(line_colors)
-                                    for k in range(len(data))})
-            default_inputs.update({f'line_style_{i}{j}{k}': next(line_cycler)
-                                    for k in range(len(data))})
-            default_inputs.update({f'line_size_{i}{j}{k}': line_width
-                                    for k in range(len(data))})
+            # Options for each data entry
+            for k in range(len(data)):
+                default_inputs.update({
+                    f'plot_boolean_{i}{j}{k}': True,
+                    f'x_col_{i}{j}{k}': '0',
+                    f'y_col_{i}{j}{k}': '1',
+                    f'label_{i}{j}{k}': f'Data {k + 1}',
+                    f'offset_{i}{j}{k}': 0,
+                    f'marker_color_{i}{j}{k}': next(marker_colors),
+                    f'marker_style_{i}{j}{k}': next(marker_cycler),
+                    f'marker_fill_{i}{j}{k}': 'Filled',
+                    f'marker_size_{i}{j}{k}': marker_size,
+                    f'line_color_{i}{j}{k}': next(line_colors),
+                    f'line_style_{i}{j}{k}': next(line_cycler),
+                    f'line_size_{i}{j}{k}': line_width
+                })
 
-    user_inputs = user_inputs if user_inputs is not None else {}
-    default_inputs.update(user_inputs)
+    if user_inputs is not None:
+        default_inputs.update(user_inputs)
     # plot to get the axis limits for defaults
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
 
@@ -1637,8 +1634,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 [sg.Radio('Manual', f'legend_pos_{i}{j}', key=f'legend_manual_{i}{j}',
                           default=default_inputs[f'legend_manual_{i}{j}'],
                           enable_events=True, pad=((20, 10), 3))],
-                [sg.Text('Position of lower-left corner, as a fraction of the axis size\n'\
-                         '    (< 0 or > 1 will be outside of axis)',
+                [sg.Text(('Position of lower-left corner, as a fraction of the axis size'
+                          '\n    (< 0 or > 1 will be outside of axis)'),
                          pad=((60, 3), 3))],
                 [sg.Text('x-position:', pad=((60, 3), 3)),
                  sg.Input(default_inputs[f'legend_manual_x_{i}{j}'],
@@ -1763,7 +1760,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
              sg.Button('Update Figure'),
              sg.Button('Reset to Defaults'),
              sg.Button('Continue', bind_return_key=True,
-                       button_color=('white', '#00A949'))]
+                       button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
             [sg.Canvas(key='controls_canvas', pad=(0, 0), size=(CANVAS_SIZE[0], 10))],
@@ -1869,7 +1866,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
                         x = x_data[nan_mask]
-                        y = y_data[nan_mask] + float(kwargs[f'offset_{i}{j}{k}'])
+                        y = y_data[nan_mask] + float(kwargs[f'offset_{i}{j}{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}{j}'])
 
                         if kwargs[f'marker_fill_{i}{j}{k}'] == 'Filled':
                             marker_kws = {
@@ -1933,8 +1930,6 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                                 steps=[1, 2, 2.5, 4, 5, 10]))
                 axis.xaxis.set_minor_locator(
                     AutoMinorLocator(kwargs[f'x_minor_ticks_{i}{j}'] + 1))
-                #show_ticks = not kwargs.get('hide_ticks', False)
-                #axis.tick_params(labelbottom=False, bottom=show_ticks, which='both')
 
                 if kwargs[f'show_legend_{i}{j}']:
                     if kwargs[f'legend_auto_{i}{j}']:
@@ -1948,17 +1943,16 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend.set_in_layout(False)
 
                 if kwargs[f'secondary_x_{i}{j}']:
-                    expr = kwargs[f'secondary_x_expr_{i}{j}']
-                    if expr:
-                        eqn_a = sp.parse_expr(expr)
+                    if not kwargs[f'secondary_x_expr_{i}{j}']:
+                        functions = None
+                    else:
+                        eqn_a = sp.parse_expr(kwargs[f'secondary_x_expr_{i}{j}'])
                         forward_eqn = sp.lambdify(['x'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('y') - eqn_a],
                                          [sp.Symbol('x')])[sp.Symbol('x')]
                         backward_eqn = sp.lambdify(['y'], eqn_b, ['numpy'])
 
                         functions = (forward_eqn, backward_eqn)
-                    else:
-                        functions = None
 
                     sec_x_axis = axis.secondary_xaxis('top', functions=functions)
                     sec_x_axis.set_xlabel(
@@ -1972,17 +1966,16 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}{j}'] + 1))
 
                 if kwargs[f'secondary_y_{i}{j}']:
-                    expr = kwargs[f'secondary_y_expr_{i}{j}']
-                    if expr:
-                        eqn_a = sp.parse_expr(expr)
+                    if not kwargs[f'secondary_y_expr_{i}{j}']:
+                        functions = None
+                    else:
+                        eqn_a = sp.parse_expr(kwargs[f'secondary_y_expr_{i}{j}'])
                         forward_eqn = sp.lambdify(['y'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('x') - eqn_a],
                                          [sp.Symbol('y')])[sp.Symbol('y')]
                         backward_eqn = sp.lambdify(['x'], eqn_b, ['numpy'])
 
                         functions = (forward_eqn, backward_eqn)
-                    else:
-                        functions = None
 
                     sec_y_axis = axis.secondary_yaxis('right', functions=functions)
                     sec_y_axis.set_ylabel(
@@ -1998,11 +1991,11 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
     except Exception as e:
         sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
     finally:
-        # ensures that the annotations are maintained if an exception occurres
+        # Ensures that the annotations are maintained if an exception occurres
         if old_axes is not None:
             for key in annotations:
                 for annotation in annotations[key]:
-                    # cannot directly copy artists because the transformations will not
+                    # Cannot directly copy artists because the transformations will not
                     # update in the new axis
                     axes[key]['Main Axis'].annotate(
                         annotation.get_text(), xy=annotation.xy,
@@ -2067,8 +2060,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
 
         upper_layout = [
             [sg.Text(dataset_text)],
-            [sg.Combo([f'Entry {i + 1}' for i in range(len(current_data))],
-                      '', key='data_list', size=(10, 1), readonly=True)]
+            [sg.Listbox([f'Entry {i + 1}' for i in range(len(current_data))],
+                        select_mode='multiple', key='data_list', size=(20, 5))]
         ]
 
     layout = [
@@ -2080,7 +2073,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Entry Selection', layout)
+    window = sg.Window('Entry Selection', layout, finalize=True)
+    window.TKroot.grab_set()
     while True:
         event, values = window.read()
 
@@ -2090,9 +2084,12 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
             break
 
         elif event == 'Show Data':
-            data_window = utils.show_dataframes(display_data, 'Data')
+            window.TKroot.grab_release()
+            data_window = utils.show_dataframes(display_data, 'Data').finalize()
+            data_window.TKroot.grab_set()
             data_window.read(close=True)
             data_window = None
+            window.TKroot.grab_set()
 
         elif event == 'group':
             index = int(values['group'].split(' ')[-1]) - 1
@@ -2103,7 +2100,9 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
             if values['data_list']:
                 break
             else:
+                window.TKroot.grab_release()
                 sg.popup('Please select an entry', title='Error')
+                window.TKroot.grab_set()
 
     window.close()
     del window
@@ -2113,20 +2112,21 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
         current_data.append(data_list[index][dataset_index].copy())
 
     elif remove_dataset:
-        dataset_index = int(values['data_list'].split(' ')[-1]) - 1
-        del current_data[dataset_index]
-        properties = (
-            'plot_boolean', 'x_col', 'y_col', 'label', 'offset',
-            'marker_color', 'marker_style', 'marker_fill',
-            'marker_size', 'line_color', 'line_style', 'line_size'
-        )
+        for selected_dataset in sorted(values['data_list'], reverse=True):
+            dataset_index = int(selected_dataset.split(' ')[-1]) - 1
+            del current_data[dataset_index]
+            properties = (
+                'plot_boolean', 'x_col', 'y_col', 'label', 'offset',
+                'marker_color', 'marker_style', 'marker_fill',
+                'marker_size', 'line_color', 'line_style', 'line_size'
+            )
 
-        # reorders the plot properties
-        for i, key in enumerate(axes):
-            for j in range(len(axes[key])):
-                for k in range(dataset_index, len(current_data)):
-                    for prop in properties:
-                        plot_details[f'{prop}_{i}{j}{k}'] = plot_details[f'{prop}_{i}{j}{k+1}']
+            # reorders the plot properties
+            for i, key in enumerate(axes):
+                for j in range(len(axes[key])):
+                    for k in range(dataset_index, len(current_data)):
+                        for prop in properties:
+                            plot_details[f'{prop}_{i}{j}{k}'] = plot_details.pop(f'{prop}_{i}{j}{k + 1}')
 
     return current_data, plot_details
 
@@ -2381,8 +2381,8 @@ def _add_remove_annotations(axis, add_annotation):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)],
     ]
 
-    window = sg.Window(window_text, layout)
-
+    window = sg.Window(window_text, layout, finalize=True)
+    window.TKroot.grab_set()
     while True:
         event, values = window.read()
 
@@ -2407,7 +2407,6 @@ def _add_remove_annotations(axis, add_annotation):
                 property_type = event.split('_')[0]
                 index = event.split('_')[-1]
                 window[f'{property_type}_color_{index}'].update(value=values[event])
-
 
         elif event == 'Submit':
             close = True
@@ -2512,7 +2511,8 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
         A dictionary of plt.Axes objects from a reloaded session.
     input_values : dict, optional
         The values needed to recreate the previous gui window from
-        a reloaded figure, or to set some default values. #TODO need to allow a list of dictionaries to set defaults for each dataset
+        a reloaded figure, or to set some default values. 
+        #TODO need to allow a list of dictionaries to set defaults for each dataset, like entry labels
 
     Returns
     -------
@@ -2591,28 +2591,32 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
 
                 # show tables of data
                 elif event == 'Show Data':
-                    data_window = utils.show_dataframes(data, 'Data')
+                    data_window = utils.show_dataframes(data, 'Data').finalize()
+                    data_window.TKroot.grab_set()
                     data_window.read(close=True)
                     data_window = None
                 # add/remove data entries
                 elif event.endswith('Entry'):
-                    plt.close(_PREVIEW_NAME)
-                    window.close()
-                    window = None
-
                     if 'Empty' in event:
                         data.append(
                             pd.DataFrame([[np.nan, np.nan], [np.nan, np.nan]],
-                                         columns=['Empty Column 0', 'Empty Column 1'])
+                                         columns=['Empty Entry Column_0',
+                                                  'Empty Entry Column_1'])
                         )
                     else:
-                        add_dataset = False
                         if event == 'Add Entry':
+                            window.hide()
                             add_dataset = True
+                        else:
+                            add_dataset = False
 
                         data, values = _add_remove_dataset(
                             data, values, data_list, add_dataset, axes
                         )
+
+                    plt.close(_PREVIEW_NAME)
+                    window.close()
+                    window = None
                     window = _create_plot_options_gui(
                         data, fig, axes, values, axes, **fig_kwargs
                     )
