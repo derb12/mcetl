@@ -114,42 +114,6 @@ class PlotToolbar(NavigationToolbar2Tk):
         super().__init__(fig_canvas, canvas)
 
 
-def _plot_options_section(title, layout, index):
-    """
-    [summary]
-
-    Parameters
-    ----------
-    title : [type]
-        [description]
-    layout : [type]
-        [description]
-    index : str
-        A string denoting the 'ijk' index, where i is the index of the 
-        axis grouping within axes, j is the index of the axis within the axis
-        grou, and k is the index of the section for the axis.
-    
-    Returns
-    -------
-    section : list(list)
-        The layout for the section, containing a sg.Text element
-        with the title, and a sg.Frame element with the layout.
-
-    """
-
-    #TODO later add the arrow symbols for collapsable sections, and add enable_events for the Text element
-    #TODO need some way to know if a section should be collapsed -> if right-arrow in default_inputs[key]
-
-    section = [
-        [sg.Text(title, key=f'-SECTION_header_{index}', relief='ridge',
-                 size=(65, 1), justification='center')],
-        [sg.Frame('', layout, key=f'-SECTION_{index}', border_width=0,
-                  pad=(5, (10, 20)))]
-    ]
-
-    return section
-
-
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     """
     Save the values required to recreate the theme or the figure.
@@ -363,7 +327,7 @@ def _load_theme_file(filename):
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
             for annotation in annotations[i][j]:
-                # the annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
+                # The annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
                 if int(''.join(mpl.__version__.split('.')[:2])) < 33:
                     annotation['s'] = annotation.pop('text')
 
@@ -670,6 +634,28 @@ def _create_figure_components(saving=False, **fig_kwargs):
     Later fill this with logic determining which steps can be skipped if no changes
     are made.
 
+    Parameters
+    ----------
+    saving : bool
+        If True, designate that the figure is being saved, so the figure dpi
+        will not be adjusted. Otherwise, the figure dpi is adjusted so that
+        it fits on CANVAS_SIZE.
+    fig_kwargs : dict
+        Keyword arguments to pass on to the various functions. Unpacking
+        is used so that the figure name can be easily specified without
+        changing the fig_kwargs dictionary used to control figure size, dpi, etc.
+
+    Returns
+    -------
+    figure : plt.Figure
+        The created matplotlib Figure.
+    axes : dict
+        A nested dictionary containing all of the axes within the figure. Each
+        key details the position of the axis within the figure, and each value
+        is a dictionary containing at most three keys, 'Main Axis', 'Twin x axis',
+        and 'Twin y axis', with each value corresponding to the plt.Axes object
+        for that key.
+
     """
 
     figure = _create_figure(fig_kwargs, saving)
@@ -746,6 +732,26 @@ def _create_figure(fig_kwargs, saving=False):
 
 def _create_gridspec(gs_kwargs, figure):
     """
+    Creates the gridspec detailing the layout of plots within the figure.
+
+    Also updates the gs_kwargs to match the created gridspec.
+
+    Parameters
+    ----------
+    gs_kwargs : dict
+        A dictionary containing the relevant values for creating the gridspec.
+    figure : plt.Figure
+        The matplotlib figure that the gridspec will be added to.
+    
+    Returns
+    -------
+    gridspec : plt.GridSpec
+        The created GridSpec object, detailing the layout of plots in the figure.
+    gridspec_layout : dict
+        A dictionary that details where plots go within the gridspec. Each key
+        is a unique plot, and its values are the row and column indices for
+        the plot within the gridspec.
+
     """
 
     selections = defaultdict(list)
@@ -791,6 +797,30 @@ def _create_gridspec(gs_kwargs, figure):
 
 def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     """
+    Creates all of the axes for the figure using the gridspec.
+
+    Parameters
+    ----------
+    gridspec : plt.GridSpec
+        The created GridSpec object, detailing the layout of plots in the figure.
+    gridspec_layout : dict
+        A dictionary that details where plots go within the gridspec. Each key
+        is a unique plot, and its values are the row and column indices for
+        the plot within the gridspec.
+    figure : plt.Figure
+        The Figure that the gridspec and axes belong to.
+    fig_kwargs : dict
+        [description]
+
+    Returns
+    -------
+    axes : dict
+        A nested dictionary containing all of the axes within the figure. Each
+        key details the position of the axis within the figure, and each value
+        is a dictionary containing at most three keys, 'Main Axis', 'Twin x axis',
+        and 'Twin y axis', with each value corresponding to the plt.Axes object
+        for that key.
+
     """
 
     axes = defaultdict(dict)
@@ -860,7 +890,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                 ax2.set_frame_on(False)
                 ax2.set_ylabel(twin_x_label)
                 ax2.tick_params(which='both', labelright=label_right)
-                axes[entry_key]['Twin x'] = ax2
+                axes[entry_key]['Twin X'] = ax2
 
             if fig_kwargs[f'twin_y_{val[0][0]}{val[1][0]}']:
                 ax3 = ax.twiny()
@@ -868,7 +898,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                 ax3.set_frame_on(False)
                 ax3.set_xlabel(twin_y_label)
                 ax3.tick_params(which='both', labeltop=label_top)
-                axes[entry_key]['Twin y'] = ax3
+                axes[entry_key]['Twin Y'] = ax3
 
             ax.set_ylabel(y_label)
             ax.set_xlabel(x_label)
@@ -883,7 +913,7 @@ def _annotate_example_figure(axes, canvas, figure):
     Parameters
     ----------
     axes : dict
-        A dictionary of plt.Axes objects.
+        A dictionary of axes in the figure.
     canvas : tk.Canvas
         The canvas for the figure.
     figure : plt.Figure
@@ -1304,7 +1334,6 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
         The window that contains the plotting options.
 
     #TODO disable secondary axes in plots with twin axes
-    #TODO document all possible kwargs? maybe not needed since this is a private function
 
     """
 
@@ -1446,7 +1475,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'secondary_y_axis_max_{i}{j}': axis.get_ylim()[1],
             })
 
-            if 'Twin x' in axes[key] or 'Twin' in label: #TODO why is this here and not in the upper statement??
+            if 'Twin X' in axes[key] or 'Twin' in label: #TODO why is this here and not in the upper statement??
                 secondary_y_disabled = True
                 default_inputs.update({
                     f'secondary_y_{i}{j}': False,
@@ -1457,7 +1486,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             else:
                 secondary_y_disabled = False
 
-            if 'Twin y' in axes[key] or 'Twin' in label:
+            if 'Twin Y' in axes[key] or 'Twin' in label:
                 secondary_x_disabled = True
                 default_inputs.update({
                     f'secondary_x_{i}{j}': False,
@@ -1619,17 +1648,17 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     [sg.Text('')],
                     [sg.Text('Bounds')],
                     [sg.Text('    X Minimum:'),
-                    sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(8, 1),
-                             key=f'x_axis_min_{i}{j}'),
-                    sg.Text('X Maximum:'),
-                    sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(8, 1),
-                             key=f'x_axis_max_{i}{j}')],
+                     sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(12, 1),
+                              key=f'x_axis_min_{i}{j}'),
+                     sg.Text('X Maximum:'),
+                     sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(12, 1),
+                              key=f'x_axis_max_{i}{j}')],
                     [sg.Text('    Y Minimum:'),
-                    sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(8, 1),
-                             key=f'y_axis_min_{i}{j}'),
-                    sg.Text('Y Maximum:'),
-                    sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(8, 1),
-                             key=f'y_axis_max_{i}{j}')],
+                     sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(12, 1),
+                              key=f'y_axis_min_{i}{j}'),
+                     sg.Text('Y Maximum:'),
+                     sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(12, 1),
+                              key=f'y_axis_max_{i}{j}')],
                     [sg.Text('')],
                     [sg.Text('Tick Marks')],
                     [sg.Radio('Automatic', f'ticks_{i}{j}', key=f'auto_ticks_{i}{j}',
@@ -1649,11 +1678,11 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Text('Major Ticks'),
-                         sg.Spin([num for num in range(2, 21)],
+                         sg.Spin([num for num in range(2, 11)],
                                  initial_value=default_inputs[f'y_major_ticks_{i}{j}'],
                                  key=f'y_major_ticks_{i}{j}', size=(3, 1))],
                          [sg.Text('Minor Ticks'),
-                         sg.Spin([num for num in range(21)], size=(3, 1),
+                         sg.Spin([num for num in range(11)], size=(3, 1),
                                  initial_value=default_inputs[f'y_minor_ticks_{i}{j}'],
                                  key=f'y_minor_ticks_{i}{j}')]
                      ], pad=((40, 5), 3), element_justification='center')]
@@ -1712,11 +1741,11 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                          sg.Column([
                              [sg.Text('Y Axis:')],
                              [sg.Text('Major Ticks'),
-                              sg.Spin([num for num in range(2, 21)],
+                              sg.Spin([num for num in range(2, 11)],
                                       initial_value=default_inputs[f'secondary_y_major_ticks_{i}{j}'],
                                       key=f'secondary_y_major_ticks_{i}{j}', size=(3, 1))],
                              [sg.Text('Minor Ticks'),
-                              sg.Spin([num for num in range(21)], size=(3, 1),
+                              sg.Spin([num for num in range(11)], size=(3, 1),
                                       initial_value=default_inputs[f'secondary_y_minor_ticks_{i}{j}'],
                                       key=f'secondary_y_minor_ticks_{i}{j}')]
                          ], pad=((40, 5), 3), element_justification='center')]
@@ -1729,17 +1758,24 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                    disabled=not axis.texts)]
                     ]
                 })
-
+            
+            column_width = 65
             column_layout = []
+            #TODO later add the arrow symbols for collapsable sections, and add enable_events for the Text element
+            #TODO need some way to know if a section should be collapsed -> if right-arrow in default_inputs[key]
             for k, section in enumerate(sections.items()):
-                column_layout.extend(
-                    _plot_options_section(section[0], section[1], f'{i}{j}{k}')
-                )
+                column_layout.extend([
+                    [sg.Text(section[0], key=f'-SECTION_header_{i}{j}{k}', relief='ridge',
+                             size=(column_width, 1), justification='center')],
+                    [sg.Frame('', section[1], key=f'-SECTION_{i}{j}{k}',
+                              border_width=0,  pad=(5, (10, 20)))]
+                ])
             label_tabs.append(
                 [sg.Tab(label,
                         [[sg.Column([
                             [sg.Text(f'\nOptions for Plot in {axis.get_label()}\n',
-                             relief='ridge', size=(65, 3), justification='center')],
+                                     relief='ridge', size=(column_width, 3),
+                                     justification='center')],
                             [sg.Text('')],
                             *column_layout
                         ], scrollable=True, vertical_scroll_only=True, size=(750, 650))]],
@@ -1911,33 +1947,39 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                 if kwargs[f'show_y_label_{i}{j}']:
                     axis.set_ylabel(utils.string_to_unicode(kwargs[f'y_label_{i}{j}']),
                                     labelpad=float(kwargs[f'y_label_offset_{i}{j}']))
-
-                axis.grid(kwargs[f'x_major_grid_{i}{j}'], which='major', axis='x')
-                axis.grid(kwargs[f'x_minor_grid_{i}{j}'], which='minor', axis='x')
-                axis.grid(kwargs[f'y_major_grid_{i}{j}'], which='major', axis='y')
-                axis.grid(kwargs[f'y_minor_grid_{i}{j}'], which='minor', axis='y')
+                
+                if label != 'Twin X':
+                    axis.grid(kwargs[f'x_major_grid_{i}{j}'], which='major', axis='x')
+                    axis.grid(kwargs[f'x_minor_grid_{i}{j}'], which='minor', axis='x')
+                if label != 'Twin Y':
+                    axis.grid(kwargs[f'y_major_grid_{i}{j}'], which='major', axis='y')
+                    axis.grid(kwargs[f'y_minor_grid_{i}{j}'], which='minor', axis='y')
 
                 if kwargs['share_x'] and i not in (0, len(axes) - 1):
                     prune = 'both'
                 else:
                     prune = None
 
-                if kwargs[f'x_axis_min_{i}{j}'] is not None:
-                    axis.set_xlim(float(kwargs[f'x_axis_min_{i}{j}']),
-                                  float(kwargs[f'x_axis_max_{i}{j}']))
-                    axis.set_ylim(float(kwargs[f'y_axis_min_{i}{j}']),
-                                  float(kwargs[f'y_axis_max_{i}{j}']))
+                if kwargs[f'x_axis_min_{i}{j}'] is not None: # Initial plot of data
+                    if label != 'Twin X':
+                        axis.set_xlim(float(kwargs[f'x_axis_min_{i}{j}']),
+                                      float(kwargs[f'x_axis_max_{i}{j}']))
+                    if label != 'Twin Y':
+                        axis.set_ylim(float(kwargs[f'y_axis_min_{i}{j}']),
+                                      float(kwargs[f'y_axis_max_{i}{j}']))
 
-                axis.yaxis.set_major_locator(
-                    MaxNLocator(prune=prune, nbins=kwargs[f'y_major_ticks_{i}{j}'],
-                                steps=[1, 2, 2.5, 4, 5, 10]))
-                axis.yaxis.set_minor_locator(
-                    AutoMinorLocator(kwargs[f'y_minor_ticks_{i}{j}'] + 1))
-                axis.xaxis.set_major_locator(
-                    MaxNLocator(prune=None, nbins=kwargs[f'x_major_ticks_{i}{j}'],
-                                steps=[1, 2, 2.5, 4, 5, 10]))
-                axis.xaxis.set_minor_locator(
-                    AutoMinorLocator(kwargs[f'x_minor_ticks_{i}{j}'] + 1))
+                if label != 'Twin X':
+                    axis.xaxis.set_major_locator(
+                        MaxNLocator(prune=None, nbins=kwargs[f'x_major_ticks_{i}{j}'],
+                                    steps=[1, 2, 2.5, 4, 5, 10]))
+                    axis.xaxis.set_minor_locator(
+                        AutoMinorLocator(kwargs[f'x_minor_ticks_{i}{j}'] + 1))
+                if label != 'Twin Y':
+                    axis.yaxis.set_major_locator(
+                        MaxNLocator(prune=prune, nbins=kwargs[f'y_major_ticks_{i}{j}'],
+                                    steps=[1, 2, 2.5, 4, 5, 10]))
+                    axis.yaxis.set_minor_locator(
+                        AutoMinorLocator(kwargs[f'y_minor_ticks_{i}{j}'] + 1))
 
                 if kwargs[f'show_legend_{i}{j}']:
                     if kwargs[f'legend_auto_{i}{j}']:
@@ -1950,7 +1992,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend = axis.legend(ncol=kwargs[f'legend_cols_{i}{j}'], loc=loc)
                     legend.set_in_layout(False)
 
-                if kwargs[f'secondary_x_{i}{j}']:
+                if 'Twin' not in label and kwargs[f'secondary_x_{i}{j}']:
                     if not kwargs[f'secondary_x_expr_{i}{j}']:
                         functions = None
                     else:
@@ -1973,7 +2015,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     sec_x_axis.xaxis.set_minor_locator(
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}{j}'] + 1))
 
-                if kwargs[f'secondary_y_{i}{j}']:
+                if 'Twin' not in label and kwargs[f'secondary_y_{i}{j}']:
                     if not kwargs[f'secondary_y_expr_{i}{j}']:
                         functions = None
                     else:
