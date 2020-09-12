@@ -55,6 +55,7 @@ setup(
     },
     license="BSD license",
     long_description=long_description,
+    long_description_content_type='text/x-rst',
     include_package_data=True,
     keywords='mcetl',
     name='mcetl',
