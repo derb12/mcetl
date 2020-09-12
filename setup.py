@@ -14,7 +14,7 @@ requirements = [
     'numpy',
     'openpyxl',
     'pandas',
-    'pysimplegui>=4.28',
+    'pysimplegui>=4.19',
     'scipy',
     'sympy',
 ]
