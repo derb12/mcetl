@@ -114,6 +114,42 @@ class PlotToolbar(NavigationToolbar2Tk):
         super().__init__(fig_canvas, canvas)
 
 
+def _plot_options_section(title, layout, index):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    title : [type]
+        [description]
+    layout : [type]
+        [description]
+    index : str
+        A string denoting the 'ijk' index, where i is the index of the 
+        axis grouping within axes, j is the index of the axis within the axis
+        grou, and k is the index of the section for the axis.
+    
+    Returns
+    -------
+    section : list(list)
+        The layout for the section, containing a sg.Text element
+        with the title, and a sg.Frame element with the layout.
+
+    """
+
+    #TODO later add the arrow symbols for collapsable sections, and add enable_events for the Text element
+    #TODO need some way to know if a section should be collapsed -> if right-arrow in default_inputs[key]
+
+    section = [
+        [sg.Text(title, key=f'-SECTION_header_{index}', relief='ridge',
+                 size=(65, 1), justification='center')],
+        [sg.Frame('', layout, key=f'-SECTION_{index}', border_width=0,
+                  pad=(5, (10, 20)))]
+    ]
+
+    return section
+
+
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     """
     Save the values required to recreate the theme or the figure.
@@ -146,13 +182,13 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     """
 
-    texts = [[] for key in axes]
+    annotations = [[] for key in axes]
     for i, key in enumerate(axes):
-        texts[i] = [[] for label in axes[key]]
+        annotations[i] = [[] for label in axes[key]]
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
             for annotation in axis.texts:
-                texts[i][j].append({
+                annotations[i][j].append({
                     'text': annotation.get_text(),
                     'xy': annotation.xy,
                     'xytext': annotation.xyann,
@@ -184,7 +220,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 f.write('\nMATPLOTLIB RCPARAM CHANGES\n')
                 json.dump(rc_changes, f)
                 f.write('\nANNOTATIONS\n')
-                json.dump(texts, f)
+                json.dump(annotations, f)
 
             if data is not None:
                 filename = filename.replace(_THEME_EXTENSION, '.csv')
@@ -432,8 +468,7 @@ def _save_image_options(figure):
     ]
 
     window_1 = sg.Window('Save Options', layout)
-    window_open = True
-    while window_open:
+    while True:
         event, values = window_1.read()
 
         if event in (sg.WIN_CLOSED, 'Back'):
@@ -443,7 +478,7 @@ def _save_image_options(figure):
             file_path = Path(values['save_as'])
             window_1['file_name'].update(value=file_path.name)
             file_extension = file_path.suffix.lower()
-            if file_extension and file_extension[1:] in extension_mapping.keys():
+            if file_extension and file_extension[1:] in extension_mapping:
                 window_1['extension'].update(
                     value=extension_displays[extension_mapping[file_extension[1:]]]
                 )
@@ -453,96 +488,74 @@ def _save_image_options(figure):
                 sg.popup('\nPlease select a file name.\n',
                          title='Select a file name')
             else:
+                window_1.hide()
                 selected_extension = values['extension'].split(' ')[0]
                 directory = str(file_path.parent)
-
                 file_extension = file_path.suffix[1:] if file_path.suffix else selected_extension.lower()
 
-                if (file_extension.lower() not in extension_mapping.keys() or
+                if (file_extension.lower() not in extension_mapping or
                         file_extension.lower() not in extension_dict[selected_extension]):
-
-                    error_layout = [
-                        [sg.Text(('The given filename has an extension that\n'
-                                 'is not the same as the selected extension\n'))],
-                        [sg.Button(f'Use Filename Extension ({file_extension})',
-                                   key='use_filename')],
-                        [sg.Button(f'Use Selected Extension ({values["extension"].split(" ")[0]})',
-                                   key='use_selected')],
-                        [sg.Button('Back')]
-                    ]
-                    error_window = sg.Window('Extension Error', error_layout)
-
-                    return_to_window = False
-                    while True:
-                        error_event = error_window.read()[0]
-                        if error_event in (sg.WIN_CLOSED, 'Back'):
-                            return_to_window = True
-                            break
-                        elif error_event == 'use_filename':
-                            break
-                        elif error_event == 'use_selected':
-                            file_extension = selected_extension.lower()
-                            break
-
-                    error_window.close()
+                    
+                    error_window = sg.Window(
+                        'Extension Error',
+                        layout=[
+                            [sg.Text(('The given filename has an extension that\n'
+                                      'is not the same as the selected extension\n'))],
+                            [sg.Button(f'Use Filename Extension ({file_extension})',
+                                       key='use_filename')],
+                            [sg.Button(f'Use Selected Extension ({selected_extension})',
+                                       key='use_selected')],
+                            [sg.Button('Back')]
+                        ]
+                    )
+                    error_event = error_window.read(close=True)[0]
                     error_window = None
-
-                    if return_to_window:
+                    if error_event in (sg.WIN_CLOSED, 'Back'):
+                        window_1.un_hide()
                         continue
+                    elif error_event == 'use_selected':
+                        file_extension = selected_extension.lower()
 
                 file_name = str(Path(directory, file_path.stem + '.' + file_extension))
-                window_1.hide()
                 layout_2, param_types, use_pillow = _get_image_options(
                     extension_mapping.get(file_extension.lower(), '')
                 )
-                save_fig = True
-                window_open = False
 
-                if layout_2:
+                if not layout_2:
+                    save_dict = {}
+                else:
                     window_2 = sg.Window(f'Options for {file_extension.upper()}',
                                          layout_2)
-                    while True:
-                        event_2, save_dict = window_2.read()
-
-                        if event_2 in (sg.WIN_CLOSED, 'Back'):
-                            save_fig = False
-                            window_open = True
-                            break
-
-                        elif event_2 == 'Save':
-                            break
-                    window_2.close()
+                    event_2, save_dict = window_2.read(close=True)
                     window_2 = None
-                else:
-                    save_dict = {}
+                    if event_2 in (sg.WIN_CLOSED, 'Back'):
+                        window_1.un_hide()
+                        continue
 
-                if save_fig:
-                    try:
-                        for param in param_types:
-                            save_dict[param] = param_types[param](save_dict[param])
-                        if use_pillow:
-                            if ((extension_mapping[file_extension.lower()] == 'TIFF')
-                                    and (save_dict['compression'] != 'jpeg')):
-                                save_dict.pop('quality')
+                for param in param_types:
+                    save_dict[param] = param_types[param](save_dict[param])
+                try:
+                    if not use_pillow:
+                        figure.savefig(file_name, **save_dict)
+                    else:
+                        if ((extension_mapping[file_extension.lower()] == 'TIFF')
+                                and (save_dict['compression'] != 'jpeg')):
+                            save_dict.pop('quality')
 
-                            figure.savefig(file_name, pil_kwargs=save_dict)
-                        else:
-                            figure.savefig(file_name, **save_dict)
-                        sg.popup(f'Saved figure to:\n    {file_name}\n',
-                                 title='Saved Figure')
+                        figure.savefig(file_name, pil_kwargs=save_dict)
+                        
+                    sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
+                    break
 
-                    except Exception as e:
-                        sg.popup(
-                            (f'Save failed...\n\nSaving to "{file_extension}" may not '
-                             'be supported by matplotlib, or an additional error may '
-                             'have occured.\nIf trying to save to tiff/tif, try saving '
-                             'without compression.'
-                             f'\n\nError:\n    {repr(e)}\n'),
-                            title='Error'
-                        )
-                        window_open = True
-
-                if window_open:
+                except Exception as e:
+                    sg.popup(
+                        (f'Save failed...\n\nSaving to "{file_extension}" may not '
+                            'be supported by matplotlib, or an additional error may '
+                            'have occured.\nIf trying to save to tiff/tif, try saving '
+                            'without compression.'
+                            f'\n\nError:\n    {repr(e)}\n'),
+                        title='Error'
+                    )
                     window_1.un_hide()
 
     window_1.close()
@@ -617,7 +630,7 @@ def _get_image_options(extension):
             [sg.Text('')],
             [sg.Button('Back'),
              sg.Button('Save', bind_return_key=True, size=(6, 1),
-                       button_color=('white', '#00A949'))]
+                       button_color=utils.PROCEED_COLOR)]
         ]
 
     else:
@@ -1319,13 +1332,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             if line_plot:
                 marker_cycler = itertools.cycle([''])
-                line_cycler = itertools.cycle([*LINE_MAPPING.keys()][1:])
+                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
             elif scatter_plot:
                 marker_cycler = itertools.cycle(markers[1:])
                 line_cycler = itertools.cycle(['None'])
             else:
                 marker_cycler = itertools.cycle(markers[1:])
-                line_cycler = itertools.cycle([*LINE_MAPPING.keys()][1:])
+                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
 
             if not axis.get_xlabel():
                 x_label = ''
@@ -1409,20 +1422,19 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
     if user_inputs is not None:
         default_inputs.update(user_inputs)
-    # plot to get the axis limits for defaults
+    # Have to plot to get the default axes limits
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
 
     axes_tabs = []
     for i, key in enumerate(axes):
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
-        label_tabs = []
 
+        label_tabs = []
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
-            plot_details = []
 
-            # have to update axis limits after plotting the data
+            # Have to update axis limits after plotting the data
             default_inputs.update({
                 f'x_axis_min_{i}{j}': axis.get_xlim()[0],
                 f'x_axis_max_{i}{j}': axis.get_xlim()[1],
@@ -1434,7 +1446,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'secondary_y_axis_max_{i}{j}': axis.get_ylim()[1],
             })
 
-            if 'Twin x' in axes[key] or 'Twin' in label:
+            if 'Twin x' in axes[key] or 'Twin' in label: #TODO why is this here and not in the upper statement??
                 secondary_y_disabled = True
                 default_inputs.update({
                     f'secondary_y_{i}{j}': False,
@@ -1455,7 +1467,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 })
             else:
                 secondary_x_disabled = False
-
+            
+            plot_details = []
             for k, dataset in enumerate(data):
                 plot_details.extend([[
                     sg.Frame(f'Entry {k + 1}', [[
@@ -1518,7 +1531,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                              sg.ColorChooserButton('..', target=f'line_chooser_{i}{j}{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
                             [sg.Text('Style:'),
-                             sg.Combo([*LINE_MAPPING.keys()], readonly=True,
+                             sg.Combo([*LINE_MAPPING], readonly=True,
                                       default_value=default_inputs[f'line_style_{i}{j}{k}'],
                                       key=f'line_style_{i}{j}{k}', size=(10, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
@@ -1530,209 +1543,206 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     ]])
                 ]])
 
-            header_width = 65
+            sections = {
+                'Plot Details': plot_details,
+                'Legend': [
+                    [sg.Check('Show Legend', default=default_inputs[f'show_legend_{i}{j}'],
+                              key=f'show_legend_{i}{j}', enable_events=True)],
+                    [sg.Text('Number of Columns:'),
+                     sg.Combo([num + 1 for num in range(len(data))],
+                              default_value=default_inputs[f'legend_cols_{i}{j}'],
+                              key=f'legend_cols_{i}{j}', readonly=True, size=(3, 1))],
+                    [sg.Text('Legend Location:')],
+                    [sg.Radio('Automatic', f'legend_pos_{i}{j}', key=f'legend_auto_{i}{j}',
+                              default=default_inputs[f'legend_auto_{i}{j}'],
+                              enable_events=True, pad=((20, 10), 3))],
+                    [sg.Text('Position:', pad=((60, 3), 3)),
+                     sg.Combo(['best', 'upper left', 'upper center', 'upper right',
+                               'lower left', 'lower center', 'lower right',
+                               'center left', 'center', 'center right'],
+                              default_inputs[f'legend_auto_loc_{i}{j}'],
+                              key=f'legend_auto_loc_{i}{j}', readonly=True,
+                              disabled=not default_inputs[f'legend_auto_{i}{j}'])],
+                    [sg.Radio('Manual', f'legend_pos_{i}{j}', key=f'legend_manual_{i}{j}',
+                              default=default_inputs[f'legend_manual_{i}{j}'],
+                              enable_events=True, pad=((20, 10), 3))],
+                    [sg.Text(('Position of lower-left corner, as a fraction of the axis size'
+                              '\n    (< 0 or > 1 will be outside of axis)'),
+                             pad=((60, 3), 3))],
+                    [sg.Text('x-position:', pad=((60, 3), 3)),
+                     sg.Input(default_inputs[f'legend_manual_x_{i}{j}'],
+                              key=f'legend_manual_x_{i}{j}', size=(4, 1),
+                              disabled=default_inputs[f'legend_auto_{i}{j}']),
+                     sg.Text('y-position:', pad=((10, 3), 3)),
+                     sg.Input(default_inputs[f'legend_manual_y_{i}{j}'],
+                              key=f'legend_manual_y_{i}{j}', size=(4, 1),
+                              disabled=default_inputs[f'legend_auto_{i}{j}'])]
+                ],
+                'Grid Lines': [
+                    [sg.Column([
+                        [sg.Text('X Axis:')],
+                        [sg.Check('Major Ticks', key=f'x_major_grid_{i}{j}',
+                                  default=default_inputs[f'x_major_grid_{i}{j}'])],
+                        [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}{j}',
+                                  default=default_inputs[f'x_minor_grid_{i}{j}'])]
+                     ], pad=((20, 5), 3), element_justification='center'),
+                     sg.Column([
+                         [sg.Text('Y Axis:')],
+                         [sg.Check('Major Ticks', key=f'y_major_grid_{i}{j}',
+                                   default=default_inputs[f'y_major_grid_{i}{j}'])],
+                         [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}{j}',
+                                   default=default_inputs[f'y_minor_grid_{i}{j}'])]
+                     ], pad=((20, 5), 3), element_justification='center')]
+                ],
+                'Axes': [
+                    [sg.Text('Labels')],
+                    [sg.Check('X Axis Label:', default=default_inputs[f'show_x_label_{i}{j}'],
+                              key=f'show_x_label_{i}{j}', enable_events=True,
+                              disabled=default_inputs[f'x_label_disabled_{i}{j}']),
+                     sg.Input(default_text=default_inputs[f'x_label_{i}{j}'],
+                              key=f'x_label_{i}{j}', size=(40, 1),
+                              disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
+                    [sg.Text('    Label Offset:'),
+                     sg.Input(default_inputs[f'x_label_offset_{i}{j}'],
+                              key=f'x_label_offset_{i}{j}',
+                              disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
+                    [sg.Check('Y Axis Label:', default=default_inputs[f'show_y_label_{i}{j}'],
+                              key=f'show_y_label_{i}{j}', enable_events=True,
+                              disabled=default_inputs[f'y_label_disabled_{i}{j}']),
+                     sg.Input(default_text=default_inputs[f'y_label_{i}{j}'],
+                              key=f'y_label_{i}{j}', size=(40, 1),
+                              disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
+                    [sg.Text('    Label Offset:'),
+                    sg.Input(default_inputs[f'y_label_offset_{i}{j}'],
+                             key=f'y_label_offset_{i}{j}',
+                             disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
+                    [sg.Text('')],
+                    [sg.Text('Bounds')],
+                    [sg.Text('    X Minimum:'),
+                    sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(8, 1),
+                             key=f'x_axis_min_{i}{j}'),
+                    sg.Text('X Maximum:'),
+                    sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(8, 1),
+                             key=f'x_axis_max_{i}{j}')],
+                    [sg.Text('    Y Minimum:'),
+                    sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(8, 1),
+                             key=f'y_axis_min_{i}{j}'),
+                    sg.Text('Y Maximum:'),
+                    sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(8, 1),
+                             key=f'y_axis_max_{i}{j}')],
+                    [sg.Text('')],
+                    [sg.Text('Tick Marks')],
+                    [sg.Radio('Automatic', f'ticks_{i}{j}', key=f'auto_ticks_{i}{j}',
+                              default=default_inputs[f'auto_ticks_{i}{j}'],
+                              enable_events=True, pad=((20, 10), 3))],
+                    [sg.Column([
+                        [sg.Text('X Axis:')],
+                        [sg.Text('Major Ticks'),
+                         sg.Spin([num for num in range(2, 11)],
+                                 initial_value=default_inputs[f'x_major_ticks_{i}{j}'],
+                                 key=f'x_major_ticks_{i}{j}', size=(3, 1))],
+                        [sg.Text('Minor Ticks'),
+                         sg.Spin([num for num in range(11)],
+                                 initial_value=default_inputs[f'x_minor_ticks_{i}{j}'],
+                                 key=f'x_minor_ticks_{i}{j}', size=(3, 1))]
+                     ], pad=((40, 5), 3), element_justification='center'),
+                     sg.Column([
+                         [sg.Text('Y Axis:')],
+                         [sg.Text('Major Ticks'),
+                         sg.Spin([num for num in range(2, 21)],
+                                 initial_value=default_inputs[f'y_major_ticks_{i}{j}'],
+                                 key=f'y_major_ticks_{i}{j}', size=(3, 1))],
+                         [sg.Text('Minor Ticks'),
+                         sg.Spin([num for num in range(21)], size=(3, 1),
+                                 initial_value=default_inputs[f'y_minor_ticks_{i}{j}'],
+                                 key=f'y_minor_ticks_{i}{j}')]
+                     ], pad=((40, 5), 3), element_justification='center')]
+                ]
+            }
 
-            column_layout = [
-                [sg.Text(f'\nOptions for {axis.get_label()}\n',
-                         relief='ridge', size=(header_width, 3),
-                         justification='center')],
-                [sg.Text('')],
-                [sg.Text('Plot Details', relief='ridge', size=(header_width, 1),
-                         justification='center')],
-                *plot_details,
-                [sg.Text('')],
-                [sg.Text('Axes', relief='ridge', size=(header_width, 1),
-                         justification='center')],
-                [sg.Text('Main Axes:')],
-                [sg.Text('    Bounds')],
-                [sg.Text('        X Minimum:'),
-                 sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(8, 1),
-                          key=f'x_axis_min_{i}{j}'),
-                 sg.Text('X Maximum:'),
-                 sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(8, 1),
-                          key=f'x_axis_max_{i}{j}')],
-                [sg.Text('        Y Minimum:'),
-                 sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(8, 1),
-                          key=f'y_axis_min_{i}{j}'),
-                 sg.Text('Y Maximum:'),
-                 sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(8, 1),
-                          key=f'y_axis_max_{i}{j}')],
-                [sg.Text('')],
-                [sg.Text('    Labels')],
-                [sg.Check('X Axis Label:', default=default_inputs[f'show_x_label_{i}{j}'],
-                          key=f'show_x_label_{i}{j}', enable_events=True,
-                          disabled=default_inputs[f'x_label_disabled_{i}{j}']),
-                 sg.Input(default_text=default_inputs[f'x_label_{i}{j}'],
-                          key=f'x_label_{i}{j}', size=(40, 1),
-                          disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
-                [sg.Text('    Label Offset:'),
-                 sg.Input(default_inputs[f'x_label_offset_{i}{j}'],
-                          key=f'x_label_offset_{i}{j}',
-                          disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
-                [sg.Check('Y Axis Label:', default=default_inputs[f'show_y_label_{i}{j}'],
-                          key=f'show_y_label_{i}{j}', enable_events=True,
-                          disabled=default_inputs[f'y_label_disabled_{i}{j}']),
-                 sg.Input(default_text=default_inputs[f'y_label_{i}{j}'],
-                          key=f'y_label_{i}{j}', size=(40, 1),
-                          disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
-                [sg.Text('    Label Offset:'),
-                 sg.Input(default_inputs[f'y_label_offset_{i}{j}'],
-                          key=f'y_label_offset_{i}{j}',
-                          disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
-                [sg.Text('')],
-                [sg.Text('Secondary Axes (show different ticks than main axes):')],
-                [sg.Check('X Axis Label:', default=default_inputs[f'secondary_x_{i}{j}'],
-                          key=f'secondary_x_{i}{j}', enable_events=True,
-                          disabled=secondary_x_disabled),
-                 sg.Input(default_text=default_inputs[f'secondary_x_label_{i}{j}'],
-                          key=f'secondary_x_label_{i}{j}',
-                          disabled=not default_inputs[f'secondary_x_{i}{j}'])],
-                [sg.Text('    Label Offset:'),
-                 sg.Input(default_inputs[f'secondary_x_label_offset_{i}{j}'],
-                          key=f'secondary_x_label_offset_{i}{j}',
-                          disabled=not default_inputs[f'secondary_x_{i}{j}'])],
-                [sg.Text('    Expression, using "x" as the variable (eg. x + 200):'),
-                 sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}{j}'],
-                          key=f'secondary_x_expr_{i}{j}', size=(15, 1),
-                          disabled=not default_inputs[f'secondary_x_{i}{j}'])],
-                [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}{j}'],
-                          key=f'secondary_y_{i}{j}', enable_events=True,
-                          disabled=secondary_y_disabled),
-                 sg.Input(default_text=default_inputs[f'secondary_y_label_{i}{j}'],
-                          key=f'secondary_y_label_{i}{j}',
-                          disabled=not default_inputs[f'secondary_y_{i}{j}'])],
-                [sg.Text('    Label Offset:'),
-                 sg.Input(default_inputs[f'secondary_y_label_offset_{i}{j}'],
-                          key=f'secondary_y_label_offset_{i}{j}',
-                          disabled=not default_inputs[f'secondary_y_{i}{j}'])],
-                [sg.Text('    Expression, using "y" as the variable (eg. y - 50):'),
-                 sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}{j}'],
-                          key=f'secondary_y_expr_{i}{j}', size=(15, 1),
-                          disabled=not default_inputs[f'secondary_y_{i}{j}'])],
-                [sg.Text('')],
-                [sg.Text('Legend', relief='ridge', size=(header_width, 1),
-                         justification='center')],
-                [sg.Check('Show Legend', default=default_inputs[f'show_legend_{i}{j}'],
-                          key=f'show_legend_{i}{j}', enable_events=True)],
-                [sg.Text('Number of Columns:'),
-                 sg.Combo([num + 1 for num in range(len(data))],
-                          default_value=default_inputs[f'legend_cols_{i}{j}'],
-                          key=f'legend_cols_{i}{j}', readonly=True, size=(3, 1))],
-                [sg.Text('Legend Location:')],
-                [sg.Radio('Automatic', f'legend_pos_{i}{j}', key=f'legend_auto_{i}{j}',
-                          default=default_inputs[f'legend_auto_{i}{j}'],
-                          enable_events=True, pad=((20, 10), 3))],
-                [sg.Text('Position:', pad=((60, 3), 3)),
-                 sg.Combo(['best', 'upper left', 'upper center', 'upper right',
-                           'lower left', 'lower center', 'lower right',
-                           'center left', 'center', 'center right'],
-                          default_inputs[f'legend_auto_loc_{i}{j}'],
-                          key=f'legend_auto_loc_{i}{j}', readonly=True,
-                          disabled=not default_inputs[f'legend_auto_{i}{j}'])],
-                [sg.Radio('Manual', f'legend_pos_{i}{j}', key=f'legend_manual_{i}{j}',
-                          default=default_inputs[f'legend_manual_{i}{j}'],
-                          enable_events=True, pad=((20, 10), 3))],
-                [sg.Text(('Position of lower-left corner, as a fraction of the axis size'
-                          '\n    (< 0 or > 1 will be outside of axis)'),
-                         pad=((60, 3), 3))],
-                [sg.Text('x-position:', pad=((60, 3), 3)),
-                 sg.Input(default_inputs[f'legend_manual_x_{i}{j}'],
-                          key=f'legend_manual_x_{i}{j}', size=(4, 1),
-                          disabled=default_inputs[f'legend_auto_{i}{j}']),
-                 sg.Text('y-position:', pad=((10, 3), 3)),
-                 sg.Input(default_inputs[f'legend_manual_y_{i}{j}'],
-                          key=f'legend_manual_y_{i}{j}', size=(4, 1),
-                          disabled=default_inputs[f'legend_auto_{i}{j}'])],
-                [sg.Text('')],
-                [sg.Text('Tick Marks', relief='ridge', size=(header_width, 1),
-                         justification='center')],
-                [sg.Text('Main Axes')],
-                [sg.Radio('Automatic', f'ticks_{i}{j}', key=f'auto_ticks_{i}{j}',
-                          default=default_inputs[f'auto_ticks_{i}{j}'],
-                          enable_events=True, pad=((20, 10), 3))],
-                [sg.Column([
-                    [sg.Text('X Axis:')],
-                    [sg.Text('Major Ticks'),
-                     sg.Spin([num for num in range(2, 11)],
-                             initial_value=default_inputs[f'x_major_ticks_{i}{j}'],
-                             key=f'x_major_ticks_{i}{j}', size=(3, 1))],
-                    [sg.Text('Minor Ticks'),
-                     sg.Spin([num for num in range(11)],
-                             initial_value=default_inputs[f'x_minor_ticks_{i}{j}'],
-                             key=f'x_minor_ticks_{i}{j}', size=(3, 1))]
-                    ], pad=((40, 5), 3), element_justification='center'),
-                 sg.Column([
-                     [sg.Text('Y Axis:')],
-                     [sg.Text('Major Ticks'),
-                      sg.Spin([num for num in range(2, 21)],
-                              initial_value=default_inputs[f'y_major_ticks_{i}{j}'],
-                              key=f'y_major_ticks_{i}{j}', size=(3, 1))],
-                     [sg.Text('Minor Ticks'),
-                      sg.Spin([num for num in range(21)], size=(3, 1),
-                              initial_value=default_inputs[f'y_minor_ticks_{i}{j}'],
-                              key=f'y_minor_ticks_{i}{j}')]
-                 ], pad=((40, 5), 3), element_justification='center')],
-                [sg.Text('')],
-                [sg.Text('Secondary Axes')],
-                [sg.Radio('Automatic', f'secondary_ticks_{i}{j}',
-                          key=f'secondary_auto_ticks_{i}{j}',
-                          default=default_inputs[f'secondary_auto_ticks_{i}{j}'],
-                          enable_events=True, pad=((20, 10), 3))],
-                [sg.Column([
-                    [sg.Text('X Axis:')],
-                    [sg.Text('Major Ticks'),
-                     sg.Spin([num for num in range(2, 11)],
-                             initial_value=default_inputs[f'secondary_x_major_ticks_{i}{j}'],
-                             key=f'secondary_x_major_ticks_{i}{j}', size=(3, 1))],
-                    [sg.Text('Minor Ticks'),
-                     sg.Spin([num for num in range(11)],
-                             initial_value=default_inputs[f'secondary_x_minor_ticks_{i}{j}'],
-                             key=f'secondary_x_minor_ticks_{i}{j}', size=(3, 1))]
-                    ], pad=((40, 5), 3), element_justification='center'),
-                 sg.Column([
-                     [sg.Text('Y Axis:')],
-                     [sg.Text('Major Ticks'),
-                      sg.Spin([num for num in range(2, 21)],
-                              initial_value=default_inputs[f'secondary_y_major_ticks_{i}{j}'],
-                              key=f'secondary_y_major_ticks_{i}{j}', size=(3, 1))],
-                     [sg.Text('Minor Ticks'),
-                      sg.Spin([num for num in range(21)], size=(3, 1),
-                              initial_value=default_inputs[f'secondary_y_minor_ticks_{i}{j}'],
-                              key=f'secondary_y_minor_ticks_{i}{j}')]
-                 ], pad=((40, 5), 3), element_justification='center')],
-                [sg.Text('')],
-                [sg.Text('Grid Lines', relief='ridge', size=(header_width, 1),
-                         justification='center')],
-                [sg.Column([
-                    [sg.Text('X Axis:')],
-                    [sg.Check('Major Ticks', key=f'x_major_grid_{i}{j}',
-                              default=default_inputs[f'x_major_grid_{i}{j}'])],
-                    [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}{j}',
-                              default=default_inputs[f'x_minor_grid_{i}{j}'])]
-                    ], pad=((20, 5), 3), element_justification='center'),
-                 sg.Column([
-                     [sg.Text('Y Axis:')],
-                     [sg.Check('Major Ticks', key=f'y_major_grid_{i}{j}',
-                               default=default_inputs[f'y_major_grid_{i}{j}'])],
-                     [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}{j}',
-                               default=default_inputs[f'y_minor_grid_{i}{j}'])]
-                 ], pad=((20, 5), 3), element_justification='center')],
-                [sg.Text('')],
-                [sg.Text('Annotations (Text, Arrows, and Lines)', relief='ridge',
-                         size=(header_width, 1), justification='center')],
-                [sg.Button('Add Annotation', key=f'add_annotation_{i}{j}',
-                           disabled='Twin' in label),
-                 sg.Button('Edit Annotation', key=f'edit_annotation_{i}{j}',
-                           disabled=not axis.texts),
-                 sg.Button('Delete Annotation', key=f'delete_annotation_{i}{j}',
-                           disabled=not axis.texts)],
-                [sg.Text('')]
-            ]
+            if 'Twin' not in label:
+                sections.update({
+                    'Secondary Axes': [
+                        [sg.Text('Labels')],
+                        [sg.Check('X Axis Label:', default=default_inputs[f'secondary_x_{i}{j}'],
+                                  key=f'secondary_x_{i}{j}', enable_events=True,
+                                  disabled=secondary_x_disabled),
+                        sg.Input(default_text=default_inputs[f'secondary_x_label_{i}{j}'],
+                                 key=f'secondary_x_label_{i}{j}',
+                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
+                        [sg.Text('    Label Offset:'),
+                        sg.Input(default_inputs[f'secondary_x_label_offset_{i}{j}'],
+                                 key=f'secondary_x_label_offset_{i}{j}',
+                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
+                        [sg.Text('    Expression, using "x" as the variable (eg. x + 200):'),
+                        sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}{j}'],
+                                 key=f'secondary_x_expr_{i}{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
+                        [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}{j}'],
+                                  key=f'secondary_y_{i}{j}', enable_events=True,
+                                  disabled=secondary_y_disabled),
+                        sg.Input(default_text=default_inputs[f'secondary_y_label_{i}{j}'],
+                                 key=f'secondary_y_label_{i}{j}',
+                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        [sg.Text('    Label Offset:'),
+                        sg.Input(default_inputs[f'secondary_y_label_offset_{i}{j}'],
+                                 key=f'secondary_y_label_offset_{i}{j}',
+                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        [sg.Text('    Expression, using "y" as the variable (eg. y - 50):'),
+                        sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}{j}'],
+                                 key=f'secondary_y_expr_{i}{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        [sg.Text('')],
+                        [sg.Text('Tick Marks')],
+                        [sg.Radio('Automatic', f'secondary_ticks_{i}{j}',
+                                  key=f'secondary_auto_ticks_{i}{j}',
+                                  default=default_inputs[f'secondary_auto_ticks_{i}{j}'],
+                                  enable_events=True, pad=((20, 10), 3))],
+                        [sg.Column([
+                            [sg.Text('X Axis:')],
+                            [sg.Text('Major Ticks'),
+                             sg.Spin([num for num in range(2, 11)],
+                                     initial_value=default_inputs[f'secondary_x_major_ticks_{i}{j}'],
+                                     key=f'secondary_x_major_ticks_{i}{j}', size=(3, 1))],
+                            [sg.Text('Minor Ticks'),
+                             sg.Spin([num for num in range(11)],
+                                     initial_value=default_inputs[f'secondary_x_minor_ticks_{i}{j}'],
+                                     key=f'secondary_x_minor_ticks_{i}{j}', size=(3, 1))]
+                         ], pad=((40, 5), 3), element_justification='center'),
+                         sg.Column([
+                             [sg.Text('Y Axis:')],
+                             [sg.Text('Major Ticks'),
+                              sg.Spin([num for num in range(2, 21)],
+                                      initial_value=default_inputs[f'secondary_y_major_ticks_{i}{j}'],
+                                      key=f'secondary_y_major_ticks_{i}{j}', size=(3, 1))],
+                             [sg.Text('Minor Ticks'),
+                              sg.Spin([num for num in range(21)], size=(3, 1),
+                                      initial_value=default_inputs[f'secondary_y_minor_ticks_{i}{j}'],
+                                      key=f'secondary_y_minor_ticks_{i}{j}')]
+                         ], pad=((40, 5), 3), element_justification='center')]
+                    ],
+                    'Annotations': [
+                        [sg.Button('Add Annotation', key=f'add_annotation_{i}{j}'),
+                         sg.Button('Edit Annotation', key=f'edit_annotation_{i}{j}',
+                                   disabled=not axis.texts),
+                         sg.Button('Delete Annotation', key=f'delete_annotation_{i}{j}',
+                                   disabled=not axis.texts)]
+                    ]
+                })
 
+            column_layout = []
+            for k, section in enumerate(sections.items()):
+                column_layout.extend(
+                    _plot_options_section(section[0], section[1], f'{i}{j}{k}')
+                )
             label_tabs.append(
                 [sg.Tab(label,
-                        [[sg.Column(column_layout, scrollable=True,
-                                    vertical_scroll_only=True, size=(750, 650))]],
+                        [[sg.Column([
+                            [sg.Text(f'\nOptions for Plot in {axis.get_label()}\n',
+                             relief='ridge', size=(65, 3), justification='center')],
+                            [sg.Text('')],
+                            *column_layout
+                        ], scrollable=True, vertical_scroll_only=True, size=(750, 650))]],
                         key=f'label_tab_{i}{j}')]
             )
 
@@ -1754,10 +1764,10 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
         [sg.Column([
             [sg.TabGroup(axes_tabs, key='axes_tabgroup',
                          tab_background_color=sg.theme_background_color())],
-            [sg.Button('Back'),
-             sg.Button('Update Figure'),
-             sg.Button('Reset to Defaults'),
-             sg.Button('Continue', bind_return_key=True,
+            [sg.Button('Back', pad=(5, 10)),
+             sg.Button('Update Figure', pad=(5, 10)),
+             sg.Button('Reset to Defaults', pad=(5, 10)),
+             sg.Button('Continue', bind_return_key=True, pad=(5, 10),
                        button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
@@ -2118,7 +2128,6 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                 'marker_color', 'marker_style', 'marker_fill',
                 'marker_size', 'line_color', 'line_style', 'line_size'
             )
-
             # reorders the plot properties
             for i, key in enumerate(axes):
                 for j in range(len(axes[key])):
@@ -2190,8 +2199,8 @@ def _add_remove_annotations(axis, add_annotation):
                      sg.Input(plt.rcParams['lines.linewidth'], key='linewidth',
                               size=(5, 1))],
                     [sg.Text('Line Syle:'),
-                     sg.Combo([*LINE_MAPPING.keys()][1:], readonly=True,
-                              default_value=[*LINE_MAPPING.keys()][1],
+                     sg.Combo([*LINE_MAPPING][1:], readonly=True,
+                              default_value=[*LINE_MAPPING][1],
                               key='linestyle', size=(11, 1))],
                     [sg.Text('Head-size multiplier:'),
                      sg.Input('1', key='head_scale', size=(5, 1))],
@@ -2303,7 +2312,7 @@ def _add_remove_annotations(axis, add_annotation):
                  sg.Input(annotation.arrowprops['linewidth'], key=f'linewidth_{i}',
                           size=(5, 1))],
                 [sg.Text('Line Syle:'),
-                 sg.Combo([*LINE_MAPPING.keys()][1:], readonly=True,
+                 sg.Combo([*LINE_MAPPING][1:], readonly=True,
                           default_value=style,
                           key=f'linestyle_{i}', size=(11, 1))],
                 [sg.Text('Head-size multiplier:'),
@@ -2361,11 +2370,11 @@ def _add_remove_annotations(axis, add_annotation):
         tab_layout = [
             [sg.Text('All selected annotations will be deleted!\n')],
             [sg.TabGroup([[
-                sg.Tab('Text', [[sg.Listbox([*annotations['text'].keys()],
+                sg.Tab('Text', [[sg.Listbox([*annotations['text']],
                                             select_mode='multiple', size=(40, 5),
                                             key='text_listbox')]],
                        key='text_tab'),
-                sg.Tab('Arrows', [[sg.Listbox([*annotations['arrows'].keys()],
+                sg.Tab('Arrows', [[sg.Listbox([*annotations['arrows']],
                                               select_mode='multiple', size=(40, 5),
                                               key='arrows_listbox')]],
                        key='arrows_tab')
@@ -2446,7 +2455,7 @@ def _add_remove_annotations(axis, add_annotation):
                 annotation_clip=False, in_layout=False,
                 arrowprops={
                     'linewidth': float(values['linewidth']),
-                    'mutation_scale': 10 * float(values['head_scale']), #*10 b/c the connectionpatch defaults to 10 rather than 1
+                    'mutation_scale': 10 * float(values['head_scale']), # *10 b/c the connectionpatch defaults to 10 rather than 1
                     'arrowstyle': values['arrow_style'],
                     'color': values['arrow_color_'],
                     'linestyle': LINE_MAPPING[values['linestyle']]}
@@ -2630,8 +2639,8 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         add_annotation = None
 
                     index = list(map(int, event.split('_')[-1]))
-                    key = [*axes.keys()][index[0]]
-                    label = [*axes[key].keys()][index[1]]
+                    key = [*axes][index[0]]
+                    label = [*axes[key]][index[1]]
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
@@ -2677,8 +2686,9 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # toggles legend options
                 elif 'show_legend' in event:
                     index = event.split('_')[-1]
-                    properties = ('cols', 'auto', 'auto_loc',
-                                    'manual', 'manual_x', 'manual_y')
+                    properties = (
+                        'cols', 'auto', 'auto_loc', 'manual', 'manual_x', 'manual_y' #TODO later check whether manual or auto and enable accordingly
+                    )
                     if values[event]:
                         for prop in properties:
                             try:
@@ -2778,7 +2788,7 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     """
 
-    rc_params = mpl_changes if mpl_changes is not None else {}
+    rc_params = mpl_changes.copy() if mpl_changes is not None else {}
     rc_params.update({
         'interactive': False,
         'figure.constrained_layout.use': False
