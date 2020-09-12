@@ -11,6 +11,7 @@ There are three main types of Functions:
 @author: Donald Erb
 Created on Fri Jul 31 16:22:51 2020
 
+#TODO need to update all docstrings
 """
 
 
@@ -223,7 +224,7 @@ class CalculationFunction(FunctionBase):
         """
 
         if index == 0:
-            #generator that goes from 'A' to 'ZZ' following Excel's naming format.
+            # Generator that goes from 'A' to 'ZZ' following Excel's naming format.
             excel_generator = itertools.chain(
                 string.ascii_uppercase,
                 (''.join(pair) for pair in itertools.product(string.ascii_uppercase,

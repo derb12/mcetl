@@ -730,7 +730,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
 
     """
     
-    # set the random seed so that data is repeatable
+    # Set the random seed so that data is repeatable
     np.random.seed(1)
     data_path = None
 
@@ -785,9 +785,8 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
             f.write('Parameters for all of the data in the Raw Data folder.')
             
-        # ensures that plots are not shown until plt.show() is called.
+        # Ensures that plots are not shown until plt.show() is called.
         with plt.rc_context({'interactive': False}):
-            # creates all of the data
             _generate_XRD_data(data_path, num_data, show)
             _generate_FTIR_data(data_path, num_data, show)
             _generate_Raman_data(data_path, num_data, show)

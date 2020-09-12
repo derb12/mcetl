@@ -15,12 +15,14 @@ To use the peak fitting or plotting modules in mcetl, simply do::
 
 A window will then appear to select the data file(s) to be fitted or plotted.
 
+
 Files for example data from characterization techniques can be created using::
 
-    mcetl.generate_raw_data.generate_raw_data()
+    from mcetl import raw_data
+    raw_data.generate_raw_data()
 
 
-The characterization techniques produced by that function include:
+Data produced by the generate_raw_data function covers the following characterization techniques:
 
 * X-ray diffraction (XRD)
 * Fourier-transform infrared spectroscopy (FTIR)
@@ -29,12 +31,13 @@ The characterization techniques produced by that function include:
 * Differential scanning calorimetry (DSC)
 
 
-Example python programs showing the use of mcetl are located at https://github.com/derb12/mcetl/tree/master/examples
-
-The examples include:
+`Example programs`_  are available to show basic usage of mcetl. The examples include:
 
 * Generating raw data
 * Using the main GUI
 * Using the peak fitting GUI
 * Using the plotting GUI
 * Reopening a figure saved with the plotting GUI
+
+
+.. _Example programs: https://github.com/derb12/mcetl/tree/master/examples

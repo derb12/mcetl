@@ -2,6 +2,9 @@
 mcetl
 =====
 
+.. image:: docs/logo.png
+   :align: center
+
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg
         :target: https://pypi.python.org/pypi/mcetl
@@ -12,9 +15,6 @@ mcetl
 
 .. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
-
-.. image:: docs/logo.png
-   :align: center
 
 
 
@@ -91,10 +91,11 @@ A window will then appear to select the data file(s) to be fitted or plotted.
 
 Files for example data from characterization techniques can be created using::
 
-    mcetl.generate_raw_data.generate_raw_data()
+    from mcetl import raw_data
+    raw_data.generate_raw_data()
 
 
-The characterization techniques produced by that function include:
+Data produced by the generate_raw_data function covers the following characterization techniques:
 
 * X-ray diffraction (XRD)
 * Fourier-transform infrared spectroscopy (FTIR)
@@ -125,17 +126,16 @@ Short term
 
 * Develop tests for all modules in the package.
 * Switch from print statements to logging.
-* Transfer documentation from PDF/Word files to automatic documentation with Sphinx, or at least a mix the two.
-* Improve usage with already created Excel files.
-* Switch from xlwings and xlsxwriter to openpyxl, allowing appending to Excel files on mac and linux systems.
+* Transfer documentation from PDF/Word files to automatic documentation with Sphinx.
+* Improve usage when opening existing Excel files.
 
 
 Long term
 ~~~~~~~~~
 
 * Add more plot types to the plotting gui, including bar charts, categorical plots, and 3d plots.
-* Make peak fitting more robust by allowing more options or user inputs.
-* Improve overall look of all GUIs.
+* Make peak fitting more flexible by allowing more options or user inputs.
+* Improve overall look and usability of all GUIs.
 
 
 Contributing
@@ -175,10 +175,12 @@ Pull requests are welcomed for this project. When submitting a pull request, fol
 * Keep the scope as narrow as possible, to make it easier to implement.
 
 
-Recent Changes
+Changelog
 --------------
 
-* TODO
+`Changelog`_
+
+.. _Changelog: https://github.com/derb12/mcetl/tree/master/CHANGELOG.rst
 
 
 Author

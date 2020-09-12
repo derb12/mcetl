@@ -9,16 +9,99 @@ Created on Wed Jul 15 14:26:59 2020
 
 Attributes
 ----------
+DEFAULT_FITTING_FORMATS : dict
+    The default openpyxl styles to use when writing the peak fitting
+    results to Excel.
 PROCEED_COLOR : tuple(str, str)
     The button color for all buttons that proceed to the next window.
 
 """
 
 
+from pathlib import Path
+
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 
+
+DEFAULT_FITTING_FORMATS = {
+    'fitting_header_even': {
+        'font': Font(size=12, bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='F9B381', end_color='F9B381'
+        ),
+        'border': Border(bottom=Side(style='thin')),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        )
+    },
+    'fitting_header_odd': {
+        'font': Font(size=12, bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='73A2DB', end_color='73A2DB'
+        ),
+        'border': Border(bottom=Side(style='thin')),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        )
+    },
+    'fitting_subheader_even': {
+        'font': Font(bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+        ),
+        'border': Border(bottom=Side(style='thin')),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        )
+    },
+    'fitting_subheader_odd': {
+        'font': Font(bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+        ),
+        'border': Border(bottom=Side(style='thin')),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        )
+    },
+    'fitting_columns_even': {
+        'fill': PatternFill(
+            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+        ),
+        'alignment': Alignment(horizontal='center', vertical='center'),
+        'number_format': '0.00',
+    },
+    'fitting_columns_odd': {
+        'fill': PatternFill(
+            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+        ),
+        'alignment': Alignment(horizontal='center', vertical='center'),
+        'number_format': '0.00',
+    },
+    'fitting_descriptors_even': {
+        'font': Font(bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
+        ),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        ),
+        'number_format': '0.000',
+    },
+    'fitting_descriptors_odd': {
+        'font': Font(bold=True),
+        'fill': PatternFill(
+            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
+        ),
+        'alignment': Alignment(
+            horizontal='center', vertical='center', wrap_text=True
+        ),
+        'number_format': '0.000',
+    }
+}
 
 PROCEED_COLOR = ('white', '#00A949')
 
@@ -141,13 +224,13 @@ def validate_inputs(window_values, integers=None, floats=None,
     Inputs for integers, floats, and strings are [[key, display text],].
     For example: [['peak_width', 'peak width']]
 
-    Inputs for user_inputs are 
+    Inputs for user_inputs are
         [[key, display text, data type, allow_empty_input (optional), separator (optional)],],
     where separator is a string, and allow_empty_input is a boolean.
     If no separator is given, it is assumed to be a comma (','), and
     if no allow_empty_input value is given, it is assumed to be False.
-    user_inputs can also be used to run the inputs through a function by setting 
-    the data type to a custom function. Use None as the separator if only a 
+    user_inputs can also be used to run the inputs through a function by setting
+    the data type to a custom function. Use None as the separator if only a
     single value is wanted.
     For example: [
         ['peak_width', 'peak width', float], # ensures each entry is a float
@@ -202,7 +285,7 @@ def validate_inputs(window_values, integers=None, floats=None,
             if len(entry) > 4:
                 allow_empty_input = entry[3]
                 separator = entry[4]
-                
+
             elif len(entry) > 3:
                 allow_empty_input = entry[3]
 
@@ -306,15 +389,14 @@ def show_dataframes(dataframes, title='Raw Data'):
 
         window = sg.Window(title, layout, resizable=True)
 
-    except Exception as e:
+    except Exception as e: #TODO do I still need this try-except block?
         sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
         window = None
 
-    finally:
-        return window
+    return window
 
 
-def optimize_memory(dataframe):
+def optimize_memory(dataframe, convert_objects=False):
     """
     Optimizes dataframe memory usage by converting data types.
 
@@ -326,7 +408,10 @@ def optimize_memory(dataframe):
     ----------
     dataframe : pd.DataFrame
         The dataframe to optimize.
-        
+    convert_objects : bool, optional
+        If True, will attempt to convert columns with object dtype
+        if the pandas version is >= 1.0.0.
+
     Returns
     -------
     optimized_df : pd.DataFrame
@@ -336,12 +421,28 @@ def optimize_memory(dataframe):
     -----
     Only converts int and float numeric types, not numpy types like float64,
     float 32, int16, etc.
-    
+
+    convert_objects is needed because currently, when object columns
+    are converted to a dtype of string, the row becomes a StringArray object,
+    which does not have the tolist() method curently implemented
+    (as of pandas version 1.0.5). openpyxl's dataframe_to_rows method
+    uses each row's tolist() method to convert the dataframe into a
+    generator of rows, so having a StringArray row without a tolist
+    method causes an exception when using openpyxl's dataframe_to_rows.
+    This could be alleviated by using dataframe.to_excel to write to
+    Excel directly rather than using dataframe_to_rows, but using the
+    dataframe_to_rows offers a significant speed increase (using openpyxl's
+    method results in a speed increae of ~ 30% since the cells are only
+    iterated over once. If using dataframe.to_excel and then formatting,
+    it requires iterating over all cells twice). I would
+    rather have a speed increase with the downside of more memory usage.
+    The dtypes can be still converted to string after writing to Excel, though.
+
     """
 
     optimized_df = dataframe.copy()
-    
-    if int(pd.__version__.split('.')[0]) > 0:
+
+    if int(pd.__version__.split('.')[0]) > 0 and convert_objects:
         # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:
@@ -484,7 +585,7 @@ def select_file_gui(data_source=None, file=None):
 
     """
 
-    # default values for if there is no file specified
+    # Default values for if there is no file specified
     default_inputs = {
         'row_start': 0 if data_source is None else data_source.start_row,
         'row_end': 0 if data_source is None else data_source.end_row,
@@ -837,11 +938,11 @@ def open_multiple_files():
         [sg.Button('Next', button_color=PROCEED_COLOR,
                    bind_return_key=True, enable_events=True)]
     ]
-    
+
     window = sg.Window('Get Files', layout)
     while True:
         event, values = window.read()
-        
+
         if event == sg.WIN_CLOSED:
             num_files = False
             break
@@ -849,10 +950,10 @@ def open_multiple_files():
             if validate_inputs(values, [['num_files', 'number of files']]):
                 num_files = int(values['num_files'])
                 break
-    
+
     window.close()
     del window
-    
+
     dataframes = []
     if num_files:
         try:
@@ -863,16 +964,16 @@ def open_multiple_files():
                 )
         except (WindowCloseError, KeyboardInterrupt):
             pass
-        
+
     return dataframes
 
 
 def get_dpi_correction(dpi):
     """
     Calculates the correction factor needed to create a figure with the desired dpi.
-    
+
     Necessary because some matplotlib backends (namely qt5Agg) will adjust
-    the dpi of the figure after creation. 
+    the dpi of the figure after creation.
 
     Parameters
     ----------
@@ -884,22 +985,49 @@ def get_dpi_correction(dpi):
     dpi_correction : float
         The scaling factor needed to create a figure with the desired
         dpi.
-        
+
     Notes
     -----
     The matplotlib dpi correction occurs when the operating system display
     scaling is set to any value not equal to 100% (at least on Windows,
     other operating systems are unknown). This may cause issues when
     using UHD monitors, but I cannot test.
-    
+
     To get the desired dpi, simply create a figure with a dpi equal
     to dpi * dpi_correction.
 
     """
-    
+
     with plt.rc_context({'interactive': False}):
         dpi_correction = dpi / plt.figure('dpi_corr', dpi=dpi).get_dpi()
         plt.close('dpi_corr')
-    
+
     return dpi_correction
-    
+
+
+def save_excel_file(excel_writer):
+    """
+    Handles saving the Excel file and the various exceptions that can occur.
+
+    Parameters
+    ----------
+    excel_writer : pd.ExcelWriter
+        The pandas ExcelWriter object that contains all of the
+        information about the Excel file being created.
+
+    """
+
+    # Ensures that the folder destination exist
+    Path(excel_writer.path).parent.mkdir(parents=True, exist_ok=True)
+
+    try_to_save = True
+    while try_to_save:
+        try:
+            excel_writer.save()
+            print('\nSaved Excel file.')
+            break
+
+        except PermissionError:
+            try_to_save = sg.popup_ok(
+                '\nTrying to overwrite Excel file. Please close the file.\n'
+            )

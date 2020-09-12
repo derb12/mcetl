@@ -39,7 +39,7 @@ changes = {
     'figure.figsize': (6, 4.5)
 }
 
-fit_results, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
+fit_results, gui_values, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
 
 while plt.get_fignums():
     plt.pause(5) # ensures the program continues while the plots are open

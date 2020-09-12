@@ -27,7 +27,7 @@ from .peak_fitting_gui import launch_peak_fitting_gui
 from .plotting_gui import launch_plotting_gui, load_previous_figure
 
 
-# fixes blurry tkinter windows due to weird dpi scaling in Windows os
+# Fixes blurry tkinter windows due to weird dpi scaling in Windows os
 import os
 if os.name == 'nt': # nt designates Windows os
     ctypes_imported = False

@@ -3,28 +3,21 @@
 """The setup script."""
 
 
-import os
 from setuptools import setup, find_packages
 
 with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
-with open('CHANGELOG.rst') as history_file:
-    changelog = history_file.read()
-
 requirements = [
     'lmfit',
     'matplotlib>=3.1',
     'numpy',
+    'openpyxl',
     'pandas',
-    'pysimplegui>=4.28',
+    'pysimplegui>=4.19',
     'scipy',
     'sympy',
-    'xlsxwriter' # eventually replace with openpyxl
 ]
-
-if os.name == 'nt':
-    requirements.append('xlwings') # eventually replace with openpyxl
 
 setup_requirements = [
     #'pytest-runner',
@@ -61,7 +54,7 @@ setup(
         ]
     },
     license="BSD license",
-    long_description=long_description + '\n\n' + changelog,
+    long_description=long_description,
     include_package_data=True,
     keywords='mcetl',
     name='mcetl',

@@ -8,9 +8,12 @@ Created on Sun May 24 15:18:18 2020
 
 
 from collections import defaultdict
+import itertools
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from openpyxl.styles import NamedStyle
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -239,17 +242,15 @@ def fit_dataframe(dataframe, user_inputs=None):
         'selected_bkg': []
     }
 
-    #assigns the values from user_inputs to keys in default_inputs
     if user_inputs is not None:
         default_inputs.update(user_inputs)
-    # values if using manual peak selection
+    # Values if using manual peak selection
     peak_list = default_inputs['selected_peaks']
-    #values if using manual background selection
+    # Values if using manual background selection
     bkg_points = default_inputs['selected_bkg']
-
     headers = dataframe.columns
 
-    if default_inputs['batch_fit']:
+    if default_inputs['batch_fit']: #TODO need to ensure that there is data in the x and y columns, otherwise it will throw an exception
         values = default_inputs
 
     else:
@@ -499,8 +500,8 @@ def fit_dataframe(dataframe, user_inputs=None):
             elif event == 'Show Data':
                 data_window = utils.show_dataframes(dataframe)
                 if data_window is not None:
-                    data_window.read()
-                    data_window.close()
+                    data_window.finalize().TKroot.grab_set()
+                    data_window.read(close=True)
                     data_window = None
 
             elif event == 'Update Peak & Model Lists':
@@ -623,9 +624,11 @@ def fit_dataframe(dataframe, user_inputs=None):
                     window['poly_n'].update(visible=False, value='0')
 
             elif event in ('model_list', 'default_model'):
-                tmp_model_list = [entry for entry in values['model_list'].replace(' ', '').split(',') if entry != '']
-                v_models = ['VoigtModel', 'SkewedVoigtModel']
-                if (any(model in v_models for model in tmp_model_list)) or (values['default_model'] in v_models):
+                tmp_model_list = [
+                    entry for entry in values['model_list'].replace(' ', '').split(',') if entry
+                ]
+                if (any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list)
+                        or values['default_model'] in ('VoigtModel', 'SkewedVoigtModel')):
                     window['vary_Voigt'].update(disabled=False)
                 else:
                     window['vary_Voigt'].update(disabled=True, value=False)
@@ -683,15 +686,20 @@ def fit_dataframe(dataframe, user_inputs=None):
                             height, prominence, x_min, x_max
                         )
                         if not peaks[1]:
-                            sg.popup('No peaks found in fitting range. Either manually enter \n'\
-                                     'peak positions or change peak finding options', title='Error')
+                            sg.popup(
+                                ('No peaks found in fitting range. Either manually enter \n'
+                                 'peak positions or change peak finding options'),
+                                title='Error'
+                            )
                         else:
                             break
                     else:
                         if peak_list:
                             break
                         else:
-                            sg.popup('Please manually select peaks or change peak finding to automatic')
+                            sg.popup(
+                                'Please manually select peaks or change peak finding to automatic'
+                            )
 
         window.close()
         del window
@@ -745,15 +753,15 @@ def fit_dataframe(dataframe, user_inputs=None):
         height = float(values['height'])
         prominence = float(values['prominence']) if values['prominence'] != 'inf' else np.inf
 
-
     if subtract_bkg:
-        if values['manual_bkg']:
+        if not values['manual_bkg']:
+            values['selected_bkg'] = []
+        else:
             values['selected_bkg'] = bkg_points
             subtract_bkg = False
             y_subtracted = y_data.copy()
             if len(bkg_points) > 1:
                 points = sorted(bkg_points, key=lambda x: x[0])
-
                 for i in range(len(points)-1):
                     x_points, y_points = zip(*points[i:i+2])
                     coeffs = np.polyfit(x_points, y_points, 1)
@@ -762,9 +770,8 @@ def fit_dataframe(dataframe, user_inputs=None):
                     y_line = y_data[boundary]
                     line = np.polyval(coeffs, x_line)
                     y_subtracted[boundary] = y_line - line
+            
             y_data = y_subtracted
-        else:
-            values['selected_bkg'] = []
 
     fitting_results = peak_fitting.plugNchug_fit(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
@@ -776,14 +783,14 @@ def fit_dataframe(dataframe, user_inputs=None):
     output_list = [fitting_results[key] for key in fitting_results]
     fit_result, individual_peaks, best_values = output_list[5:]
 
-    #renames amplitude to area for peaks to be more clear; lmfit has amplitude==area
-    #by the way the module defines the peaks
+    # Renames amplitude to area for peaks to be more clear; lmfit has amplitude==area
+    # by the way the module defines the peaks
     for result in best_values:
         for param in result:
             if 'peak' in param[0] and 'amplitude' in param[0]:
                 param[0] = '_'.join([*param[0].split('_')[0:2], 'area'])
 
-    #creation of dataframe for best values of all peak parameters
+    # Creation of dataframe for best values of all peak parameters
     vals = defaultdict(dict)
     st_dev = defaultdict(dict)
     for term in best_values[-1]:
@@ -812,7 +819,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
     params_df = pd.concat([df_0, df_1], axis=1)
 
-    #creation of dataframe for peak values and x and y raw data
+    # Creation of dataframe for peak values and x and y raw data
     x = fit_result[-1].userkws['x']
     y = fit_result[-1].data
     peaks_df = pd.DataFrame()
@@ -830,7 +837,7 @@ def fit_dataframe(dataframe, user_inputs=None):
             peaks_df[key] = individual_peaks[-1][term]
     peaks_df['total fit'] = fit_result[-1].best_fit
 
-    #creation of dataframe for descriptions of the fitting
+    # Creation of dataframe for descriptions of the fitting
     adj_r_sq = peak_fitting.r_squared(y, fit_result[-1].best_fit,
                                       fit_result[-1].nvarys)[1]
     red_chi_sq = fit_result[-1].redchi
@@ -877,193 +884,175 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     excel_writer : pd.ExcelWriter
         The pandas ExcelWriter object that contains all of the
         information about the Excel file being created.
-    excel_book : xlsxwriter.WorkBook
-        The xlsxwriter book object corresponding to the Excel file being created.
-    sheet_name: str
+    sheet_name: str, optional
         The Excel sheet name.
-    plot_excel : bool
+    plot_excel : bool, optional
         If True, will create a simple plot in Excel that plots the raw x and
         y data, the data for each peak, the total of all peaks, and
         the background if it is present.
 
     """
 
-    excel_book = excel_writer.book
+    from openpyxl.utils.cell import get_column_letter
+    from openpyxl.utils.dataframe import dataframe_to_rows
 
-    #Formatting styles for the Excel workbook
-    if len(excel_book.formats) < 10: # a new writer
-        odd_subheader_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'DBEDFF', 'font_size':12, 'bottom': True
-        })
-        even_subheader_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'FFEAD6', 'font_size':12, 'bottom': True
-        })
-        odd_colnum_format = excel_book.add_format({
-            'num_format': '0.00', 'bg_color':'DBEDFF', 'text_v_align': 2,
-            'text_h_align': 2
-        })
-        even_colnum_format = excel_book.add_format({
-            'num_format': '0.00', 'bg_color':'FFEAD6', 'text_v_align': 2,
-            'text_h_align': 2
-        })
-        odd_header_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'73A2DB', 'font_size':12, 'bottom': True
-        })
-        even_header_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'F9B381', 'font_size':12, 'bottom': True
-        })
-        odd_bold_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'DBEDFF', 'font_size':11, 'num_format': '0.000'
-        })
-        even_bold_format = excel_book.add_format({
-            'text_wrap': True, 'text_v_align': 2, 'text_h_align': 2, 'bold':True,
-            'bg_color':'FFEAD6', 'font_size':11, 'num_format': '0.000'
-        })
+    if plot_excel:
+        from openpyxl.chart import Reference, Series, ScatterChart
 
-    else:
-        (odd_subheader_format, even_subheader_format, odd_colnum_format,
-         even_colnum_format, odd_header_format, even_header_format,
-         odd_bold_format, even_bold_format) = excel_book.formats[2:10]
-
-    #Ensures that the sheet name is unique so it does not overwrite data
-    num = 1
+    # Ensures that the sheet name is unique so it does not overwrite data;
+    # not needed for openpyxl, but just a precaution
+    current_sheets = [sheet.title.lower() for sheet in excel_writer.book.worksheets]
     if sheet_name is not None:
-        #ensures unicode is read correctly
         sheet_name = utils.string_to_unicode(sheet_name)
         sheet_base = sheet_name
     else:
         sheet_base = 'Sheet'
         sheet_name = 'Sheet_1'
+    num = 1
     while True:
-        close_loop = True
-        for sheet in excel_writer.sheets:
-            if sheet_name.lower() == sheet.lower():
-                num +=1
-                close_loop = False
-                sheet_name = f'{sheet_base}_{num}'
-                break
-        if close_loop:
+        if sheet_name.lower() not in current_sheets:
             break
+        else:
+            sheet_name = f'{sheet_base}_{num}'
+            num += 1
 
     param_names = dict.fromkeys([
-        params_dataframe.columns[0],
+        '',
         *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
     ])
     total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
                    + len(descriptors_dataframe.columns) + 1)
-
-    peaks_dataframe.to_excel(
-        excel_writer, sheet_name=sheet_name, index=False,startrow=3, header=False
-    )
+    
+    # Easier to just write params and descriptors using pandas rather than using
+    # openpyxl; will not cost significant time since there are only a few cells
     params_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=3,
-        startcol=len(peaks_dataframe.columns) + 1, header=False, index=False
+        startcol=len(peaks_dataframe.columns), header=False, index=True
     )
     descriptors_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=1,
-        startcol=len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
-        header=False, index=False
+        startcol=len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1,
+        header=False, index=True
     )
-    worksheet = excel_writer.sheets[sheet_name]
+    worksheet = excel_writer.book[sheet_name]
 
-    #Modifies the formatting to look good in Excel
-    worksheet.merge_range(
-        0, 0, 0, len(peaks_dataframe.columns) - 1, 'Values', even_header_format
+    # Write and format all headers
+    headers = (
+        {'name': 'Values', 'start': 1, 'end': len(peaks_dataframe.columns)},
+        {'name': 'Peak Parameters', 'start': len(peaks_dataframe.columns) + 1,
+         'end': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1},
+        {'name': 'Fit Description', 
+         'start': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
+         'end': total_width + 1}
     )
-    worksheet.merge_range(1, 0, 1, 1, 'Raw Data', odd_header_format)
-    worksheet.merge_range(
-        1, 2, 1, len(peaks_dataframe.columns) - 1, 'Fitted Data',
-        even_header_format
-    )
+    suffix = itertools.cycle(['even', 'odd'])
+    for header in headers:
+        cell = worksheet.cell(row=1, column=header['start'], value=header['name'])
+        cell.style = 'fitting_header_' + next(suffix)
+        worksheet.merge_cells(
+            start_row=1, start_column=header['start'], end_row=1, end_column=header['end']
+        )
 
-    #formatting for peaks_dataframe
-    for i, peak_name in enumerate(peaks_dataframe.columns):
-        if i % 2 == 0:
-            formats = [even_subheader_format, even_colnum_format]
+    # Subheaders for peaks_dataframe
+    cell = worksheet.cell(row=2, column=1, value='Raw Data')
+    cell.style = 'fitting_header_odd'
+    cell = worksheet.cell(row=2, column=3, value='Fit Data')
+    cell.style = 'fitting_header_even'
+    worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
+    worksheet.merge_cells(start_row=2, start_column=3, end_row=2,
+                          end_column=len(peaks_dataframe.columns))
+
+    # Formatting for peaks_dataframe
+    suffix = itertools.cycle(['even', 'odd'])
+    for i, peak_name in enumerate(peaks_dataframe.columns, 1):
+        cell = worksheet.cell(row=3, column=i, value=peak_name)
+        cell.style = 'fitting_subheader_' + next(suffix)
+
+    rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
+    for row_index, row in enumerate(rows, 4):
+        suffix = itertools.cycle(['even', 'odd'])
+        for column_index, value in enumerate(row, 1):
+            cell = worksheet.cell(row=row_index, column=column_index, value=value)
+            cell.style = 'fitting_columns_' + next(suffix)
+    
+    # Formatting for params_dataframe
+    for index, subheader in enumerate(param_names):
+        style_suffix = next(suffix)
+
+        if index < 2:
+            prefix = 'fitting_columns_' if index == 0 else 'fitting_subheader_'
+            column = len(peaks_dataframe.columns) + 1 + index
+            cell = worksheet.cell(row=2, column=column, value=subheader)
+            cell.style = prefix + style_suffix
+            worksheet.merge_cells(
+                start_row=2, start_column=column, end_row=3, end_column=column
+            )
+            prefix = 'fitting_descriptors_' if index == 0 else 'fitting_columns_'
+            for row in range(len(params_dataframe)):
+                cell = worksheet.cell(row=4 + row, column=column)
+                cell.style = prefix + style_suffix
         else:
-            formats = [odd_subheader_format, odd_colnum_format]
-        worksheet.write(2, i, peak_name, formats[0])
-        worksheet.set_column(i, i, 12.5, formats[1])
+            column = len(peaks_dataframe.columns) + 1 + (2 * (index - 1))
+            cell = worksheet.cell(row=2, column=column, value=subheader)
+            cell.style = 'fitting_subheader_' + style_suffix
+            worksheet.merge_cells(
+                start_row=2, start_column=column, end_row=2, end_column=column + 1
+            )
+            cell = worksheet.cell(row=3, column=column, value='value')
+            cell.style = 'fitting_subheader_' + style_suffix
+            cell = worksheet.cell(row=3, column=column + 1, value='standard error')
+            cell.style = 'fitting_subheader_' + style_suffix
+        
+            for row in range(len(params_dataframe)):
+                cell = worksheet.cell(row=4 + row, column=column)
+                cell.style = 'fitting_columns_' + style_suffix
+                cell = worksheet.cell(row=4 + row, column=column + 1)
+                cell.style = 'fitting_columns_' + style_suffix
 
-    worksheet.merge_range(
-        0, len(peaks_dataframe.columns), 0,
-        len(peaks_dataframe.columns) + len(params_dataframe.columns),
-        'Peak Parameters', odd_header_format
-    )
-    worksheet.merge_range(
-        0, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1,
-        0, total_width, 'Fit Description', even_header_format
-    )
+    # Formatting for descriptors_dataframe
+    for column in range(2):
+        style = 'fitting_descriptors_' + next(suffix)
+        for row in range(len(descriptors_dataframe)):
+            cell = worksheet.cell(
+                row=2 + row,
+                column=column + len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2
+            )
+            cell.style = style
 
-    #formatting for params_dataframe
-    for j, param in enumerate(param_names.keys()):
-        if j == 0:
-            for k, peak in enumerate(params_dataframe.index):
-                worksheet.write(3 + k, i + 1, peak)
-
-            if (j + i + 1) % 2 == 0:
-                formats = [odd_subheader_format, even_bold_format, odd_colnum_format]
-
-            else:
-                formats = [even_subheader_format, odd_bold_format, even_colnum_format]
-            worksheet.merge_range(1, 1 + i, 2, 1 + i, '')
-            worksheet.merge_range(1, 2 + i, 2, 2 + i, param, formats[0])
-            worksheet.set_column(i + 1, i + 1, 12.5, formats[1])
-            worksheet.set_column(i + 2, i + 2, 12.5, formats[2])
-        else:
-            if (j + i) % 2 == 0:
-                formats = [even_subheader_format, even_colnum_format]
-            else:
-                formats = [odd_subheader_format, odd_colnum_format]
-            worksheet.merge_range(1, j * 2 + i + 1, 1, j * 2 + i + 2, param,
-                                  formats[0])
-            worksheet.write(2, j * 2 + i + 1, 'value', formats[0])
-            worksheet.write(2, j * 2 + i + 2, 'standard error', formats[0])
-            worksheet.set_column(j * 2 + i + 1, j * 2 + i + 2, 12.5, formats[1])
-
-    # formatting for descriptors_dataframe
-    if (j + i + 1) % 2 == 0:
-        formats = [even_bold_format, odd_bold_format]
-    else:
-        formats = [odd_bold_format, even_bold_format]
-    for k, parameter in enumerate(descriptors_dataframe.index):
-        worksheet.write(1 + k, 2 * (j + 1) + i + 1, parameter, formats[0])
-
-    worksheet.set_column((j + 1) * 2 + i + 1, (j + 1) * 2 + i + 1, 22, formats[0])
-    worksheet.set_column((j + 1) * 2 + i + 2, (j + 1) * 2 + i + 2, 15, formats[1])
-    worksheet.set_row(0, 18)
+    # Adjust column and row dimensions
+    worksheet.row_dimensions[1].height = 18
+    for column in range(1, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2):
+        worksheet.column_dimensions[get_column_letter(column)].width = 12.5
+    for column in range(len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2, total_width + 2):
+        worksheet.column_dimensions[get_column_letter(column)].width = 20
 
     if plot_excel:
-        x_col_name = peaks_dataframe.columns[0]
-        chart = excel_book.add_chart({'type': 'scatter',
-                                      'subtype':'straight'})
+        axis_attributes = {
+            'x_axis': {
+                'title': peaks_dataframe.columns[0],
+                'crosses': 'min'
+            },
+            'y_axis': {
+                'title': peaks_dataframe.columns[1],
+                'crosses': 'min'
+            }
+        }
+        chart = ScatterChart()
+        for axis, attribute in axis_attributes.items():
+            for axis_attribute, value in attribute.items():
+                setattr(getattr(chart, axis), axis_attribute, value)
 
-        for i, col_name in enumerate(peaks_dataframe.columns):
-            if i != 0:
-                if i == 1:
-                    legend_name = 'raw data'
-                else:
-                    legend_name = ' '.join(col_name.split(' ')[0:2])
+        for i, peak_name in enumerate(peaks_dataframe.columns[1:], 2):
+            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i !=2 else 'raw data'
+            chart.append(
+                Series(
+                    Reference(worksheet, i, 4, i, len(peaks_dataframe) + 3),
+                    xvalues=Reference(worksheet, 1, 4, 1, len(peaks_dataframe) + 3),
+                    title=legend_name
+                )
+            )
 
-                #categories is the x column and values is the y column
-                chart.add_series({
-                    'name': legend_name,
-                    'categories':[sheet_name, 3, 0,
-                                  peaks_dataframe[x_col_name].count() + 2, 0],
-                    'values':[sheet_name, 3, i,
-                              peaks_dataframe[x_col_name].count() + 2, i],
-                    'line': {'width':2}
-                })
-
-        chart.set_x_axis({'name': peaks_dataframe.columns[0]})
-
-        chart.set_y_axis({'name': peaks_dataframe.columns[1]})
-        worksheet.insert_chart('D8', chart)
+        worksheet.add_chart(chart, 'D8')
 
 
 def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
@@ -1107,32 +1096,74 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     """
     #TODO check that mpl backend is interactive; if not, try to switch to tkAgg
     rc_params = mpl_changes.copy() if mpl_changes is not None else {}
-    rc_params.update({
-        'interactive': False,
-        'figure.constrained_layout.use': False,
-        'figure.autolayout': True
-    })
     # Correctly scales the dpi to match the desired dpi.
     dpi = rc_params.get('figure.dpi', plt.rcParams['figure.dpi'])
     dpi_scale = utils.get_dpi_correction(dpi)
-    rc_params.update({'figure.dpi': dpi_scale * dpi})
+    rc_params.update({
+        'interactive': False,
+        'figure.constrained_layout.use': False,
+        'figure.autolayout': True,
+        'figure.dpi': dpi_scale * dpi
+    })
 
     if dataframe is not None and isinstance(dataframe, pd.DataFrame):
         fit_dataframes = [dataframe]
     else:
         fit_dataframes = utils.open_multiple_files()
 
-    if save_excel and excel_writer is None: #TODO maybe make a pop-up to allow selecting the file name and location
-        writer = pd.ExcelWriter('temporary file from peak fitting.xlsx',
-                                engine='xlsxwriter')
-    else:
+    if not save_excel or excel_writer is not None:
         writer = excel_writer
+    else:
+        layout = [
+            [sg.Text('Select filename for peak fitting')],
+            [sg.Input('', key='file', size=(20, 1),
+                      disabled=True, text_color='black'),
+            sg.FileSaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
+                          key='browse', target='file')],
+            [sg.Text('')],
+            [sg.Button('Submit', bind_return_key=True,
+                       button_color=utils.PROCEED_COLOR),
+             sg.Check('New File', key='new_file')]
+        ]
+
+        window = sg.Window('File Selection', layout)
+        while True:
+            event, values = window.read()
+            if event == sg.WIN_CLOSED:
+                utils.safely_close_window(window)
+            
+            elif event == 'Submit':
+                if utils.validate_inputs(values, strings=[['file', 'Excel file']]):
+                    break
+    
+        window.close()
+        del window
+
+        file_path = Path(values['file'])
+        if not file_path.suffix.lower() or file_path.suffix.lower() != '.xlsx':
+            values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
+        
+        if not values['new_file'] and Path(values['file']).exists():
+            mode = 'a'
+        else:
+            mode = 'w'
+        
+        writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
+    
+    # Formatting styles for the Excel workbook
+    for style, kwargs in utils.DEFAULT_FITTING_FORMATS.items():
+        try:
+            writer.book.add_named_style(NamedStyle(style, **kwargs))
+        except AttributeError: # writer is None
+            break
+        except ValueError: # Style already exists in the workbook
+            pass
 
     fit_results = []
     proceed = True
     for dataframe in fit_dataframes:
         try:
-            with plt.rc_context(rc_params):
+            with plt.rc_context(rc_params): #TODO check if this closes the figure as soon as fitting is done?
                 fit_output = fit_dataframe(dataframe, gui_values)
 
         except (utils.WindowCloseError, KeyboardInterrupt):
@@ -1153,7 +1184,6 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
                              writer, gui_values['sample_name'], plot_excel)
 
     if save_excel and save_when_done and not all(entry is None for entry in fit_results):
-        #save the Excel file
-        writer.save()
+        utils.save_excel_file(writer)
 
     return fit_results, gui_values, proceed
