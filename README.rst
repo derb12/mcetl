@@ -2,7 +2,7 @@
 mcetl
 =====
 
-.. image:: docs/logo.png
+.. image:: https://github.com/derb12/mcetl/raw/master/docs/logo.png
    :align: center
 
 
