@@ -17,7 +17,7 @@ Created on Wed Jul 15 23:48:02 2020
 
 
 __author__ = """Donald Erb"""
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 from .datasource import DataSource
