@@ -1354,7 +1354,6 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
         for j, label in enumerate(axes[key]):
-
             axis = axes[key][label]
             marker_colors = itertools.cycle(COLORS)
             line_colors = itertools.cycle(COLORS)
@@ -1417,11 +1416,11 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'legend_manual_x_{i}{j}': '',
                 f'legend_manual_y_{i}{j}': '',
                 f'auto_ticks_{i}{j}': True,
-                f'x_major_ticks_{i}{j}': 5,
-                f'x_minor_ticks_{i}{j}': 2,
-                f'y_major_ticks_{i}{j}': 5,
-                f'y_minor_ticks_{i}{j}': 2,
-                f'secondary_auto_ticks_{i}{j}': True,
+                f'x_major_ticks_{i}{j}': 5 if label != 'Twin X' else '',
+                f'x_minor_ticks_{i}{j}': 2 if label != 'Twin X' else '',
+                f'y_major_ticks_{i}{j}': 5 if label != 'Twin Y' else '',
+                f'y_minor_ticks_{i}{j}': 2 if label != 'Twin Y' else '',
+                f'auto_ticks_secondary{i}{j}': True,
                 f'secondary_x_major_ticks_{i}{j}': 5,
                 f'secondary_x_minor_ticks_{i}{j}': 2,
                 f'secondary_y_major_ticks_{i}{j}': 5,
@@ -1465,10 +1464,10 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             # Have to update axis limits after plotting the data
             default_inputs.update({
-                f'x_axis_min_{i}{j}': axis.get_xlim()[0],
-                f'x_axis_max_{i}{j}': axis.get_xlim()[1],
-                f'y_axis_min_{i}{j}': axis.get_ylim()[0],
-                f'y_axis_max_{i}{j}': axis.get_ylim()[1],
+                f'x_axis_min_{i}{j}': axis.get_xlim()[0] if label != 'Twin X' else '',
+                f'x_axis_max_{i}{j}': axis.get_xlim()[1] if label != 'Twin X' else '',
+                f'y_axis_min_{i}{j}': axis.get_ylim()[0] if label != 'Twin Y' else '',
+                f'y_axis_max_{i}{j}': axis.get_ylim()[1] if label != 'Twin Y' else '',
                 f'secondary_x_axis_min_{i}{j}': axis.get_xlim()[0],
                 f'secondary_x_axis_max_{i}{j}': axis.get_xlim()[1],
                 f'secondary_y_axis_min_{i}{j}': axis.get_ylim()[0],
@@ -1611,16 +1610,20 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     [sg.Column([
                         [sg.Text('X Axis:')],
                         [sg.Check('Major Ticks', key=f'x_major_grid_{i}{j}',
-                                  default=default_inputs[f'x_major_grid_{i}{j}'])],
+                                  default=default_inputs[f'x_major_grid_{i}{j}'],
+                                  disabled=label=='Twin X')],
                         [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}{j}',
-                                  default=default_inputs[f'x_minor_grid_{i}{j}'])]
+                                  default=default_inputs[f'x_minor_grid_{i}{j}'],
+                                  disabled=label=='Twin X')]
                      ], pad=((20, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Check('Major Ticks', key=f'y_major_grid_{i}{j}',
-                                   default=default_inputs[f'y_major_grid_{i}{j}'])],
+                                   default=default_inputs[f'y_major_grid_{i}{j}'],
+                                   disabled=label=='Twin Y')],
                          [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}{j}',
-                                   default=default_inputs[f'y_minor_grid_{i}{j}'])]
+                                   default=default_inputs[f'y_minor_grid_{i}{j}'],
+                                   disabled=label=='Twin Y')]
                      ], pad=((20, 5), 3), element_justification='center')]
                 ],
                 'Axes': [
@@ -1649,16 +1652,16 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     [sg.Text('Bounds')],
                     [sg.Text('    X Minimum:'),
                      sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(12, 1),
-                              key=f'x_axis_min_{i}{j}'),
+                              key=f'x_axis_min_{i}{j}', disabled=label=='Twin X'),
                      sg.Text('X Maximum:'),
                      sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(12, 1),
-                              key=f'x_axis_max_{i}{j}')],
+                              key=f'x_axis_max_{i}{j}', disabled=label=='Twin X')],
                     [sg.Text('    Y Minimum:'),
                      sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(12, 1),
-                              key=f'y_axis_min_{i}{j}'),
+                              key=f'y_axis_min_{i}{j}', disabled=label=='Twin Y'),
                      sg.Text('Y Maximum:'),
                      sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(12, 1),
-                              key=f'y_axis_max_{i}{j}')],
+                              key=f'y_axis_max_{i}{j}', disabled=label=='Twin Y')],
                     [sg.Text('')],
                     [sg.Text('Tick Marks')],
                     [sg.Radio('Automatic', f'ticks_{i}{j}', key=f'auto_ticks_{i}{j}',
@@ -1669,22 +1672,24 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                         [sg.Text('Major Ticks'),
                          sg.Spin([num for num in range(2, 11)],
                                  initial_value=default_inputs[f'x_major_ticks_{i}{j}'],
-                                 key=f'x_major_ticks_{i}{j}', size=(3, 1))],
+                                 key=f'x_major_ticks_{i}{j}', size=(3, 1),
+                                 disabled=label=='Twin X')],
                         [sg.Text('Minor Ticks'),
                          sg.Spin([num for num in range(11)],
                                  initial_value=default_inputs[f'x_minor_ticks_{i}{j}'],
-                                 key=f'x_minor_ticks_{i}{j}', size=(3, 1))]
+                                 key=f'x_minor_ticks_{i}{j}', size=(3, 1),
+                                 disabled=label=='Twin X')]
                      ], pad=((40, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Text('Major Ticks'),
-                         sg.Spin([num for num in range(2, 11)],
+                         sg.Spin([num for num in range(2, 11)], size=(3, 1),
                                  initial_value=default_inputs[f'y_major_ticks_{i}{j}'],
-                                 key=f'y_major_ticks_{i}{j}', size=(3, 1))],
+                                 key=f'y_major_ticks_{i}{j}', disabled=label=='Twin Y')],
                          [sg.Text('Minor Ticks'),
                          sg.Spin([num for num in range(11)], size=(3, 1),
                                  initial_value=default_inputs[f'y_minor_ticks_{i}{j}'],
-                                 key=f'y_minor_ticks_{i}{j}')]
+                                 key=f'y_minor_ticks_{i}{j}', disabled=label=='Twin Y')]
                      ], pad=((40, 5), 3), element_justification='center')]
                 ]
             }
@@ -1724,8 +1729,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                         [sg.Text('')],
                         [sg.Text('Tick Marks')],
                         [sg.Radio('Automatic', f'secondary_ticks_{i}{j}',
-                                  key=f'secondary_auto_ticks_{i}{j}',
-                                  default=default_inputs[f'secondary_auto_ticks_{i}{j}'],
+                                  key=f'auto_ticks_secondary{i}{j}',
+                                  default=default_inputs[f'auto_ticks_secondary{i}{j}'],
                                   enable_events=True, pad=((20, 10), 3))],
                         [sg.Column([
                             [sg.Text('X Axis:')],
@@ -1894,7 +1899,8 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
         for i, key in enumerate(axes):
             if 'Invisible' in axes[key]['Main Axis'].get_label():
                 continue
-            for j, label in enumerate(axes[key]):
+            # Reverse the axes so that Main Axis is plotted last, while keeping the indices correct
+            for j, label in zip(itertools.count(len(axes[key]) - 1, -1), reversed(axes[key])):
                 axis = axes[key][label]
                 axis.clear() #TODO check if this is needed, or can be replaced with a faster alternative
 
@@ -2743,7 +2749,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         for prop in properties:
                             window[f'legend_{prop}_{index}'].update(disabled=True)
                 # toggles secondary axis options
-                elif 'secondary' in event:
+                elif event.startswith('secondary'):
                     properties = ('label', 'label_offset', 'expr')
                     index = event.split('_')[-1]
                     if 'secondary_x' in event:
