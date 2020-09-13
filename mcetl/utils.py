@@ -496,7 +496,7 @@ def raw_data_import(window_values, file, show_popup=True):
     try:
         row_start = int(window_values['row_start'])
         row_end = int(window_values['row_end'])
-        separator = window_values['separator'] if window_values['separator'] != '' else None
+        separator = window_values['separator'] if window_values['separator'].lower() not in ('', 'none') else None
         column_numbers = [
             int(num) for num in window_values['columns'].replace(' ', '').split(',') if num
         ]

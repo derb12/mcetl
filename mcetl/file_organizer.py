@@ -493,9 +493,9 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
                 kw1_keywords = ', '.join(kw for kw in keyword1)
                 kw2_keywords = ', '.join(kw for kw in keyword2)
                 layout = [
-                    [sg.Text('Select your file(s).')],
-                    [sg.Text(f'Current keywords:\n    Main keyword: {kw1_keywords}\
-                             \n    Secondary keyword: {kw2_keywords}')],
+                    [sg.Text('Select the file(s).')],
+                    [sg.Text((f'Current keywords:\n    Main keyword: {kw1_keywords}'
+                              f'\n    Secondary keyword: {kw2_keywords}'))],
                     [sg.Listbox(key='listbox', values=files,
                                 size=(max(len(str(file)) for file in files) + 3, 8),
                                 select_mode='multiple', bind_return_key=True)],

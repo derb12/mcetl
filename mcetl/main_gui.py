@@ -320,18 +320,18 @@ def _select_processing_options(data_sources):
                         break
                     else:
                         sg.popup(
-                            'Please select a filename for the output Excel file.',
+                            'Please select a filename for the output Excel file.\n',
                             title='Error'
                         )
                 else:
-                    sg.popup('Please select a data source.',
+                    sg.popup('Please select a data source.\n',
                              title='Error')
 
             elif values['move_files']:
                 break
 
             else:
-                sg.popup('Please select a data processing option.',
+                sg.popup('Please select a data processing option.\n',
                          title='Error')
 
         if event == 'multiple_files':
@@ -424,16 +424,28 @@ def _create_column_labels_window(
 
     """
 
+    labels = data_source.create_needed_labels(
+        max(len(df.columns) for sample in dataset for df in sample)
+    )
+
+    if (data_source.x_plot_index >= len((labels[0] + labels[1]))
+            or data_source.y_plot_index >= len((labels[0] + labels[1]))):
+        x_plot_index = 0
+        y_plot_index = len((labels[0] + labels[1])) - 1
+    else:
+        x_plot_index = data_source.x_plot_index
+        y_plot_index = data_source.y_plot_index
+
     validations = {'user_inputs': []}
     default_inputs = {
-        'x_plot_index': f'{data_source.x_plot_index}',
-        'y_plot_index': f'{data_source.y_plot_index}',
+        'x_plot_index': x_plot_index,
+        'y_plot_index': y_plot_index,
         'x_min': '',
         'x_max': '',
         'y_min': '',
         'y_max': '',
-        'x_label': data_source.column_labels[data_source.x_plot_index],
-        'y_label': data_source.column_labels[data_source.y_plot_index],
+        'x_label': (labels[0] + labels[1])[x_plot_index],
+        'y_label': (labels[0] + labels[1])[y_plot_index],
         'x_log_scale': False,
         'y_log_scale': False,
         'chart_title': ''
@@ -452,10 +464,6 @@ def _create_column_labels_window(
             'summary_name', 'summary name',
             utils.string_to_unicode, True, None
         ])
-
-    labels = data_source.create_needed_labels(
-        max(len(df.columns) for sample in dataset for df in sample)
-    )
 
     keys = ('data_label', 'calculation_label',
             'sample_summary_label', 'dataset_summary_label')
@@ -1028,8 +1036,8 @@ def launch_main_gui(data_sources):
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
                 with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'r') as old_search:
-                    files = json.load(old_search)
+                        'previous_search.json'), 'r') as last_search:
+                    files = json.load(last_search)
             else:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
@@ -1037,8 +1045,8 @@ def launch_main_gui(data_sources):
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
                 with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'w') as output_file:
-                    json.dump(files, output_file)
+                        'previous_search.json'), 'w') as last_search:
+                    json.dump(files, last_search)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
@@ -1103,14 +1111,12 @@ def launch_main_gui(data_sources):
                     [values[key] for key in values if key.startswith('data_label')]
                     + [values[key] for key in values if key.startswith('calculation_label')]
                 )
-
                 labels[i]['sample_summary_labels'] = utils.string_to_unicode([
                     values[key] for key in values if key.startswith('sample_summary_label')
                 ])
                 labels[i]['dataset_summary_labels'] = utils.string_to_unicode([
                     values[key] for key in values if key.startswith('dataset_summary_label')
                 ])
-
                 labels[i]['summary_name'] = utils.string_to_unicode([
                     values[key] for key in values if key == 'summary_name'
                 ])
@@ -1229,78 +1235,3 @@ def launch_main_gui(data_sources):
         print(traceback.format_exc())
 
     return dataframes, fit_results, plot_results
-
-
-if __name__ == '__main__':
-
-    import numpy as np
-    from mcetl import CalculationFunction, SummaryFunction
-
-    def offset_func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
-        """Example CalculationFunction with named kwargs"""
-
-        for i, sample in enumerate(calc_indices):
-            for j, calc_col in enumerate(sample):
-                if excel_columns is not None:
-                    y = df[target_indices[0][i][j]]
-                    y_col = excel_columns[target_indices[0][i][j]]
-                    calc = [
-                        f'= {y_col}{k + 3 + start_row} + {offset}' for k in range(len(y))
-                    ]
-
-                    df[calc_col] = np.where(~np.isnan(y), calc, '')
-                else:
-                    y_col = df[df.columns[target_indices[0][i][j]]]
-                    df[df.columns[calc_col]] = y_col + offset
-
-            offset += offset
-
-        return df
-
-    def summarize(df, *args, **kwargs):
-        return df
-    def summarize2(df, *args, **kwargs):
-        return df
-
-    offset = CalculationFunction('offset', 'Intensity', offset_func, 1, {'offset': 1000})
-    summary = SummaryFunction('summarize', 'Intensity', summarize, 1, None, False)
-    summary2 = SummaryFunction('summarize2', 'Intensity', summarize2, 1, None, True)
-
-    # Definitions for each data source
-    xrd = DataSource(
-        name='XRD',
-        column_labels=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
-        functions=[offset, summary, summary2], column_numbers=[1, 2],
-        start_row=1, end_row=0, separator=',',
-        xy_plot_indices=[0, 2], file_type='csv', num_files=1,
-        unique_variables=['2\u03B8', 'Intensity'],
-        entry_separation=2, sample_separation=3,
-        excel_row_offset=0,
-        excel_column_offset=0,
-        label_entries=True
-    )
-
-    """
-    ftir = DataSource('FTIR', ['Wavenumber (1/cm)','Absorbance (a.u.)',
-                                     'Offset Absorbance (a.u.)'],
-                                     ['offset', 'normalize', 'fit_peaks'], [0, 1],
-                                     1, 0, 0, ',', [0, 1], [0, 2], 'csv')
-    raman = DataSource('Raman', ['Raman Shift (1/cm)','Intensity (a.u.)',
-                                      'Offset Intensity (a.u.)'],
-                                      ['offset', 'normalize', 'fit_peaks'], [0, 1],
-                                      1, 0, 0, '\\t', [0, 1], [0, 2], 'txt')
-    tga = DataSource('TGA', ['Temperature (\u00B0C)', 'Time (min)',
-                                    'Mass (%)', 'Mass Loss Rate (%/\u00B0C)',
-                                    'Fraction Mass Lost'],
-                                    ['negative_derivative', 'max_x', 'fit_peaks',
-                                     'fractional_change'],
-                                    [0, 1, 2], None, 34, 0, ';', [0, 2], [0, 2], 'txt')
-    """
-
-    other = DataSource('Other')
-
-    #Put all DataSource objects in this tuple in order to use them
-    data_sources = (xrd, other)
-
-    #call the main function with data_sources as the input
-    dataframes, fit_results, plot_results = launch_main_gui(data_sources)
