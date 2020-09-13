@@ -146,15 +146,16 @@ class DataSource:
         self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
 
         if unique_variables is None:
-            self.unique_variables = ['x', 'y']
+            self.unique_variables = []
         elif isinstance(unique_variables, str):
             self.unique_variables = [unique_variables]
         else:
             self.unique_variables = unique_variables
 
-        self.column_numbers = column_numbers if column_numbers is not None else [
-            *range(len(self.unique_variables))
-        ]
+        if column_numbers is not None:
+            self.column_numbers = column_numbers
+        else:
+            self.column_numbers = [*range(len(self.unique_variables))]
 
         # ensures the number of imported columns can accomodate all variables
         if len(self.column_numbers) < len(self.unique_variables):
