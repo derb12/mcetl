@@ -23,8 +23,9 @@ mcetl is a simple Extract-Transform-Load framework focused on materials characte
    installation
    usage
    contributing
-   authors
    changes
+   license
+   authors
 
 
 Indices and tables

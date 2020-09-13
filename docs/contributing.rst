@@ -4,12 +4,8 @@
 Contributing
 ============
 
-Contributions are welcome, and they are greatly appreciated.
+Contributions are welcomed and greatly appreciated. You can contribute in many ways:
 
-You can contribute in many ways:
-
-Types of Contributions
-----------------------
 
 Bugs Reports
 ~~~~~~~~~~~~
