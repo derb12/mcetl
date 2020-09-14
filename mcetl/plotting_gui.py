@@ -132,7 +132,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
         A nested list of lists of matplotlib Axes objects. Used to save
         their annotations.
     data : list, optional
-        The list of dataframes used in the figure.
+        The list of dataframes used in the figure. If not None, the data
+        will be saved to a csv file with the same name as the theme file.
 
     Notes
     -----
@@ -179,11 +180,11 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
             with open(filename, 'w') as f:
                 f.write('FIGURE KEYWORD ARGUMENTS\n')
                 json.dump(fig_kwargs, f)
-                f.write('\nGUI VALUES\n')
+                f.write('\n\nGUI VALUES\n')
                 json.dump(gui_values, f)
-                f.write('\nMATPLOTLIB RCPARAM CHANGES\n')
+                f.write('\n\nMATPLOTLIB RCPARAM CHANGES\n')
                 json.dump(rc_changes, f)
-                f.write('\nANNOTATIONS\n')
+                f.write('\n\nANNOTATIONS\n')
                 json.dump(annotations, f)
 
             if data is not None:
@@ -314,9 +315,9 @@ def _load_theme_file(filename):
         theme_file = f.readlines()
 
     fig_kwargs = json.loads(theme_file[1])
-    gui_values = json.loads(theme_file[3])
-    rc_changes = json.loads(theme_file[5])
-    annotations = json.loads(theme_file[7])
+    gui_values = json.loads(theme_file[4])
+    rc_changes = json.loads(theme_file[7])
+    annotations = json.loads(theme_file[10])
 
     with plt.rc_context({'interactive': False}):
         fig, axes = _create_figure_components(**fig_kwargs)
@@ -459,7 +460,7 @@ def _save_image_options(figure):
 
                 if (file_extension.lower() not in extension_mapping or
                         file_extension.lower() not in extension_dict[selected_extension]):
-                    
+
                     error_window = sg.Window(
                         'Extension Error',
                         layout=[
@@ -507,7 +508,7 @@ def _save_image_options(figure):
                             save_dict.pop('quality')
 
                         figure.savefig(file_name, pil_kwargs=save_dict)
-                        
+
                     sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
                     break
 
@@ -742,7 +743,7 @@ def _create_gridspec(gs_kwargs, figure):
         A dictionary containing the relevant values for creating the gridspec.
     figure : plt.Figure
         The matplotlib figure that the gridspec will be added to.
-    
+
     Returns
     -------
     gridspec : plt.GridSpec
@@ -1495,7 +1496,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 })
             else:
                 secondary_x_disabled = False
-            
+
             plot_details = []
             for k, dataset in enumerate(data):
                 plot_details.extend([[
@@ -1763,7 +1764,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                    disabled=not axis.texts)]
                     ]
                 })
-            
+
             column_width = 65
             column_layout = []
             #TODO later add the arrow symbols for collapsable sections, and add enable_events for the Text element
@@ -1953,7 +1954,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                 if kwargs[f'show_y_label_{i}{j}']:
                     axis.set_ylabel(utils.string_to_unicode(kwargs[f'y_label_{i}{j}']),
                                     labelpad=float(kwargs[f'y_label_offset_{i}{j}']))
-                
+
                 if label != 'Twin X':
                     axis.grid(kwargs[f'x_major_grid_{i}{j}'], which='major', axis='x')
                     axis.grid(kwargs[f'x_minor_grid_{i}{j}'], which='minor', axis='x')
@@ -2287,9 +2288,9 @@ def _add_remove_annotations(axis, add_annotation):
 
     elif add_annotation is None:
         window_text = 'Edit Annotations'
-
         annotations = {'text' : [], 'text_layout': [],
                        'arrows': [], 'arrows_layout': []}
+
         for annotation in axis.texts:
             if annotation.arrowprops is None:
                 annotations['text'].append(annotation)
@@ -2297,12 +2298,15 @@ def _add_remove_annotations(axis, add_annotation):
                 annotations['arrows'].append(annotation)
 
         for i, annotation in enumerate(annotations['text']):
-            annotations['text_layout'] += [
+            text = annotation.get_text()
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                text = text.replace(*replacement)
+
+            annotations['text_layout'].extend([
                 [sg.Text(f'{i + 1})')],
                 [sg.Column([
                     [sg.Text('Text:', size=(8, 1)),
-                     sg.Input(annotation.get_text(), key=f'text_{i}', size=(10, 1),
-                              focus=True)],
+                     sg.Input(text, key=f'text_{i}', size=(10, 1))],
                     [sg.Text('x-position:', size=(8, 1)),
                      sg.Input(annotation.get_position()[0], key=f'x_{i}', size=(10, 1))],
                     [sg.Text('y-position:', size=(8, 1)),
@@ -2320,7 +2324,7 @@ def _add_remove_annotations(axis, add_annotation):
                       sg.ColorChooserButton('..', target=f'text_chooser_{i}')]
                  ])],
                 [sg.Text('')]
-            ]
+            ])
 
             validations['text']['floats'].extend([
                 [f'x_{i}', f'x position for Text {i + 1}'],
@@ -2339,7 +2343,7 @@ def _add_remove_annotations(axis, add_annotation):
                 if LINE_MAPPING[style] == annotation.arrowprops['linestyle']:
                     break
 
-            annotations['arrows_layout'] += [
+            annotations['arrows_layout'].extend([
                 [sg.Text(f'{i + 1})')],
                 [sg.Column([
                     [sg.Text('Head:')],
@@ -2377,7 +2381,7 @@ def _add_remove_annotations(axis, add_annotation):
                  sg.Input(key=f'arrow_chooser_{i}', enable_events=True, visible=False),
                  sg.ColorChooserButton('..', target=f'arrow_chooser_{i}')],
                 [sg.Text('')]
-            ]
+            ])
 
             validations['arrows']['floats'].extend([
                 [f'head_x_{i}', f'head x position for Arrow {i + 1}'],
@@ -2433,7 +2437,7 @@ def _add_remove_annotations(axis, add_annotation):
         *tab_layout,
         [sg.Text('')],
         [sg.Button('Back'),
-         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)],
+         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
     window = sg.Window(window_text, layout, finalize=True)
@@ -2464,6 +2468,7 @@ def _add_remove_annotations(axis, add_annotation):
                 window[f'{property_type}_color_{index}'].update(value=values[event])
 
         elif event == 'Submit':
+            window.TKroot.grab_release()
             close = True
 
             if add_annotation:
@@ -2482,7 +2487,9 @@ def _add_remove_annotations(axis, add_annotation):
                     sg.popup('Please select an annotation to delete.',
                              title='Error')
 
-            if close:
+            if not close:
+                window.TKroot.grab_set()
+            else:
                 break
 
     window.close()
@@ -2566,7 +2573,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
         A dictionary of plt.Axes objects from a reloaded session.
     input_values : dict, optional
         The values needed to recreate the previous gui window from
-        a reloaded figure, or to set some default values. 
+        a reloaded figure, or to set some default values.
         #TODO need to allow a list of dictionaries to set defaults for each dataset, like entry labels
 
     Returns
