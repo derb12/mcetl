@@ -95,7 +95,7 @@ def peak_transformer():
 
 
 def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
-                      vary_Voigt=False, model_list=None, 
+                      vary_Voigt=False, model_list=None,
                       default_model='PseudoVoigtModel', min_sigma=0.0,
                       max_sigma=np.inf, background_y=0.0,
                       params_dict=None, debug=False, peak_heights=None):
@@ -163,7 +163,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         Example output:
             params_dict = {
                 'peak_0_': [
-                    'GaussianModel', 
+                    'GaussianModel',
                     Parameters([
                         ('peak_0_center', <Parameter 'peak_0_center',
                          value=1.0, bounds=[0.0:2.0]>),
@@ -489,7 +489,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
         In order to be accepted, the residual peak must fulfill the following
         condition: x_l + fwhm_l/2 < x_peak < x_r - fwhm_r/2
         where x_l and x_r are the centers of the peaks to the left and right
-        of the found residual peak (with center at x_peak), and fwhm_l and 
+        of the found residual peak (with center at x_peak), and fwhm_l and
         fwhm_r are the full width at half maximum of the left and right peaks.
         It is an arbitrary condition that has no real basis in science,
         but is just meant to reduce the number of residual peaks accepted.

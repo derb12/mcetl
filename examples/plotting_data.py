@@ -9,12 +9,13 @@ Created on Sat Aug 22 17:34:39 2020
 
 """
 
-from mcetl import utils
+
 from mcetl import launch_plotting_gui
+#from mcetl import utils
 #import PySimpleGUI as sg
 
 #sg.theme('darkblue10') # Changes overall theme for all windows.
-#utils.PROCEED_COLOR = ('black', 'yellow') # Changes the color of the button used to move to the next window.
+#utils.PROCEED_COLOR = ('white', 'green') # Changes the color of the button used to move to the next window.
 # changes for matploblib's rcParams to change the plot format
 changes = {
     'font.serif': 'Times New Roman',

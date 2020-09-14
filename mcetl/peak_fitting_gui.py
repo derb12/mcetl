@@ -770,7 +770,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     y_line = y_data[boundary]
                     line = np.polyval(coeffs, x_line)
                     y_subtracted[boundary] = y_line - line
-            
+
             y_data = y_subtracted
 
     fitting_results = peak_fitting.plugNchug_fit(
@@ -922,7 +922,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     ])
     total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
                    + len(descriptors_dataframe.columns) + 1)
-    
+
     # Easier to just write params and descriptors using pandas rather than using
     # openpyxl; will not cost significant time since there are only a few cells
     params_dataframe.to_excel(
@@ -941,7 +941,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         {'name': 'Values', 'start': 1, 'end': len(peaks_dataframe.columns)},
         {'name': 'Peak Parameters', 'start': len(peaks_dataframe.columns) + 1,
          'end': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1},
-        {'name': 'Fit Description', 
+        {'name': 'Fit Description',
          'start': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
          'end': total_width + 1}
     )
@@ -974,7 +974,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         for column_index, value in enumerate(row, 1):
             cell = worksheet.cell(row=row_index, column=column_index, value=value)
             cell.style = 'fitting_columns_' + next(suffix)
-    
+
     # Formatting for params_dataframe
     for index, subheader in enumerate(param_names):
         style_suffix = next(suffix)
@@ -1002,7 +1002,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             cell.style = 'fitting_subheader_' + style_suffix
             cell = worksheet.cell(row=3, column=column + 1, value='standard error')
             cell.style = 'fitting_subheader_' + style_suffix
-        
+
             for row in range(len(params_dataframe)):
                 cell = worksheet.cell(row=4 + row, column=column)
                 cell.style = 'fitting_columns_' + style_suffix
@@ -1106,8 +1106,11 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         'figure.dpi': dpi_scale * dpi
     })
 
-    if dataframe is not None and isinstance(dataframe, pd.DataFrame):
-        fit_dataframes = [dataframe]
+    if dataframe is not None:
+        if isinstance(dataframe, pd.DataFrame):
+            fit_dataframes = [dataframe]
+        else:
+            fit_dataframes = dataframe
     else:
         fit_dataframes = utils.open_multiple_files()
 
@@ -1131,25 +1134,25 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             event, values = window.read()
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
-            
+
             elif event == 'Submit':
                 if utils.validate_inputs(values, strings=[['file', 'Excel file']]):
                     break
-    
+
         window.close()
         del window
 
         file_path = Path(values['file'])
         if not file_path.suffix.lower() or file_path.suffix.lower() != '.xlsx':
             values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
-        
+
         if not values['new_file'] and Path(values['file']).exists():
             mode = 'a'
         else:
             mode = 'w'
-        
+
         writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
-    
+
     # Formatting styles for the Excel workbook
     for style, kwargs in utils.DEFAULT_FITTING_FORMATS.items():
         try:

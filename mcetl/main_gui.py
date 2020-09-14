@@ -192,7 +192,7 @@ def _write_to_excel(dataframes, data_source, labels,
                                 setattr(
                                     getattr(getattr(chart, key), axis_attribute),
                                     internal_attribute, internal_value
-                                )                            
+                                )
 
             location = first_column
             for j in range(len(labels[i]['sample_names'])):
