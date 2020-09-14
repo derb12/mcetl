@@ -2,7 +2,7 @@
 mcetl
 =====
 
-.. image:: https://github.com/derb12/mcetl/raw/master/docs/logo.png
+.. image:: https://github.com/derb12/mcetl/raw/master/docs/images/logo.png
    :align: center
 
 
@@ -17,22 +17,22 @@ mcetl
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 
-
+|
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
+* For python 3.7+
+* Open Source: BSD 3-clause license
+* Documentation available at: https://mcetl.readthedocs.io.
+
+
 mcetl is focused on easing the time required to process data files. It does this
-by allowing the user to define DataSource objects which contains the information
-for reading files for that DataSource, the calculations that will be performed on 
+by allowing the user to define DataSource objects which contain the information
+for reading files specfic to that DataSource, the calculations that will be performed on
 the data, and the options for writing the data to Excel.
 
 In addition, mcetl provides peak fitting and plotting user interfaces that
 can be used without creating any DataSource objects. Peak fitting is done using
 lmfit, and plotting is done with matplotlib.
-
-
-* For python 3.7+
-* Open Source: BSD 3-clause license
-* Documentation: https://mcetl.readthedocs.io.
 
 
 .. contents:: **Table of Contents**
@@ -42,7 +42,106 @@ lmfit, and plotting is done with matplotlib.
 Description
 -----------
 
-* TODO
+Purpose
+~~~~~~~
+
+The aim of mcetl is to ease the repeated processing of data files. Contrary to its name, mcetl
+can process any tabulated files (txt, csv, tsv, etc.), and does not require that the files originate
+from materials characterization (abbreviated as MC). However, the focus on MC was selected because:
+
+* Most data files from MC are relatively small in size (a few kB or MB).
+* MC files are typically cleanly tabulated and do not require handling messy or missing data.
+* Shamelessly improving my SEO :)
+
+
+mcetl requires only a very basic understanding of python to use, and allows a single person to
+create a tool that their entire group can use to process data and produce Excel files with a 
+consistent style. mcetl can create new Excel files when processing data or saving peak fitting
+results, or it can append to an existing Excel file to easily work with already created files.
+
+
+Screenshots
+~~~~~~~~~~~
+
+Main GUI
+^^^^^^^^
+
+
+.. figure:: images/main_menu_1.png
+   :align: center
+   :scale: 40 %
+
+   The main menu.
+
+.. figure:: images/main_menu_2.png
+   :align: center
+   :scale: 40 %
+
+   Selection of the DataSource object to use.
+
+.. figure:: images/excel_output.png
+   :align: center
+   :scale: 40 %
+
+   The output Excel file after processing all the raw data files.
+
+
+Peak Fitting
+^^^^^^^^^^^^
+
+.. figure:: images/fitting_gui_1.png
+   :align: center
+   :scale: 40 %
+
+   The peak fitting GUI.
+
+.. figure:: images/fitting_gui_2.png
+   :align: center
+   :scale: 40 %
+
+   Manual selection of peaks is enabled using matplotlib.
+
+.. figure:: images/fitting_gui_3.png
+   :align: center
+   :scale: 40 %
+
+   The initial fit and best fit after peak fitting.
+
+.. figure:: images/fitting_gui_4.png
+   :align: center
+   :scale: 40 %
+
+   Individual peaks from the best fit.
+
+
+Plotting
+^^^^^^^^
+
+.. figure:: images/plotting_gui.png
+   :align: center
+   :scale: 40 %
+
+   The plotting GUI.
+
+
+Limitations
+~~~~~~~~~~~
+
+* Since mcetl uses the pandas library to load files into memory for processing, it is not suited 
+  for processing files whose total memory size is large (> ~10% of total RAM). mcetl attempts to reduce
+  the required memory by downcasting types to their smallest representation (eg. converting float64 to float32),
+  but this can only do so much.
+
+* mcetl does not provide any built-in resources for cleaning data, although the user can easily 
+  manually implement this into the processing pipeline for a DataSource.
+
+* mcetl does not provide any resources for processing data files directly from characterization equipment (such as
+  .XRDML, .PAR, etc.). Other libraries such as xylib already exist and are capable of converting many such files
+  to a format mcetl can use (txt, csv, etc.).
+
+* The peak fitting and plotting modules in mcetl are not as feature-complete as other alternatives such as
+  Origin, fityk, SciDAVis, etc. The modules are included in mcetl in case those better alternatives are not
+  available, and the author highly recommends using those alternatives over mcetl if available.
 
 
 Installation
@@ -129,15 +228,15 @@ To reopen a figure saved through mcetl, do::
 Main GUI
 ~~~~~~~~
 
-The main GUI for mcetl contains options for processing data, peak fitting, plotting, writing data to Excel, 
+The main GUI for mcetl contains options for processing data, peak fitting, plotting, writing data to Excel,
 and moving files.
 
 Before using the main GUI, DataSource objects must be created. Each DataSource object contains the information
-for reading files for that DataSource (such as what separator to use, which rows and columns to use, labels 
-for the columns, etc.), the calculations that will be performed on the data, and the options for writing the 
+for reading files for that DataSource (such as what separator to use, which rows and columns to use, labels
+for the columns, etc.), the calculations that will be performed on the data, and the options for writing the
 data to Excel (formatting, placement in the worksheet, etc.).
 
-For more information on creating a DataSource object, refer to the `example program`_ that shows how to use 
+For more information on creating a DataSource object, refer to the `example program`_ that shows how to use
 the main gui. Once DataSource objects are created, simply put them into a list or tuple and do::
 
     mcetl.launch_main_gui(list_of_DataSources)
@@ -180,7 +279,7 @@ Example Programs
 
 
 The example program for using the main GUI contains all necessary inputs for processing the example raw
-data generated by the generate_raw_data function as described above and is an excellent resource for 
+data generated by the generate_raw_data function as described above and is an excellent resource for
 creating new DataSource objects.
 
 
@@ -204,7 +303,8 @@ To change this button's colors (for example to use white text on a green backgro
     utils.PROCEED_COLOR = ('white', 'green')
 
 
-Valid inputs for PROCEED_COLOR are color strings supported by PySimpleGUI, including hex colors such as '#F9B381'.
+Valid inputs for PROCEED_COLOR are color strings supported by PySimpleGUI, such as 'green',
+or hex colors such as '#F9B381'.
 
 
 Future Plans
@@ -220,6 +320,7 @@ Short Term
 * Simplify file searching and make it more flexible.
 * Transfer documentation from PDF/Word files to automatic documentation with Sphinx.
 * Improve usage when opening existing Excel files.
+* Add automatic and manual peak labeling for the plotting gui.
 
 
 Long Term
@@ -233,7 +334,7 @@ Long Term
 Contributing
 ------------
 
-Contributions are welcomed and greatly appreciated. For information on submitting bug reports, 
+Contributions are welcomed and greatly appreciated. For information on submitting bug reports,
 pull requests, or general feedback, please refer to the `contributing guide`_.
 
 .. _contributing guide: https://github.com/derb12/mcetl/tree/master/docs/contributing.rst
@@ -264,7 +365,7 @@ Author
 Credits
 -------
 
-The layout of this package was initially created with Cookiecutter_ and the 
+The layout of this package was initially created with Cookiecutter_ and the
 `audreyr/cookiecutter-pypackage`_ project template.
 
 

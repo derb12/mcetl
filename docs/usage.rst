@@ -96,20 +96,18 @@ Changing GUI Colors
 ~~~~~~~~~~~~~~~~~~~
 
 All user interfaces are created using PySimpleGUI, which allows easily changing the theme of the GUIs.
-To change the GUI theme, simply do::
+For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme::
 
     import PySimpleGUI as sg
     sg.theme('darkblue10')
 
 
-which changes the theme to use PySimpleGUI's 'darkblue10' theme.
-
-Additionally, mcetl colors the button for moving onto the next window with a specific color scheme for all windows.
-To change this button's colors, do::
+Additionally, mcetl uses a unique coloring for the button that advances to the next window.
+To change this button's colors (for example to use white text on a green background), do::
 
     from mcetl import utils
     utils.PROCEED_COLOR = ('white', 'green')
 
 
-which makes the button use white text with a green background. Valid inputs for PROCEED_COLOR are color strings supported
-by PySimpleGUI, including hex colors such as '#F9B381'.
+Valid inputs for PROCEED_COLOR are color strings supported by PySimpleGUI, such as 'green',
+or hex colors such as '#F9B381'.
