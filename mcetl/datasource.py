@@ -134,7 +134,6 @@ class DataSource:
 
         self.start_row = start_row
         self.end_row = end_row
-        self.separator = separator
         self.file_type = file_type
         self.num_files = num_files
         self.sample_separation = sample_separation
@@ -144,6 +143,12 @@ class DataSource:
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
         self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
+
+        # Turns the separator into a raw string equivalent so that it properly displays in the GUIs
+        if separator is not None:
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                separator = separator.replace(*replacement)
+        self.separator = separator
 
         if unique_variables is None:
             self.unique_variables = []
@@ -190,7 +195,7 @@ class DataSource:
         # indices for each unique variable for data processing
         if unique_variable_indices is None:
             self.unique_variable_indices = [*range(len(self.unique_variables))]
-        elif isinstance(unique_variable_indices, str):
+        elif isinstance(unique_variable_indices, (str, int)):
             self.unique_variable_indices = [unique_variable_indices]
         else:
             self.unique_variable_indices = unique_variable_indices

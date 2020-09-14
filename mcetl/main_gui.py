@@ -1138,7 +1138,8 @@ def launch_main_gui(data_sources):
                         'y_log_scale': values['y_log_scale']
                     })
 
-            _collect_column_labels(dataframes, data_source, labels, processing_options)
+            if not processing_options['process_data']: # Otherwise, will assign labels after Separation functions
+                _collect_column_labels(dataframes, data_source, labels, processing_options)
 
         if processing_options['save_excel'] or processing_options['process_data']:
 
@@ -1149,6 +1150,8 @@ def launch_main_gui(data_sources):
                 )
                 # Assign reference indices for all relevant columns
                 data_source.set_references(dataframes, import_vals)
+                
+                _collect_column_labels(dataframes, data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
             merged_dataframes = data_source.merge_datasets(dataframes)
