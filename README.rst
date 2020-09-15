@@ -67,19 +67,19 @@ Main GUI
 ^^^^^^^^
 
 
-.. figure:: images/main_menu_1.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_1.png
    :align: center
    :scale: 40 %
 
    The main menu.
 
-.. figure:: images/main_menu_2.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_2.png
    :align: center
    :scale: 40 %
 
    Selection of the DataSource object to use.
 
-.. figure:: images/excel_output.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.png
    :align: center
    :scale: 40 %
 
@@ -89,25 +89,25 @@ Main GUI
 Peak Fitting
 ^^^^^^^^^^^^
 
-.. figure:: images/fitting_gui_1.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_1.png
    :align: center
    :scale: 40 %
 
    The peak fitting GUI.
 
-.. figure:: images/fitting_gui_2.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_2.png
    :align: center
    :scale: 40 %
 
    Manual selection of peaks is enabled using matplotlib.
 
-.. figure:: images/fitting_gui_3.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_3.png
    :align: center
    :scale: 40 %
 
    The initial fit and best fit after peak fitting.
 
-.. figure:: images/fitting_gui_4.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_4.png
    :align: center
    :scale: 40 %
 
@@ -117,7 +117,7 @@ Peak Fitting
 Plotting
 ^^^^^^^^
 
-.. figure:: images/plotting_gui.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.png
    :align: center
    :scale: 40 %
 
