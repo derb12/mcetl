@@ -736,7 +736,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
 
     defaults = {
         'folder': directory if directory is not None else '',
-        'num_files': num_files if num_files is not None else '',
+        'num_files': num_files if num_files is not None else 6,
         'show_plots': show_plots if show_plots is not None else True
     }
 
