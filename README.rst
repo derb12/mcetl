@@ -36,7 +36,7 @@ lmfit, and plotting is done with matplotlib.
 
 
 .. contents:: **Table of Contents**
-    :depth: 2
+    :depth: 1
 
 
 Description
@@ -58,70 +58,6 @@ mcetl requires only a very basic understanding of python to use, and allows a si
 create a tool that their entire group can use to process data and produce Excel files with a 
 consistent style. mcetl can create new Excel files when processing data or saving peak fitting
 results, or it can append to an existing Excel file to easily work with already created files.
-
-
-Screenshots
-~~~~~~~~~~~
-
-Main GUI
-^^^^^^^^
-
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_1.png
-   :align: center
-   :scale: 40 %
-
-   The main menu.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_2.png
-   :align: center
-   :scale: 40 %
-
-   Selection of the DataSource object to use.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.png
-   :align: center
-   :scale: 40 %
-
-   The output Excel file after processing all the raw data files.
-
-
-Peak Fitting
-^^^^^^^^^^^^
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_1.png
-   :align: center
-   :scale: 40 %
-
-   The peak fitting GUI.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_2.png
-   :align: center
-   :scale: 40 %
-
-   Manual selection of peaks is enabled using matplotlib.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_3.png
-   :align: center
-   :scale: 40 %
-
-   The initial fit and best fit after peak fitting.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_4.png
-   :align: center
-   :scale: 40 %
-
-   Individual peaks from the best fit.
-
-
-Plotting
-^^^^^^^^
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.png
-   :align: center
-   :scale: 40 %
-
-   The plotting GUI.
 
 
 Limitations
@@ -372,4 +308,68 @@ The layout of this package was initially created with Cookiecutter_ and the
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+
+Screenshots
+-----------
+
+Main GUI
+~~~~~~~~
+
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_1.PNG
+   :align: center
+   :scale: 40 %
+
+   The main menu.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_2.PNG
+   :align: center
+   :scale: 40 %
+
+   Selection of the DataSource object to use.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.PNG
+   :align: center
+   :scale: 40 %
+
+   The output Excel file after processing all the raw data files.
+
+
+Peak Fitting
+~~~~~~~~~~~~
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_1.png
+   :align: center
+   :scale: 40 %
+
+   The peak fitting GUI.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_2.png
+   :align: center
+   :scale: 40 %
+
+   Manual selection of peaks is enabled using matplotlib.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_3.png
+   :align: center
+   :scale: 40 %
+
+   The initial fit and best fit after peak fitting.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_4.png
+   :align: center
+   :scale: 40 %
+
+   Individual peaks from the best fit.
+
+
+Plotting
+~~~~~~~~
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.PNG
+   :align: center
+   :scale: 40 %
+
+   The plotting GUI.
 
