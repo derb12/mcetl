@@ -3,12 +3,12 @@ Changelog
 =========
 
 
-0.1.2 (2020-09-14)
+0.1.2 (2020-09-15)
 ------------------
 
 This is a minor patch with a critical bug fix.
 
-* FIX: Fixed issue using sorted() with a dictionary failing with python 3.7. Used sorted(list(dictionary.keys()))   instead.
+* FIX: Fixed issue using sorted() with a dictionary causing the plotting gui to fail with python 3.7. Used sorted(list(dictionary.keys())) instead.
 
 
 0.1.1 (2020-09-14)
