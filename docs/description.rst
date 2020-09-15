@@ -27,19 +27,21 @@ Main GUI
 ^^^^^^^^
 
 
-.. figure:: images/main_menu.png
+.. figure:: images/main_menu_1.png
    :align: center
-   :width: 972 px
-   :height: 632 px
-   :scale: 45 %
+   :scale: 40 %
 
-   Selection of processing steps and DataSource.
+   The main menu.
+
+.. figure:: images/main_menu_2.png
+   :align: center
+   :scale: 40 %
+
+   Selection of the DataSource object to use.
 
 .. figure:: images/excel_output.png
    :align: center
-   :width: 1475 px
-   :height: 616 px
-   :scale: 35 %
+   :scale: 40 %
 
    The output Excel file after processing all the raw data files.
 
@@ -47,21 +49,29 @@ Main GUI
 Peak Fitting
 ^^^^^^^^^^^^
 
-.. figure:: images/fitting_1.png
+.. figure:: images/fitting_gui_1.png
    :align: center
-   :width: 1640 px
-   :height: 757 px
-   :scale: 35 %
+   :scale: 40 %
 
-   Peak fitting GUI and manual selection of peaks.
+   The peak fitting GUI.
 
-.. figure:: images/fitting_2.png
+.. figure:: images/fitting_gui_2.png
    :align: center
-   :width: 1740 px
-   :height: 630 px
-   :scale: 35 %
+   :scale: 40 %
 
-   Fit results with best fit and individual peaks.
+   Manual selection of peaks is enabled using matplotlib.
+
+.. figure:: images/fitting_gui_3.png
+   :align: center
+   :scale: 40 %
+
+   The initial fit and best fit after peak fitting.
+
+.. figure:: images/fitting_gui_4.png
+   :align: center
+   :scale: 40 %
+
+   Individual peaks from the best fit.
 
 
 Plotting
@@ -69,9 +79,7 @@ Plotting
 
 .. figure:: images/plotting_gui.png
    :align: center
-   :width: 1702 px
-   :height: 938 px
-   :scale: 30 %
+   :scale: 40 %
 
    The plotting GUI.
 
