@@ -1,15 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-mcetl - A simplified Extract-Transform-Load framework focused on materials characterization.
-============================================================================================
+mcetl - A simple Extract-Transform-Load framework focused on materials characterization
+=======================================================================================
 
-**mcetl** is ...describe here
+mcetl provides user interfaces for processing data, performing peak fitting, and
+plotting data.
 
-Main Features
--------------
-Here are just a few of the things that mcetl does well:
-    list things here
-    
+
+Summary
+--------
+
+mcetl is focused on easing the time required to process data files. It does this
+by allowing the user to define DataSource objects which contains the information
+for reading files for that DataSource (such as what separator to use, which
+rows and columns to use, labels for the columns, etc.), the calculations that
+will be performed on the data, and the options for writing the data to Excel
+(formatting, placement in the worksheet, etc.).
+
+In addition, mcetl provides peak fitting and plotting user interfaces that
+can be used without creating any DataSource objects.
+
+
 @author: Donald Erb
 Created on Wed Jul 15 23:48:02 2020
 

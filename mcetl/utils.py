@@ -133,7 +133,7 @@ def safely_close_window(window):
     """
 
     window.close()
-    raise WindowCloseError
+    raise WindowCloseError('Window was closed earlier than expected.')
 
 
 def string_to_unicode(input_list):
@@ -145,6 +145,9 @@ def string_to_unicode(input_list):
     be converted to the desired unicode. If the string already has unicode
     characters, it will be left alone.
 
+    Also converts things like '\\n' and '\\t' to '\n' and '\t', respectively,
+    so that inputs are correctly interpreted.
+
     Parameters
     ----------
     input_list : (list, tuple) or str
@@ -152,7 +155,7 @@ def string_to_unicode(input_list):
 
     Returns
     -------
-    new_list : (list, tuple) or str
+    output : (list, tuple) or str
         A container of strings or a single string, depending on the input,
         with the unicode correctly converted.
 
@@ -160,6 +163,10 @@ def string_to_unicode(input_list):
     -----
     Uses raw_unicode_escape encoding to ensure that any existing unicode is
     correctly decoded; otherwise, it would translate incorrectly.
+
+    If using mathtext in matplotlib and want to do something like $\nu$,
+    input $\\nu$ in the gui, which gets converted to $\\\\nu$ by PySimpleGUI,
+    and in turn will be converted back to $\nu$ by this fuction.
 
     """
 
@@ -169,20 +176,13 @@ def string_to_unicode(input_list):
     else:
         return_list = True
 
-    new_list = [[] for i in range(len(input_list))]
+    output = []
+    for entry in input_list:
+        if '\\' in entry:
+            entry = entry.encode('raw_unicode_escape').decode('unicode_escape')
+        output.append(entry)
 
-    for i, entry in enumerate(input_list):
-        if '\\u' in entry:
-            # replace "\\\\u" with "\\u" in case user used \\ instead of \
-            new_list[i] = entry.replace(
-                '\\\\u', '\\u').encode('raw_unicode_escape').decode('unicode_escape')
-        else:
-            new_list[i] = entry
-
-    if return_list:
-        return new_list
-    else:
-        return new_list[0]
+    return output if return_list else output[0]
 
 
 def validate_inputs(window_values, integers=None, floats=None,
@@ -496,10 +496,13 @@ def raw_data_import(window_values, file, show_popup=True):
     try:
         row_start = int(window_values['row_start'])
         row_end = int(window_values['row_end'])
-        separator = window_values['separator'] if window_values['separator'] != '' else None
+        separator = window_values['separator'] if window_values['separator'].lower() not in ('', 'none') else None
         column_numbers = [
             int(num) for num in window_values['columns'].replace(' ', '').split(',') if num
         ]
+
+        #if separator is not None: #TODO check whether this is needed since tkinter gives a raw string from the input; regex should work automatically
+        #    separator = string_to_unicode(separator)
 
         if file.endswith('.xlsx'):
             first_col = int(window_values['first_col'].split(' ')[-1])
@@ -623,7 +626,9 @@ def select_file_gui(data_source=None, file=None):
     if file is not None:
         disable_bottom = False
 
-        if file.endswith('.xlsx'):
+        if not file.endswith('.xlsx'):
+            disable_other = False
+        else:
             disable_excel = False
 
             dataframes = pd.read_excel(file, None, None, convert_float=False)
@@ -648,9 +653,6 @@ def select_file_gui(data_source=None, file=None):
                 ['repeat_unit', 'number of columns per dataset']
             )
 
-        else:
-            disable_other = False
-
         default_inputs.update({
             'initial_separator': default_inputs['separator'],
             'initial_columns': default_inputs['columns'],
@@ -661,7 +663,7 @@ def select_file_gui(data_source=None, file=None):
 
     layout = [
         [sg.Text('Excel Workbook Options', relief='ridge', size=(38, 1),
-                 justification='center', pad=(0,(15, 10)))],
+                 justification='center', pad=(0, (15, 10)))],
         [sg.Text('Sheet to use:'),
          sg.Combo(default_inputs['sheets'], size=(17, 4), key='sheet',
                   default_value=default_inputs['sheet'], disabled=disable_excel,
@@ -717,9 +719,7 @@ def select_file_gui(data_source=None, file=None):
             layout.extend([
                 [sg.Text(f'Column of {variable} data:'),
                  sg.Combo(default_inputs['initial_total_indices'],
-                          default_inputs['initial_total_indices'][
-                              default_inputs['variable_indices'][variable]
-                          ],
+                          default_inputs['initial_total_indices'][default_inputs['variable_indices'][variable]],
                           size=(3, 1), readonly=True,
                           key=f'index_{variable}', disabled=disable_bottom)]
             ])
@@ -834,17 +834,16 @@ def select_file_gui(data_source=None, file=None):
                     _assign_indices(window, update_text,
                                     default_inputs['variable_indices'])
 
-        elif event == 'repeat_unit':
+        elif event == 'repeat_unit' and values['repeat_unit']:
             try:
-                if values['repeat_unit'] != '':
-                    update_text = [num for num in range(int(values['repeat_unit']))]
-                    window['columns'].update(
-                        value=', '.join(str(elem) for elem in update_text)
-                    )
+                update_text = [num for num in range(int(values['repeat_unit']))]
+                window['columns'].update(
+                    value=', '.join(str(elem) for elem in update_text)
+                )
 
-                    if data_source is not None:
-                        _assign_indices(window, update_text,
-                                        default_inputs['variable_indices'])
+                if data_source is not None:
+                    _assign_indices(window, update_text,
+                                    default_inputs['variable_indices'])
             except ValueError:
                 sg.popup('Please enter an integer in "number of columns per dataset"',
                          title='Error')
@@ -858,7 +857,7 @@ def select_file_gui(data_source=None, file=None):
                                 default_inputs['variable_indices'])
 
         elif event in ('Next', 'Test Import'):
-            if (file is None) and (values['file'] == 'Choose a file'):
+            if file is None and values['file'] == 'Choose a file':
                 sg.popup('Please choose a file', title='Error')
                 continue
 
@@ -935,8 +934,7 @@ def open_multiple_files():
         [sg.Text('Enter number of files to open:'),
          sg.Input('1', size=(10, 1), key='num_files')],
         [sg.Text('')],
-        [sg.Button('Next', button_color=PROCEED_COLOR,
-                   bind_return_key=True, enable_events=True)]
+        [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]
     ]
 
     window = sg.Window('Get Files', layout)
@@ -945,9 +943,9 @@ def open_multiple_files():
 
         if event == sg.WIN_CLOSED:
             num_files = False
-            break
+            safely_close_window(window)
         else:
-            if validate_inputs(values, [['num_files', 'number of files']]):
+            if validate_inputs(values, integers=[['num_files', 'number of files']]):
                 num_files = int(values['num_files'])
                 break
 
@@ -957,7 +955,7 @@ def open_multiple_files():
     dataframes = []
     if num_files:
         try:
-            for _ in range(int(num_files)):
+            for _ in range(num_files):
                 import_values = select_file_gui()
                 dataframes.extend(
                     raw_data_import(import_values, import_values['file'], False)
@@ -1029,5 +1027,5 @@ def save_excel_file(excel_writer):
 
         except PermissionError:
             try_to_save = sg.popup_ok(
-                '\nTrying to overwrite Excel file. Please close the file.\n'
+                'Trying to overwrite Excel file. Please close the file.\n'
             )

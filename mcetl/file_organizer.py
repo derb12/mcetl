@@ -104,11 +104,11 @@ def _generate_num_keyword_window(
 
     layout = [
         [sg.Text('Choose the topmost folder for searching:', size=(35, 1))],
-        [sg.Input(default_inputs['folder'], key='folder', disabled=True, 
+        [sg.Input(default_inputs['folder'], key='folder', disabled=True,
                   size=(26, 1)),
          sg.FolderBrowse(key='search', target='folder',
                          initial_folder=default_inputs['folder_initial'])],
-        [sg.Text('')],            
+        [sg.Text('')],
         [sg.Text('Number of main keywords:', size=(28, 1)),
          sg.Input(key='num_keyword_1', do_not_clear=True, size=(5, 1), focus=True,
                   default_text=default_inputs['num_keyword_1'])],
@@ -431,7 +431,7 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
     num_keyword_1, num_keyword_2, num_kw_values = _get_num_keywords(
         file_directory, keyword_1, keyword_2, file_type, num_files
     )
-    
+
     file_directory, keyword_1, keyword_2, file_type, num_files = _get_keywords(
         num_keyword_1, num_keyword_2, keyword_1, keyword_2, num_kw_values
     )
@@ -493,9 +493,9 @@ def file_finder(file_directory=None, keyword_1=None, keyword_2=None,
                 kw1_keywords = ', '.join(kw for kw in keyword1)
                 kw2_keywords = ', '.join(kw for kw in keyword2)
                 layout = [
-                    [sg.Text('Select your file(s).')],
-                    [sg.Text(f'Current keywords:\n    Main keyword: {kw1_keywords}\
-                             \n    Secondary keyword: {kw2_keywords}')],
+                    [sg.Text('Select the file(s).')],
+                    [sg.Text((f'Current keywords:\n    Main keyword: {kw1_keywords}'
+                              f'\n    Secondary keyword: {kw2_keywords}'))],
                     [sg.Listbox(key='listbox', values=files,
                                 size=(max(len(str(file)) for file in files) + 3, 8),
                                 select_mode='multiple', bind_return_key=True)],

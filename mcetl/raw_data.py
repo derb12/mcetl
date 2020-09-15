@@ -162,7 +162,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     plt.legend(ncol=2)
     plt.xlabel('$2\\theta$ $(\degree)$')
     plt.ylabel('Intensity (a.u.)')
-    
+
     if show_plots:
         plt.show(block=False)
     else:
@@ -354,7 +354,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     plt.legend(ncol=2)
     plt.xlabel('Raman Shift (1/cm)')
     plt.ylabel('Intensity (a.u.)')
-    
+
     if show_plots:
         plt.show(block=False)
     else:
@@ -459,7 +459,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     plt.legend(ncol=2)
     plt.xlabel('Temperature ($\degree$C)')
     plt.ylabel('Mass (%)')
-    
+
     if show_plots:
         plt.show(block=False)
     else:
@@ -578,7 +578,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     plt.legend(ncol=2)
     plt.xlabel('Temperature ($\degree$C)')
     plt.ylabel('Heat Flow (mW/mg), exotherm up')
-    
+
     if show_plots:
         plt.show(block=False)
     else:
@@ -695,7 +695,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     plt.legend(ncol=2)
     plt.xlabel('Temperature ($\degree$C)')
     plt.ylabel('Heat Flow (mW/mg), exotherm up')
-    
+
     if show_plots:
         plt.show(block=False)
     else:
@@ -705,10 +705,10 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
 def generate_raw_data(directory=None, num_files=None, show_plots=None):
     """
     Generates data for all of the techniques in this file.
-    
+
     Convenience function to generate data for all techniques rather
     that calling the functions one at a time.
-    
+
     Parameters
     ----------
     directory : str, optional
@@ -718,7 +718,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     show_plots : bool, optional
         If True, will show plots of the created data. If False, will close
         the created figures and not show the plots.
-        
+
     Notes
     -----
     Currently supported characterization techniques include:
@@ -729,7 +729,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         DSC
 
     """
-    
+
     # Set the random seed so that data is repeatable
     np.random.seed(1)
     data_path = None
@@ -764,14 +764,14 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
             event, values = window.read()
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
-            
+
             elif event == 'Submit':
                 if utils.validate_inputs(values, **validations):
                     break
-    
+
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
-    
+
     else:
         window.close()
         del window
@@ -779,12 +779,12 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         data_path = Path(values['folder'], 'Raw Data')
         num_data = int(values['num_files'])
         show = values['show_plots']
-    
+
         data_path.mkdir(parents=True, exist_ok=True)
 
         with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
             f.write('Parameters for all of the data in the Raw Data folder.')
-            
+
         # Ensures that plots are not shown until plt.show() is called.
         with plt.rc_context({'interactive': False}):
             _generate_XRD_data(data_path, num_data, show)
@@ -792,4 +792,3 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
             _generate_Raman_data(data_path, num_data, show)
             _generate_TGA_data(data_path, num_data, show)
             _generate_DSC_data(data_path, num_data, show)
-        
