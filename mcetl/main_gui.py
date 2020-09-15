@@ -16,11 +16,11 @@ from openpyxl.styles import NamedStyle
 import pandas as pd
 import PySimpleGUI as sg
 
-from mcetl import utils
-from mcetl.datasource import DataSource
-from mcetl.file_organizer import file_finder, file_mover
-from mcetl.peak_fitting_gui import launch_peak_fitting_gui
-from mcetl.plotting_gui import launch_plotting_gui
+from . import utils
+from .datasource import DataSource
+from .file_organizer import file_finder, file_mover
+from .peak_fitting_gui import launch_peak_fitting_gui
+from .plotting_gui import launch_plotting_gui
 
 
 def _write_to_excel(dataframes, data_source, labels,
