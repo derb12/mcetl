@@ -1901,7 +1901,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
             if 'Invisible' in axes[key]['Main Axis'].get_label():
                 continue
             # Reverse the axes so that Main Axis is plotted last, while keeping the indices correct
-            for j, label in zip(itertools.count(len(axes[key]) - 1, -1), reversed(axes[key])):
+            for j, label in zip(itertools.count(len(axes[key]) - 1, -1), reversed(list(axes[key].keys()))):
                 axis = axes[key][label]
                 axis.clear() #TODO check if this is needed, or can be replaced with a faster alternative
 

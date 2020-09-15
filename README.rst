@@ -17,7 +17,7 @@ mcetl
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 
-|
+
 mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
 
 * For python 3.7+
@@ -55,7 +55,7 @@ from materials characterization (abbreviated as MC). However, the focus on MC wa
 
 
 mcetl requires only a very basic understanding of python to use, and allows a single person to
-create a tool that their entire group can use to process data and produce Excel files with a 
+create a tool that their entire group can use to process data and produce Excel files with a
 consistent style. mcetl can create new Excel files when processing data or saving peak fitting
 results, or it can append to an existing Excel file to easily work with already created files.
 
@@ -63,12 +63,12 @@ results, or it can append to an existing Excel file to easily work with already 
 Limitations
 ~~~~~~~~~~~
 
-* Since mcetl uses the pandas library to load files into memory for processing, it is not suited 
+* Since mcetl uses the pandas library to load files into memory for processing, it is not suited
   for processing files whose total memory size is large (> ~10% of total RAM). mcetl attempts to reduce
   the required memory by downcasting types to their smallest representation (eg. converting float64 to float32),
   but this can only do so much.
 
-* mcetl does not provide any built-in resources for cleaning data, although the user can easily 
+* mcetl does not provide any built-in resources for cleaning data, although the user can easily
   manually implement this into the processing pipeline for a DataSource.
 
 * mcetl does not provide any resources for processing data files directly from characterization equipment (such as
