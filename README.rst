@@ -60,6 +60,61 @@ consistent style. mcetl can create new Excel files when processing data or savin
 results, or it can append to an existing Excel file to easily work with already created files.
 
 
+Screenshots
+~~~~~~~~~~~
+
+Main GUI
+^^^^^^^^
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu.png
+   :align: center
+   :width: 972 px
+   :height: 632 px
+   :scale: 45 %
+
+   Selection of processing steps and DataSource.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.png
+   :align: center
+   :width: 1475 px
+   :height: 616 px
+   :scale: 35 %
+
+   The output Excel file after processing all the raw data files.
+
+
+Peak Fitting
+^^^^^^^^^^^^
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_1.png
+   :align: center
+   :width: 1640 px
+   :height: 757 px
+   :scale: 35 %
+
+   Peak fitting GUI and manual selection of peaks.
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_2.png
+   :align: center
+   :width: 1740 px
+   :height: 630 px
+   :scale: 35 %
+
+   Fit results with best fit and individual peaks.
+
+
+Plotting
+^^^^^^^^
+
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.png
+   :align: center
+   :width: 1702 px
+   :height: 938 px
+   :scale: 30 %
+
+   The plotting GUI.
+
+
 Limitations
 ~~~~~~~~~~~
 
