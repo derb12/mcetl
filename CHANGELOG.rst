@@ -3,10 +3,18 @@ Changelog
 =========
 
 
+0.1.2 (2020-09-14)
+------------------
+
+This is a minor patch with a critical bug fix.
+
+* FIX: Fixed issue using sorted() with a dictionary failing with python 3.7. Used sorted(list(dictionary.keys()))   instead.
+
+
 0.1.1 (2020-09-14)
 ------------------
 
-This is a minor release with bug fixes, new features, and documentation improvements.
+This is a minor patch with bug fixes, new features, and documentation improvements.
 
 * FIX: Fixed how the plotting gui handles twin axes. Now, the main axis is plotted after the twin axes
   so that the bounds, tick params, and grid lines work correctly for all axes.
