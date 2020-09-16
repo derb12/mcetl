@@ -53,7 +53,7 @@ setup(
             'sphinx-autoapi'
         ]
     },
-    license="BSD license",
+    license="BSD 3-clause",
     long_description=long_description,
     long_description_content_type='text/x-rst',
     include_package_data=True,

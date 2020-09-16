@@ -28,7 +28,7 @@ This is a minor patch with bug fixes, new features, and documentation improvemen
 * FIX: Fixed an error where column labels were assigned before performing separation functions, which
   potentially creates labels for less data entries than there actually are.
 
-* FEATURE: Extended the unicode conversion to cover any input with '\\'. This mainly helps with text
+* FEATURE: Extended the unicode conversion to cover any input with '\\\'. This mainly helps with text
   in the plotting gui, allowing multiline text using '\\n' while still giving the correct behavior when
   using mathtext with matplotlib.
 

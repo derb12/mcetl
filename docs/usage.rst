@@ -2,7 +2,9 @@
 Usage
 =====
 
-To use mcetl in a project::
+To use mcetl in a project:
+
+.. code-block:: python
 
     import mcetl
 
@@ -10,7 +12,9 @@ To use mcetl in a project::
 Peak Fitting
 ~~~~~~~~~~~~
 
-To use the peak fitting module in mcetl, simply do::
+To use the peak fitting module in mcetl, simply do:
+
+.. code-block:: python
 
     mcetl.launch_peak_fitting_gui()
 
@@ -23,7 +27,9 @@ After doing peak fitting, the peak fitting results and plots will be saved to Ex
 Plotting
 ~~~~~~~~
 
-To use the plotting module in mcetl, simply do::
+To use the plotting module in mcetl, simply do:
+
+.. code-block:: python
 
     mcetl.launch_plotting_gui()
 
@@ -31,14 +37,16 @@ To use the plotting module in mcetl, simply do::
 Similar to peak fitting, a window will then appear to select the data file(s) to be plotted, and no other setup is required for doing plotting.
 
 
-When plotting, the image of the plots can be saved to all formats supported by matplotlib, 
+When plotting, the image of the plots can be saved to all formats supported by matplotlib,
 including tiff, jpg, png, svg, and pdf.
 
 
 In addition, the layout of the plots can be saved to apply to other figures later, and the data for the plots can be saved so that the entire plot can be recreated.
 
 
-To reopen a figure saved through mcetl, do::
+To reopen a figure saved through mcetl, do:
+
+.. code-block:: python
 
     mcetl.load_previous_figure()
 
@@ -59,7 +67,9 @@ For more information on creating a DataSource object, refer to the `example prog
 Generating Example Data
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Files for example data from characterization techniques can be created using::
+Files for example data from characterization techniques can be created using:
+
+.. code-block:: python
 
     from mcetl import raw_data
     raw_data.generate_raw_data()
@@ -96,14 +106,18 @@ Changing GUI Colors
 ~~~~~~~~~~~~~~~~~~~
 
 All user interfaces are created using PySimpleGUI, which allows easily changing the theme of the GUIs.
-For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme::
+For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme:
+
+.. code-block:: python
 
     import PySimpleGUI as sg
     sg.theme('darkblue10')
 
 
 Additionally, mcetl uses a unique coloring for the button that advances to the next window.
-To change this button's colors (for example to use white text on a green background), do::
+To change this button's colors (for example to use white text on a green background), do:
+
+.. code-block:: python
 
     from mcetl import utils
     utils.PROCEED_COLOR = ('white', 'green')
