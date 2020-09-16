@@ -5,7 +5,7 @@ Useful functions are put here in order to prevent circular importing
 within the other files.
 
 @author: Donald Erb
-Created on Wed Jul 15 14:26:59 2020
+Created on Jul 15, 2020
 
 Attributes
 ----------

@@ -2,7 +2,7 @@
 """Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel
 
 @author: Donald Erb
-Created on Tue May 5 17:08:53 2020
+Created on May 5, 2020
 
 """
 
@@ -100,7 +100,7 @@ def _write_to_excel(dataframes, data_source, labels,
             )
 
         # Subheader values and formatting
-        flattened_lengths = [*itertools.chain(*data_source.lengths[i])]
+        flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
         subheaders = iter(labels[i]['total_labels'])
         for j, entry in enumerate(flattened_lengths):
             if j % 2 == 0:
@@ -883,7 +883,7 @@ def _plot_data(datasets, data_source):
 
     plot_datasets = []
     for dataset in datasets: # Flattens the dataset to a single list per dataset
-        plot_datasets.append([*itertools.chain(*dataset)])
+        plot_datasets.append(list(itertools.chain.from_iterable(dataset)))
 
     return launch_plotting_gui(plot_datasets, data_source.figure_rcParams)
 

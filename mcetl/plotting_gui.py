@@ -2,7 +2,7 @@
 """GUIs to plot data using various plot layouts and save the resulting figures.
 
 @author: Donald Erb
-Created on Sun Jun 28 18:40:04 2020
+Created on Jun 28, 2020
 
 Attributes
 ----------
@@ -400,7 +400,7 @@ def _save_image_options(figure):
         'jpeg':'JPEG', 'jpg':'JPEG', 'tiff':'TIFF', 'tif':'TIFF', 'png':'PNG',
         'pdf':'PDF', 'eps':'EPS', 'ps':'PS', 'svg':'SVG', 'svgz':'SVGZ'
     }
-
+    #TODO simplify these three dicts using .items()
     extension_dict = defaultdict(list)
     for ext in sorted(set(extension_mapping.values())):
         for key in extension_mapping:
@@ -423,7 +423,7 @@ def _save_image_options(figure):
          sg.SaveAs(file_types=file_types, key='file_save_as',
                    target='save_as')],
         [sg.Text('Image Type:'),
-         sg.Combo([*extension_displays.values()], key='extension',
+         sg.Combo(list(extension_displays.values()), key='extension',
                   default_value=extension_displays['TIFF'], size=(15, 1),
                   readonly=True)],
         [sg.Text('')],
@@ -1198,10 +1198,10 @@ def _select_plot_type(user_inputs=None):
                 [sg.Radio(plot, 'plots', key=plot, enable_events=True,
                           default=default_inputs[plot])],
                 [sg.Text('      Rows:', size=(11, 1)),
-                 sg.Combo([*range(1, 7)], key='num_rows', size=(3, 1), disabled=disabled,
+                 sg.Combo(list(range(1, 7)), key='num_rows', size=(3, 1), disabled=disabled,
                           default_value=default_inputs['num_rows'], readonly=True)],
                 [sg.Text('      Columns:', size=(11, 1)),
-                 sg.Combo([*range(1, 7)], key='num_cols', size=(3, 1), disabled=disabled,
+                 sg.Combo(list(range(1, 7)), key='num_cols', size=(3, 1), disabled=disabled,
                           default_value=default_inputs['num_cols'], readonly=True)],
                 [sg.Check('Same X Axis', key='share_x', disabled=disabled,
                           default=default_inputs['share_x'], pad=(40, 1))],
@@ -1361,13 +1361,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             if line_plot:
                 marker_cycler = itertools.cycle([''])
-                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
+                line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
             elif scatter_plot:
                 marker_cycler = itertools.cycle(markers[1:])
                 line_cycler = itertools.cycle(['None'])
             else:
                 marker_cycler = itertools.cycle(markers[1:])
-                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
+                line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
 
             if not axis.get_xlabel():
                 x_label = ''
@@ -1560,7 +1560,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                              sg.ColorChooserButton('..', target=f'line_chooser_{i}{j}{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
                             [sg.Text('Style:'),
-                             sg.Combo([*LINE_MAPPING], readonly=True,
+                             sg.Combo(list(LINE_MAPPING), readonly=True,
                                       default_value=default_inputs[f'line_style_{i}{j}{k}'],
                                       key=f'line_style_{i}{j}{k}', size=(10, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
@@ -2248,8 +2248,8 @@ def _add_remove_annotations(axis, add_annotation):
                      sg.Input(plt.rcParams['lines.linewidth'], key='linewidth',
                               size=(5, 1))],
                     [sg.Text('Line Syle:'),
-                     sg.Combo([*LINE_MAPPING][1:], readonly=True,
-                              default_value=[*LINE_MAPPING][1],
+                     sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
+                              default_value=list(LINE_MAPPING)[1],
                               key='linestyle', size=(11, 1))],
                     [sg.Text('Head-size multiplier:'),
                      sg.Input('1', key='head_scale', size=(5, 1))],
@@ -2364,7 +2364,7 @@ def _add_remove_annotations(axis, add_annotation):
                  sg.Input(annotation.arrowprops['linewidth'], key=f'linewidth_{i}',
                           size=(5, 1))],
                 [sg.Text('Line Syle:'),
-                 sg.Combo([*LINE_MAPPING][1:], readonly=True,
+                 sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
                           default_value=style,
                           key=f'linestyle_{i}', size=(11, 1))],
                 [sg.Text('Head-size multiplier:'),
@@ -2422,11 +2422,11 @@ def _add_remove_annotations(axis, add_annotation):
         tab_layout = [
             [sg.Text('All selected annotations will be deleted!\n')],
             [sg.TabGroup([[
-                sg.Tab('Text', [[sg.Listbox([*annotations['text']],
+                sg.Tab('Text', [[sg.Listbox(list(annotations['text']),
                                             select_mode='multiple', size=(40, 5),
                                             key='text_listbox')]],
                        key='text_tab'),
-                sg.Tab('Arrows', [[sg.Listbox([*annotations['arrows']],
+                sg.Tab('Arrows', [[sg.Listbox(list(annotations['arrows']),
                                               select_mode='multiple', size=(40, 5),
                                               key='arrows_listbox')]],
                        key='arrows_tab')
@@ -2693,9 +2693,9 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     elif event.startswith('edit_annotation'):
                         add_annotation = None
 
-                    index = list(map(int, event.split('_')[-1]))
-                    key = [*axes][index[0]]
-                    label = [*axes[key]][index[1]]
+                    index = [int(num) for num in event.split('_')[-1]] #TODO check this is valid, can i or j be > 9?
+                    key = list(axes)[index[0]]
+                    label = list(axes[key])[index[1]]
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)

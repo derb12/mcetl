@@ -4,7 +4,7 @@
 #TODO add an option to select each file individually
 
 @author: Donald Erb
-Created on Mon Sep  2 22:08:12 2019
+Created on Sep 2, 2019
 
 """
 

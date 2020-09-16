@@ -9,7 +9,7 @@ There are three main types of Functions:
                         dataset.
 
 @author: Donald Erb
-Created on Fri Jul 31 16:22:51 2020
+Created on Jul 31, 2020
 
 #TODO need to update all docstrings
 """

@@ -2,7 +2,7 @@
 """Provides a GUI to ease the use of the peak_fitting program and save the results to Excel
 
 @author: Donald Erb
-Created on Sun May 24 15:18:18 2020
+Created on May 24, 2020
 
 """
 
@@ -85,62 +85,62 @@ def _show_fit_plot(dataframe, gui_values):
             if peak not in additional_peaks:
                 other_peaks = True
                 found_peaks = ax.vlines(
-                    peak, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                    peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
                     color='green', linestyle='-.', lw=2
                 )
         for peak in additional_peaks:
             user_peaks = ax.vlines(
-                peak, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
                 color='blue', linestyle=':', lw=2
                 )
         ax.annotate(
-            "", (x_max, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
+            "", (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
             annotation_clip=False,
         )
         ax.annotate(
-            "", (x_min, ax_y[1] + (0.03*y_diff)), (x_mid, ax_y[1] + (0.03*y_diff)),
+            "", (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
             annotation_clip=False,
         )
         ax.annotate(
-            'Fitting range', (x_mid, ax_y[1] + (0.063*y_diff)), ha='center'
+            'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
         )
         ax.vlines(
-            x_min, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+            x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
             color='black', linestyle='-', lw=2
         )
         ax.vlines(
-            x_max, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+            x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
             color='black', linestyle='-', lw=2
         )
 
         if gui_values['subtract_bkg']:
             ax.annotate(
-                "", (bkg_max, ax_y[0] - (0.01*y_diff)),
-                (bkg_mid, ax_y[0] - (0.01*y_diff)), annotation_clip=False,
+                "", (bkg_max, ax_y[0] - (0.01 * y_diff)),
+                (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
                 arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
             )
             ax.annotate(
-                "", (bkg_min, ax_y[0] - (0.01*y_diff)),
-                (bkg_mid, ax_y[0] - (0.01*y_diff)),
+                "", (bkg_min, ax_y[0] - (0.01 * y_diff)),
+                (bkg_mid, ax_y[0] - (0.01 * y_diff)),
                 arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
                 annotation_clip=False
             )
             ax.annotate(
-                'Background range', (bkg_mid, ax_y[0] - (0.085*y_diff)),
+                'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
                 color='red', ha='center'
             )
             ax.vlines(
-                bkg_min, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
                 color='red',linestyle='--', lw=2
             )
             ax.vlines(
-                bkg_max, ax_y[0] - (0.01*y_diff), ax_y[1] + (0.03*y_diff),
+                bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
                 color='red', linestyle='--', lw=2
             )
 
-        ax.set_ylim(ax_y[0] - (0.15*y_diff), ax_y[1] + (0.15*y_diff))
+        ax.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
 
         peak_list = []
         if (additional_peaks.size > 0) and (other_peaks):
@@ -254,7 +254,7 @@ def fit_dataframe(dataframe, user_inputs=None):
         values = default_inputs
 
     else:
-        available_models = [*peak_fitting.peak_transformer().keys()]
+        available_models = list(peak_fitting.peak_transformer().keys())
 
         if (('Voigt' in default_inputs['model_list']) or
             ('VoigtModel' == default_inputs['default_model'])) :

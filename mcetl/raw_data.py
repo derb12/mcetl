@@ -6,7 +6,7 @@ Notes
 All data is made up and does not correspond to the materials listed.
 
 @author: Donald Erb
-Created on Mon Jun 15 08:38:19 2020
+Created on Jun 15, 2020
 
 """
 
