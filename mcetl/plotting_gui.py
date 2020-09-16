@@ -397,31 +397,28 @@ def _save_image_options(figure):
     """
 
     extension_mapping = {
-        'jpeg':'JPEG', 'jpg':'JPEG', 'tiff':'TIFF', 'tif':'TIFF', 'png':'PNG',
-        'pdf':'PDF', 'eps':'EPS', 'ps':'PS', 'svg':'SVG', 'svgz':'SVGZ'
+        'jpeg': 'JPEG', 'jpg': 'JPEG', 'tiff': 'TIFF', 'tif': 'TIFF', 'png': 'PNG',
+        'pdf': 'PDF', 'eps': 'EPS', 'ps': 'PS', 'svg': 'SVG', 'svgz': 'SVGZ'
     }
-    #TODO simplify these three dicts using .items()
+
     extension_dict = defaultdict(list)
-    for ext in sorted(set(extension_mapping.values())):
-        for key in extension_mapping:
-            if ext == extension_mapping[key]:
-                extension_dict[ext].append(key)
+    for key, value in sorted(extension_mapping.items(), key=lambda t: t[1]):
+        extension_dict[value].append(key)
 
     extension_displays = {
-        key: f'{key} ({", ".join(extension_dict[key])})' for key in extension_dict
+        key: f'{key} ({", ".join(values)})' for key, values in extension_dict.items()
     }
-    extension_regex = [
-        [f'*.{val}' for val in extension_dict[key]] for key in extension_dict
-    ]
-    file_types = tuple(zip(extension_displays.values(), extension_regex))
+    extension_regex = (
+        [f'*.{value}' for value in values] for values in extension_dict.values()
+    )
 
     layout = [
         [sg.Text('Filename:'),
          sg.Input('', disabled=True, size=(20, 1), key='file_name'),
          sg.Input('', key='save_as', visible=False,
                   enable_events=True, do_not_clear=False),
-         sg.SaveAs(file_types=file_types, key='file_save_as',
-                   target='save_as')],
+         sg.SaveAs(file_types=tuple(zip(extension_displays.values(), extension_regex)), 
+                   key='file_save_as', target='save_as')],
         [sg.Text('Image Type:'),
          sg.Combo(list(extension_displays.values()), key='extension',
                   default_value=extension_displays['TIFF'], size=(15, 1),
