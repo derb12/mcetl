@@ -29,8 +29,8 @@ Main GUI
 
 .. figure:: images/main_menu.png
    :align: center
-   :width: 968 px
-   :height: 630 px
+   :width: 1600 px
+   :height: 632 px
    :scale: 45 %
 
    Selection of processing steps and DataSource.
