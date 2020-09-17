@@ -178,18 +178,15 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 )
 
             with open(filename, 'w') as f:
-                f.write('FIGURE KEYWORD ARGUMENTS\n')
-                json.dump(fig_kwargs, f)
-                f.write('\n\nGUI VALUES\n')
-                json.dump(gui_values, f)
-                f.write('\n\nMATPLOTLIB RCPARAM CHANGES\n')
-                json.dump(rc_changes, f)
-                f.write('\n\nANNOTATIONS\n')
-                json.dump(annotations, f)
+                json.dump(
+                    {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
+                     'GUI VALUES': gui_values,
+                     'MATPLOTLIB RCPARAM CHANGES': rc_changes,
+                     'ANNOTATIONS': annotations},
+                    f, indent=2
+                )
 
             if data is not None:
-                filename = filename.replace(_THEME_EXTENSION, '.csv')
-
                 saved_data = []
                 # creates separator columns
                 for i, dataframe in enumerate(data):
@@ -200,12 +197,12 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                                                                      dtype=np.float16)
                     saved_data.append(df)
 
+                filename = str(Path(filename).with_suffix('.csv'))
                 with open(filename, 'w') as f:
                     pd.concat(saved_data, axis=1).to_csv(filename, index=False)
 
             sg.popup(
-                'Successfully saved to '\
-                f'{filename.replace(_THEME_EXTENSION, "").replace(".csv", "")}\n',
+                f'Successfully saved to {str(Path(filename).with_suffix(""))}\n',
                 title='Save Successful'
             )
 
@@ -312,12 +309,12 @@ def _load_theme_file(filename):
     """
 
     with open(filename, 'r') as f:
-        theme_file = f.readlines()
+        theme_file = json.load(f)
 
-    fig_kwargs = json.loads(theme_file[1])
-    gui_values = json.loads(theme_file[4])
-    rc_changes = json.loads(theme_file[7])
-    annotations = json.loads(theme_file[10])
+    fig_kwargs = theme_file['FIGURE KEYWORD ARGUMENTS']
+    gui_values = theme_file['GUI VALUES']
+    rc_changes = theme_file['MATPLOTLIB RCPARAM CHANGES']
+    annotations = theme_file['ANNOTATIONS']
 
     with plt.rc_context({'interactive': False}):
         fig, axes = _create_figure_components(**fig_kwargs)
@@ -969,10 +966,10 @@ def _create_advanced_layout(input_values, canvas, fig):
         for i in range(num_rows)]
 
     widths = [
-        sg.Input(input_values[f'width_{i}'], key=f'width_{i}', size=(5,1)) for i in range(num_cols)
+        sg.Input(input_values[f'width_{i}'], key=f'width_{i}', size=(5, 1)) for i in range(num_cols)
     ]
     heights = [
-        [sg.Input(input_values[f'height_{i}'], key=f'height_{i}', size=(5,1))] for i in range(num_rows)
+        [sg.Input(input_values[f'height_{i}'], key=f'height_{i}', size=(5, 1))] for i in range(num_rows)
     ]
 
     header_layout = [
@@ -1418,7 +1415,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 f'x_minor_ticks_{i}{j}': 2 if label != 'Twin X' else '',
                 f'y_major_ticks_{i}{j}': 5 if label != 'Twin Y' else '',
                 f'y_minor_ticks_{i}{j}': 2 if label != 'Twin Y' else '',
-                f'auto_ticks_secondary{i}{j}': True,
+                f'auto_ticks_secondary_{i}{j}': True,
                 f'secondary_x_major_ticks_{i}{j}': 5,
                 f'secondary_x_minor_ticks_{i}{j}': 2,
                 f'secondary_y_major_ticks_{i}{j}': 5,
@@ -1727,8 +1724,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                         [sg.Text('')],
                         [sg.Text('Tick Marks')],
                         [sg.Radio('Automatic', f'secondary_ticks_{i}{j}',
-                                  key=f'auto_ticks_secondary{i}{j}',
-                                  default=default_inputs[f'auto_ticks_secondary{i}{j}'],
+                                  key=f'auto_ticks_secondary_{i}{j}',
+                                  default=default_inputs[f'auto_ticks_secondary_{i}{j}'],
                                   enable_events=True, pad=((20, 10), 3))],
                         [sg.Column([
                             [sg.Text('X Axis:')],
@@ -2690,7 +2687,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     elif event.startswith('edit_annotation'):
                         add_annotation = None
 
-                    index = [int(num) for num in event.split('_')[-1]] #TODO check this is valid, can i or j be > 9?
+                    index = [int(num) for num in event.split('_')[-1]]
                     key = list(axes)[index[0]]
                     label = list(axes[key])[index[1]]
                     _add_remove_annotations(axes[key][label], add_annotation)

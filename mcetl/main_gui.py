@@ -1046,7 +1046,7 @@ def launch_main_gui(data_sources):
                 # Saves the last search to a json file so it can be used again to bypass the search.
                 with open(Path(__file__).parent.resolve().joinpath(
                         'previous_search.json'), 'w') as last_search:
-                    json.dump(files, last_search)
+                    json.dump(files, last_search, indent=2)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
