@@ -10,6 +10,7 @@ Created on May 5, 2020
 import itertools
 import json
 from pathlib import Path
+import sys
 import traceback
 
 from openpyxl.styles import NamedStyle
@@ -21,6 +22,30 @@ from .datasource import DataSource
 from .file_organizer import file_finder, file_mover
 from .peak_fitting_gui import launch_peak_fitting_gui
 from .plotting_gui import launch_plotting_gui
+
+
+def _get_save_location():
+    """
+    Gets the correct filepath to save the previous_search.json depending on the operating system.
+
+    Returns
+    -------
+    pathlib.Path
+        The absolute path to where the previous_search.json file will
+        be saved.
+
+    """
+    
+    if sys.platform.startswith('win'): # Windows
+        path = Path('~/AppData/Local/mcetl')
+    elif sys.platform.startswith('darwin'): # Mac
+        path = Path('~/Library/Application Support/mcetl')
+    elif sys.platform.startswith('linux'): # Linux
+        path = Path('~/.config/mcetl')
+    else:
+        path = Path('~/.mcetl')
+
+    return path.expanduser()
 
 
 def _write_to_excel(dataframes, data_source, labels,
@@ -238,7 +263,7 @@ def _select_processing_options(data_sources):
 
     """
 
-    if Path(__file__).parent.resolve().joinpath('previous_search.json').exists():
+    if _get_save_location().joinpath('previous_search.json').exists():
         last_search_disabled = False
     else:
         last_search_disabled = True
@@ -1035,18 +1060,18 @@ def launch_main_gui(data_sources):
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
-                with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'r') as last_search:
-                    files = json.load(last_search)
+                with _get_save_location().joinpath('previous_search.json').open('r') as f:
+                    files = json.load(f)
             else:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
                 )
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
-                with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'w') as last_search:
-                    json.dump(files, last_search, indent=2)
+                save_path = _get_save_location()
+                save_path.mkdir(exist_ok=True)
+                with save_path.joinpath('previous_search.json').open('w') as f:
+                    json.dump(files, f, indent=2)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
