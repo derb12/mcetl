@@ -114,7 +114,8 @@ class DataSource:
         Raises
         ------
         ValueError
-            Raised if the input name is a blank string.
+            Raised if the input name is a blank string, or if either excel_row_offset
+            or excel_column_offset is < 0.
         TypeError
             DESCRIPTION.
         IndexError
@@ -138,8 +139,6 @@ class DataSource:
         self.num_files = num_files
         self.sample_separation = sample_separation
         self.entry_separation = entry_separation
-        self.excel_row_offset = excel_row_offset
-        self.excel_column_offset = excel_column_offset
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
         self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
@@ -149,6 +148,13 @@ class DataSource:
             for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
                 separator = separator.replace(*replacement)
         self.separator = separator
+
+        # Ensures excel_row_offset and excel_column_offset are >= 0
+        if any(value < 0 for value in (excel_column_offset, excel_row_offset)):
+            raise ValueError('excel_column_offset and excel_row_offset must be >= 0.')
+        else:
+            self.excel_row_offset = excel_row_offset
+            self.excel_column_offset = excel_column_offset
 
         if unique_variables is None:
             self.unique_variables = []
@@ -611,6 +617,11 @@ class DataSource:
         processed_dataframes : list
             The list of dataframes after processing.
 
+        Notes
+        -----
+        The start row is set to self.excel_row_offset + 3 since openpyxl is 1-based
+        and there are two header rows.
+
         """
 
         functions = (self.calculation_functions + self.sample_summary_functions
@@ -621,7 +632,7 @@ class DataSource:
             for function in functions:
                 dataset = function.do_function(
                     dataset, self.references[i], index,
-                    self.excel_column_offset, self.excel_row_offset
+                    self.excel_column_offset, self.excel_row_offset + 3
                 )
 
             # Optimizes memory usage after calculations
