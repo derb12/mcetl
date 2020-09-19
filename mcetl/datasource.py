@@ -14,7 +14,7 @@ import numpy as np
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 
-from .utils import optimize_memory, DEFAULT_FITTING_FORMATS
+from . import utils
 from .functions import SeparationFunction, CalculationFunction, SummaryFunction
 
 
@@ -160,12 +160,12 @@ class DataSource:
         if column_numbers is not None:
             self.column_numbers = column_numbers
         else:
-            self.column_numbers = [*range(len(self.unique_variables))]
+            self.column_numbers = list(range(len(self.unique_variables)))
 
         # ensures the number of imported columns can accomodate all variables
         if len(self.column_numbers) < len(self.unique_variables):
             raise IndexError((
-                f'The number of columns specified for DataSouce "{self.name}" must \n'
+                f'The number of columns specified for mcetl.DataSource "{self.name}" must '
                 'be greater or equal to the number of unique variables, not less than.'
             ))
 
@@ -194,7 +194,7 @@ class DataSource:
 
         # indices for each unique variable for data processing
         if unique_variable_indices is None:
-            self.unique_variable_indices = [*range(len(self.unique_variables))]
+            self.unique_variable_indices = list(range(len(self.unique_variables)))
         elif isinstance(unique_variable_indices, (str, int)):
             self.unique_variable_indices = [unique_variable_indices]
         else:
@@ -216,7 +216,7 @@ class DataSource:
 
 
     def __str__(self):
-        return f'mcetl.{self.__class__.__name__} {self.name}'
+        return f'{self.__module__}.{self.__class__.__name__} {self.name}'
 
 
     def __repr__(self):
@@ -289,7 +289,7 @@ class DataSource:
                 'alignment': Alignment(horizontal='center', vertical='center'),
                 'number_format': '0.00',
             },
-            **DEFAULT_FITTING_FORMATS
+            **utils.DEFAULT_FITTING_FORMATS
         }
 
         if format_kwargs is not None:
@@ -319,27 +319,27 @@ class DataSource:
                          + self.dataset_summary_functions):
             # ensure function names are unique
             if function.name in unique_keys:
-                raise ValueError(
-                    f'The name "{function.name}" is associated with two different '\
+                raise ValueError((
+                    f'The name "{function.name}" is associated with two different '
                     f'Function objects in the DataSource "{self.name}", which is not allowed.'
-                )
+                ))
             # ensure targets exist
             for target in function.target_columns:
                 if target not in unique_keys:
-                    raise ValueError(
-                        f'"{target}" is not an available target for Function '\
+                    raise ValueError((
+                        f'"{target}" is not an available target for Function '
                         f'"{function.name}". Check that the function order is correct.'
-                    )
+                    ))
             # ensure columns exist if function modifies columns
             if (not isinstance(function, SeparationFunction)
                     and not isinstance(function.added_columns, int)):
 
                 for target in function.added_columns:
                     if target not in unique_keys:
-                        raise ValueError(
+                        raise ValueError((
                             f'"{target}" is not an available column for Function '\
                             f'"{function.name}" to modify. Check that the function order is correct.'
-                        )
+                        ))
             # ensure summary functions either add columns or modify other summary columns
             if (isinstance(function, SummaryFunction)
                     and not isinstance(function.added_columns, int)):
@@ -350,10 +350,10 @@ class DataSource:
                     sum_funcs = [function.name for function in self.dataset_summary_functions]
 
                 if any(column not in sum_funcs for column in function.added_columns):
-                    raise ValueError(
-                        f'Error with "{function.name}". SummaryFunctions can only modify '\
+                    raise ValueError((
+                        f'Error with "{function.name}". SummaryFunctions can only modify '
                         'other SummaryFunction columns.'
-                    )
+                    ))
 
             unique_keys.append(function.name)
 
@@ -372,7 +372,7 @@ class DataSource:
                 for function in self.calculation_functions:
                     if isinstance(function.added_columns, int):
                         end_index = start_index + function.added_columns
-                        reference[function.name] = [*range(start_index, end_index)]
+                        reference[function.name] = list(range(start_index, end_index))
 
                         for num in range(start_index, end_index):
                             dataframe[num] = pd.Series(np.nan, dtype=np.float32)
@@ -401,9 +401,9 @@ class DataSource:
                 for function in self.sample_summary_functions:
                     if isinstance(function.added_columns, int):
                         end_index = start_index + function.added_columns
-                        references[i][-1][function.name] = [
-                            *range(start_index, end_index)
-                        ]
+                        references[i][-1][function.name] = list(
+                            range(start_index, end_index)
+                        )
                         for num in range(start_index, end_index):
                             data[num] = np.nan
                         start_index = end_index
@@ -424,9 +424,9 @@ class DataSource:
             for function in self.dataset_summary_functions:
                 if isinstance(function.added_columns, int):
                     end_index = start_index + function.added_columns
-                    references[-1][-1][function.name] = [
-                        *range(start_index, end_index)
-                    ]
+                    references[-1][-1][function.name] = list(
+                        range(start_index, end_index)
+                    )
                     for num in range(start_index, end_index):
                         data[num] = np.nan
                     start_index = end_index
@@ -586,7 +586,7 @@ class DataSource:
                     (entry for entry in sample), axis=1) for sample in dataset),
                 axis=1
             )
-            dataset_dataframe.columns = [*range(len(dataset_dataframe.columns))]
+            dataset_dataframe.columns = list(range(len(dataset_dataframe.columns)))
             merged_dataframes.append(dataset_dataframe)
 
         self.lengths = lengths
@@ -625,7 +625,7 @@ class DataSource:
                 )
 
             # Optimizes memory usage after calculations
-            processed_dataframes.append(optimize_memory(dataset, bool(index)))
+            processed_dataframes.append(utils.optimize_memory(dataset, bool(index)))
 
         return processed_dataframes
 
@@ -666,6 +666,7 @@ class DataSource:
         -------
         list
             The list of dataframes after processing.
+
         """
 
         return self._do_functions(dataframes, 1)
@@ -795,7 +796,7 @@ class DataSource:
         """
 
         labels = self.create_needed_labels()
-        label_template = [*itertools.chain(*labels)]
+        label_template = list(itertools.chain.from_iterable(labels))
 
         print((
             f'\nImported data labels: {len(labels[0])}\n'

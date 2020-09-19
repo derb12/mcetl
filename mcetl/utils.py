@@ -981,8 +981,7 @@ def get_dpi_correction(dpi):
     Returns
     -------
     dpi_correction : float
-        The scaling factor needed to create a figure with the desired
-        dpi.
+        The scaling factor needed to create a figure with the desired dpi.
 
     Notes
     -----
@@ -997,8 +996,8 @@ def get_dpi_correction(dpi):
     """
 
     with plt.rc_context({'interactive': False}):
-        dpi_correction = dpi / plt.figure('dpi_corr', dpi=dpi).get_dpi()
-        plt.close('dpi_corr')
+        dpi_correction = dpi / plt.figure('dpi_corrrection', dpi=dpi).get_dpi()
+        plt.close('dpi_corrrection')
 
     return dpi_correction
 

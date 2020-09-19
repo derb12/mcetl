@@ -38,7 +38,7 @@ def _show_fit_plot(dataframe, gui_values):
         headers = dataframe.columns
         x_index = int(gui_values['x_fit_index'])
         y_index = int(gui_values['y_fit_index'])
-        x_data = dataframe[headers[x_index]].astype(float)
+        x_data = dataframe[headers[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
         y_data = dataframe[headers[y_index]].astype(float)
         x_min = float(gui_values['x_min']) if gui_values['x_min'] != '-inf' else -np.inf
         x_max = float(gui_values['x_max']) if gui_values['x_max'] != 'inf' else np.inf

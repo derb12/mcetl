@@ -247,7 +247,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     if filename:
         # loads the figure theme file, if it exists
         if Path(filename).with_suffix(_THEME_EXTENSION).exists():
-            fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(
+            axes, gui_values, fig_kwargs, rc_changes = _load_theme_file(
                 str(Path(filename).with_suffix(_THEME_EXTENSION))
             )
             if new_rc_changes is not None:
@@ -311,6 +311,7 @@ def _load_theme_file(filename):
     with open(filename, 'r') as f:
         theme_file = json.load(f)
 
+    #TODO should change these to theme_file.get(key, default) since user can modify/delete; check that defaults will be okay
     fig_kwargs = theme_file['FIGURE KEYWORD ARGUMENTS']
     gui_values = theme_file['GUI VALUES']
     rc_changes = theme_file['MATPLOTLIB RCPARAM CHANGES']
@@ -321,6 +322,7 @@ def _load_theme_file(filename):
         plt.close(_PREVIEW_NAME)
         del fig
 
+    #TODO peak_markers = theme_file.get('PEAKS', [[[]for _ in axes[key]] for key in axes]) once peak labeling is implemented
     for i, key in enumerate(axes):
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
@@ -331,7 +333,7 @@ def _load_theme_file(filename):
 
                 axis.annotate(**annotation)
 
-    return fig_kwargs, gui_values, rc_changes, axes
+    return axes, gui_values, fig_kwargs, rc_changes
 
 
 def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
@@ -370,9 +372,7 @@ def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
     )
 
     if filename:
-        fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(filename)
-        del rc_changes
-        new_theme = (axes, gui_values, fig_kwargs)
+        new_theme = _load_theme_file(filename)[:-1]
     else:
         new_theme = ()
 
@@ -394,12 +394,13 @@ def _save_image_options(figure):
     """
 
     extension_mapping = {
-        'jpeg': 'JPEG', 'jpg': 'JPEG', 'tiff': 'TIFF', 'tif': 'TIFF', 'png': 'PNG',
-        'pdf': 'PDF', 'eps': 'EPS', 'ps': 'PS', 'svg': 'SVG', 'svgz': 'SVGZ'
+        'jpeg': 'JPEG', 'jpg': 'JPEG', 'tiff': 'TIFF', 'tif': 'TIFF',
+        'png': 'PNG', 'pdf': 'PDF', 'eps': 'EPS', 'ps': 'PS', 'svg': 'SVG',
+        'svgz': 'SVGZ'
     }
 
     extension_dict = defaultdict(list)
-    for key, value in sorted(extension_mapping.items(), key=lambda t: t[1]):
+    for key, value in sorted(extension_mapping.items(), key=lambda tup: tup[1]):
         extension_dict[value].append(key)
 
     extension_displays = {
@@ -652,6 +653,8 @@ def _create_figure_components(saving=False, **fig_kwargs):
         for that key.
 
     """
+
+    #TODO should set defaults for fig_kwargs since user can modify/delete them in the saved json file
 
     figure = _create_figure(fig_kwargs, saving)
     gridspec, gridspec_layout = _create_gridspec(fig_kwargs, figure)
@@ -1902,11 +1905,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                 for k, dataset in enumerate(data):
                     if kwargs[f'plot_boolean_{i}{j}{k}']:
 
-                        headers = dataset.columns
                         x_index = int(kwargs[f'x_col_{i}{j}{k}'])
                         y_index = int(kwargs[f'y_col_{i}{j}{k}'])
-                        x_data = dataset[headers[x_index]].astype(float)
-                        y_data = dataset[headers[y_index]].astype(float)
+                        x_data = dataset[dataset.columns[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
+                        y_data = dataset[dataset.columns[y_index]].astype(float)
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
@@ -1956,12 +1958,12 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     axis.grid(kwargs[f'y_major_grid_{i}{j}'], which='major', axis='y')
                     axis.grid(kwargs[f'y_minor_grid_{i}{j}'], which='minor', axis='y')
 
-                if kwargs['share_x'] and i not in (0, len(axes) - 1):
+                if kwargs['share_x'] and i not in (0, len(axes) - 1): #TODO does this actually do anything??/will it be needed since user can set tick marks?
                     prune = 'both'
                 else:
                     prune = None
 
-                if kwargs[f'x_axis_min_{i}{j}'] is not None: # Initial plot of data
+                if kwargs[f'x_axis_min_{i}{j}'] is not None:
                     if label != 'Twin X':
                         axis.set_xlim(float(kwargs[f'x_axis_min_{i}{j}']),
                                       float(kwargs[f'x_axis_max_{i}{j}']))

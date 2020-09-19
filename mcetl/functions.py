@@ -46,7 +46,7 @@ class FunctionBase:
         Raises
         ------
         ValueError
-            Raises ValueError if an empty string is given as the name.
+            Raised if an empty string is given as the name.
 
         """
 
@@ -54,6 +54,7 @@ class FunctionBase:
             self.name = name
         else:
             raise ValueError('Function name cannot be a blank string.')
+        
         if isinstance(target_columns, str):
             self.target_columns = [target_columns]
         else:
@@ -61,7 +62,7 @@ class FunctionBase:
 
 
     def __str__(self):
-        return f'mcetl.{self.__class__.__name__} {self.name}'
+        return f'{self.__module__}.{self.__class__.__name__} {self.name}'
 
 
     def __repr__(self):
@@ -203,7 +204,7 @@ class CalculationFunction(FunctionBase):
             self.function_kwargs = function_kwargs
 
 
-    def do_function(self, dataset, reference, index, first_column=0, first_row=0):
+    def do_function(self, dataset, reference, index, first_column, first_row):
         """
 
 
@@ -213,8 +214,14 @@ class CalculationFunction(FunctionBase):
             DESCRIPTION.
         reference : TYPE
             DESCRIPTION.
-        index: int
+        index : int
             Either 0 or 1. If 0, do Excel formulas; if 1, do python formulas.
+        first_column : int
+            The index of the first Excel column to use, ie. 0 denotes 'A'.
+        first_row : int
+            The first Excel row to use; corresponds to the actual row number
+            in Excel (ie is 1-based rather than 0-based), so 1 denotes the
+            Excel row 1 and is the first row in the Excel workbook.
 
         Returns
         -------
@@ -223,7 +230,9 @@ class CalculationFunction(FunctionBase):
 
         """
 
-        if index == 0:
+        if index == 1:
+            excel_columns = None
+        else:
             # Generator that goes from 'A' to 'ZZ' following Excel's naming format.
             excel_generator = itertools.chain(
                 string.ascii_uppercase,
@@ -233,12 +242,8 @@ class CalculationFunction(FunctionBase):
             excel_columns = [
                 next(excel_generator) for _ in range(len(dataset.columns) + first_column)
             ][first_column:]
-        else:
-            excel_columns = None
 
-        target_columns = [
-            reference[target] for target in self.target_columns
-        ]
+        target_columns = [reference[target] for target in self.target_columns]
         added_columns = reference[self.name]
 
         dataset = self.functions[index](
