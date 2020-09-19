@@ -1118,13 +1118,14 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         writer = excel_writer
     else:
         layout = [
-            [sg.Text('Select filename for peak fitting')],
+            [sg.Text('File name for peak fitting results')],
             [sg.Input('', key='file', size=(20, 1),
                       disabled=True, text_color='black'),
             sg.FileSaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
                           key='browse', target='file')],
             [sg.Text('')],
-            [sg.Button('Submit', bind_return_key=True,
+            [sg.Button('Skip Saving'),
+             sg.Button('Submit', bind_return_key=True,
                        button_color=utils.PROCEED_COLOR),
              sg.Check('New File', key='new_file')]
         ]
@@ -1134,7 +1135,10 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             event, values = window.read()
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
-
+            elif event == 'Skip Saving':
+                save_excel = False
+                writer = None
+                break
             elif event == 'Submit':
                 if utils.validate_inputs(values, strings=[['file', 'Excel file']]):
                     break
@@ -1142,16 +1146,17 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         window.close()
         del window
 
-        file_path = Path(values['file'])
-        if not file_path.suffix.lower() or file_path.suffix.lower() != '.xlsx':
-            values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
+        if save_excel:
+            file_path = Path(values['file'])
+            if not file_path.suffix.lower() or file_path.suffix.lower() != '.xlsx':
+                values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
 
-        if not values['new_file'] and Path(values['file']).exists():
-            mode = 'a'
-        else:
-            mode = 'w'
+            if not values['new_file'] and Path(values['file']).exists():
+                mode = 'a'
+            else:
+                mode = 'w'
 
-        writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
+            writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
 
     # Formatting styles for the Excel workbook
     for style, kwargs in utils.DEFAULT_FITTING_FORMATS.items():
@@ -1166,7 +1171,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     proceed = True
     for dataframe in fit_dataframes:
         try:
-            with plt.rc_context(rc_params): #TODO check if this closes the figure as soon as fitting is done?
+            with plt.rc_context(rc_params):
                 fit_output = fit_dataframe(dataframe, gui_values)
 
         except (utils.WindowCloseError, KeyboardInterrupt):
