@@ -453,10 +453,11 @@ def _create_column_labels_window(
         max(len(df.columns) for sample in dataset for df in sample)
     )
 
-    if (data_source.x_plot_index >= len((labels[0] + labels[1]))
-            or data_source.y_plot_index >= len((labels[0] + labels[1]))):
+    available_cols = labels[0] + labels[1] if options['process_data'] else labels[0]
+    if (data_source.x_plot_index >= len(available_cols)
+            or data_source.y_plot_index >= len(available_cols)):
         x_plot_index = 0
-        y_plot_index = len((labels[0] + labels[1])) - 1
+        y_plot_index = len(available_cols) - 1
     else:
         x_plot_index = data_source.x_plot_index
         y_plot_index = data_source.y_plot_index
@@ -469,8 +470,8 @@ def _create_column_labels_window(
         'x_max': '',
         'y_min': '',
         'y_max': '',
-        'x_label': (labels[0] + labels[1])[x_plot_index],
-        'y_label': (labels[0] + labels[1])[y_plot_index],
+        'x_label': available_cols[x_plot_index],
+        'y_label': available_cols[y_plot_index],
         'x_log_scale': False,
         'y_log_scale': False,
         'chart_title': ''
@@ -588,7 +589,6 @@ def _create_column_labels_window(
             ['chart_title', 'chart title', utils.string_to_unicode, True, None]
         ])
 
-        available_cols = labels[0] + labels[1] if options['process_data'] else labels[0]
         plot_layout = [
             [sg.Text('Chart title:'),
              sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],

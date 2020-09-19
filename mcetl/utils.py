@@ -632,7 +632,7 @@ def select_file_gui(data_source=None, file=None):
             disable_excel = False
 
             dataframes = pd.read_excel(file, None, None, convert_float=False)
-            sheet_names = [*dataframes.keys()]
+            sheet_names = list(dataframes.keys())
             sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
             default_inputs.update({
@@ -744,7 +744,7 @@ def select_file_gui(data_source=None, file=None):
             elif values['file'].endswith('xlsx'):
                 dataframes = pd.read_excel(values['file'], None, None,
                                            convert_float=False)
-                sheet_names = [*dataframes.keys()]
+                sheet_names = list(dataframes.keys())
                 sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
                 window['sheet'].update(values=sheet_names, value=sheet_names[0],
@@ -770,7 +770,7 @@ def select_file_gui(data_source=None, file=None):
 
                 if data_source is not None:
                     _assign_indices(
-                        window, [num for num in range(sheet_0_len)],
+                        window, list(range(sheet_0_len)),
                         default_inputs['variable_indices']
                     )
 
