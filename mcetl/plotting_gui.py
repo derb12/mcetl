@@ -275,7 +275,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         data.append(dataframe.iloc[:, row:])
         for dataframe in data:
             dataframe.columns = [
-                ''.join(col.split('_')[:-1]) for col in dataframe.columns
+                '_'.join(col.split('_')[:-1]) for col in dataframe.columns
             ]
 
         figures = launch_plotting_gui(
