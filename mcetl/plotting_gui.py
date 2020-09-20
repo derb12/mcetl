@@ -761,7 +761,7 @@ def _create_gridspec(gs_kwargs, figure):
     else:
         blank_num = 0
         for key, value in gs_kwargs.items():
-            if key.startswith('gs_'):
+            if key.startswith('gridspec_'):
                 if value:
                     selections[value].append(key.split('_')[-1])
                 else:
@@ -964,8 +964,8 @@ def _create_advanced_layout(input_values, canvas, fig):
 
     columm_layout =  [
         [sg.Text(i+1, size=(2, 1), justification='right')]
-        + [sg.Input(input_values[f'gs_{i}{j}'], size=(5, 1), pad=(1, 1),
-                    justification='right', key=f'gs_{i}{j}') for j in range(num_cols)]
+        + [sg.Input(input_values[f'gridspec_{i}{j}'], size=(5, 1), pad=(1, 1),
+                    justification='right', key=f'gridspec_{i}{j}') for j in range(num_cols)]
         for i in range(num_rows)]
 
     widths = [
@@ -1065,8 +1065,8 @@ def _create_gridspec_labels(fig_kwargs):
     letters = itertools.cycle(string.ascii_letters)
     for i in range(num_rows):
         for j in range(num_cols):
-            if f'gs_{i}{j}' not in new_kwargs:
-                new_kwargs.update({f'gs_{i}{j}': next(letters) * len_string})
+            if f'gridspec_{i}{j}' not in new_kwargs:
+                new_kwargs.update({f'gridspec_{i}{j}': next(letters) * len_string})
 
     return new_kwargs
 
