@@ -7,8 +7,8 @@ Created on Jun 28, 2020
 Attributes
 ----------
 CANVAS_SIZE : tuple(int, int)
-    A tuple specifying the size of the figure canvas in the GUI. This
-    can be modified if the user wishes a larger or smaller canvas.
+    A tuple specifying the size (in pixels) of the figure canvas in the GUI.
+    This can be modified if the user wishes a larger or smaller canvas.
 COLORS : tuple(str)
     A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
@@ -2526,7 +2526,7 @@ def _add_remove_annotations(axis, add_annotation):
 
         for i, annotation in enumerate(annotations['arrows']):
             # not able to move arrow head location, so have to create new annotations
-            del axis.texts[axis.texts.index(annotation)]
+            axis.texts[axis.texts.index(annotation)].remove()
 
             axis.annotate(
                 '', xy=(float(values[f'head_x_{i}']), float(values[f'head_y_{i}'])),
@@ -2548,7 +2548,7 @@ def _add_remove_annotations(axis, add_annotation):
             indices.append(annotations['arrows'][entry])
 
         for index in sorted(indices, reverse=True):
-            del axis.texts[index]
+            axis.texts[index].remove()
 
 
 def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
