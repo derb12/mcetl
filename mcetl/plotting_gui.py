@@ -17,6 +17,8 @@ HOLLOW_THICKNESS : float
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
     are used by matplotlib to specify the line style.
+MARKERS : tuple(str)
+    A tuple of strings for the default markers to use for plotting.
 TIGHT_LAYOUT_PAD : float
     The padding placed between the edge of the figure and the edge of
     the canvas; used by matplotlib's tight_layout option.
@@ -66,6 +68,12 @@ LINE_MAPPING = {
                      + plt.rcParams['lines.dashdot_pattern'][1:]
                      + plt.rcParams['lines.dashdot_pattern'][-2:])
 }
+MARKERS = (
+    ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
+    'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
+    '> Triangle-Right', '* Star'
+)
+
 TIGHT_LAYOUT_PAD = 0.3
 TIGHT_LAYOUT_H_PAD = 0.6
 TIGHT_LAYOUT_W_PAD = 0.6
@@ -147,23 +155,21 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     """
 
-    annotations = [[] for key in axes]
-    for i, key in enumerate(axes):
-        annotations[i] = [[] for label in axes[key]]
-        for j, label in enumerate(axes[key]):
-            axis = axes[key][label]
-            for annotation in axis.texts:
-                annotations[i][j].append({
-                    'text': annotation.get_text(),
-                    'xy': annotation.xy,
-                    'xytext': annotation.xyann,
-                    'fontsize': annotation.get_fontsize(),
-                    'rotation': annotation.get_rotation(),
-                    'color': annotation.get_color(),
-                    'arrowprops': annotation.arrowprops,
-                    'annotation_clip': False,
-                    'in_layout': False
-                })
+    annotations = {}
+    for key in axes:
+        annotations[key] = []
+        for annotation in axes[key]['Main Axis'].texts: # only the main axis is allowed annotations
+            annotations[key].append({
+                'text': annotation.get_text(),
+                'xy': annotation.xy,
+                'xytext': annotation.xyann,
+                'fontsize': annotation.get_fontsize(),
+                'rotation': annotation.get_rotation(),
+                'color': annotation.get_color(),
+                'arrowprops': annotation.arrowprops,
+                'annotation_clip': False,
+                'in_layout': False
+            })
 
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
@@ -323,15 +329,13 @@ def _load_theme_file(filename):
         del fig
 
     #TODO peak_markers = theme_file.get('PEAKS', [[[]for _ in axes[key]] for key in axes]) once peak labeling is implemented
-    for i, key in enumerate(axes):
-        for j, label in enumerate(axes[key]):
-            axis = axes[key][label]
-            for annotation in annotations[i][j]:
-                # The annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
-                if int(''.join(mpl.__version__.split('.')[:2])) < 33:
-                    annotation['s'] = annotation.pop('text')
+    for key in axes:
+        for annotation in annotations.get(key, []):
+            # The annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
+            if int(''.join(mpl.__version__.split('.')[:2])) < 33:
+                annotation['s'] = annotation.pop('text')
 
-                axis.annotate(**annotation)
+            axes[key]['Main Axis'].annotate(**annotation)
 
     return axes, gui_values, fig_kwargs, rc_changes
 
@@ -415,7 +419,7 @@ def _save_image_options(figure):
          sg.Input('', disabled=True, size=(20, 1), key='file_name'),
          sg.Input('', key='save_as', visible=False,
                   enable_events=True, do_not_clear=False),
-         sg.SaveAs(file_types=tuple(zip(extension_displays.values(), extension_regex)), 
+         sg.SaveAs(file_types=tuple(zip(extension_displays.values(), extension_regex)),
                    key='file_save_as', target='save_as')],
         [sg.Text('Image Type:'),
          sg.Combo(list(extension_displays.values()), key='extension',
@@ -1335,12 +1339,6 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
     """
 
-    markers = (
-        ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
-        'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
-        '> Triangle-Right', '* Star'
-    )
-
     line_width = plt.rcParams['lines.linewidth']
     marker_size = plt.rcParams['lines.markersize']
     line_plot = kwargs['line']
@@ -1360,10 +1358,10 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 marker_cycler = itertools.cycle([''])
                 line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
             elif scatter_plot:
-                marker_cycler = itertools.cycle(markers[1:])
+                marker_cycler = itertools.cycle(MARKERS[1:])
                 line_cycler = itertools.cycle(['None'])
             else:
-                marker_cycler = itertools.cycle(markers[1:])
+                marker_cycler = itertools.cycle(MARKERS[1:])
                 line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
 
             if not axis.get_xlabel():
@@ -1532,7 +1530,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                              sg.ColorChooserButton('..', target=f'marker_chooser_{i}_{j}_{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Style:'),
-                             sg.Combo(markers, default_value=default_inputs[f'marker_style_{i}_{j}_{k}'],
+                             sg.Combo(MARKERS, default_value=default_inputs[f'marker_style_{i}_{j}_{k}'],
                                       key=f'marker_style_{i}_{j}_{k}', size=(13, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Fill:'),
