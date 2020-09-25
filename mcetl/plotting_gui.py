@@ -39,9 +39,8 @@ from pathlib import Path
 import string
 import traceback
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
 import pandas as pd
@@ -156,9 +155,12 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     """
 
     annotations = {}
+    peaks = {}
     for key in axes:
         annotations[key] = []
-        for annotation in axes[key]['Main Axis'].texts: # only the main axis is allowed annotations
+        peaks[key] = []
+        # only the main axis is allowed annotations and peaks
+        for annotation in axes[key]['Main Axis'].texts:
             annotations[key].append({
                 'text': annotation.get_text(),
                 'xy': annotation.xy,
@@ -166,10 +168,28 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 'fontsize': annotation.get_fontsize(),
                 'rotation': annotation.get_rotation(),
                 'color': annotation.get_color(),
+                'horizontalalignment': annotation.get_horizontalalignment(),
+                'verticalalignment': annotation.get_verticalalignment(),
                 'arrowprops': annotation.arrowprops,
                 'annotation_clip': False,
                 'in_layout': False
             })
+
+        for line in axes[key]['Main Axis'].lines:
+            if line.get_label().startswith('-PEAK-'):
+                peaks[key].append({
+                    'xdata': line.get_xdata().tolist(),
+                    'ydata': line.get_ydata().tolist(),
+                    'label': line.get_label(),
+                    'marker': line.get_marker(),
+                    'markerfacecolor': line.get_markerfacecolor(),
+                    'markeredgecolor': line.get_markeredgecolor(),
+                    'markersize': line.get_markersize(),
+                    'linestyle': line.get_linestyle(),
+                    'linewidth': line.get_linewidth(),
+                    'color': line.get_color()
+
+                })
 
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
@@ -188,7 +208,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                     {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
                      'GUI VALUES': gui_values,
                      'MATPLOTLIB RCPARAM CHANGES': rc_changes,
-                     'ANNOTATIONS': annotations},
+                     'ANNOTATIONS': annotations,
+                     'PEAKS': peaks},
                     f, indent=2
                 )
 
@@ -204,8 +225,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                     saved_data.append(df)
 
                 filename = str(Path(filename).with_suffix('.csv'))
-                with open(filename, 'w') as f:
-                    pd.concat(saved_data, axis=1).to_csv(filename, index=False)
+                pd.concat(saved_data, axis=1).to_csv(filename, index=False)
 
             sg.popup(
                 f'Successfully saved to {str(Path(filename).with_suffix(""))}\n',
@@ -310,7 +330,8 @@ def _load_theme_file(filename):
     rc_changes : dict
         Changes to matplotlib's rcParams file to alter the saved figure.
     axes : dict
-        The dictionary of plt.Axes objects, with annotations added to them.
+        The dictionary of plt.Axes objects, with annotations and peaks
+        added to them.
 
     """
 
@@ -322,20 +343,21 @@ def _load_theme_file(filename):
     gui_values = theme_file['GUI VALUES']
     rc_changes = theme_file['MATPLOTLIB RCPARAM CHANGES']
     annotations = theme_file['ANNOTATIONS']
+    peaks = theme_file['PEAKS']
 
     with plt.rc_context({'interactive': False}):
         fig, axes = _create_figure_components(**fig_kwargs)
         plt.close(_PREVIEW_NAME)
         del fig
 
-    #TODO peak_markers = theme_file.get('PEAKS', [[[]for _ in axes[key]] for key in axes]) once peak labeling is implemented
     for key in axes:
         for annotation in annotations.get(key, []):
-            # The annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
-            if int(''.join(mpl.__version__.split('.')[:2])) < 33:
-                annotation['s'] = annotation.pop('text')
+            axes[key]['Main Axis'].annotate(annotation.pop('text'), **annotation)
 
-            axes[key]['Main Axis'].annotate(**annotation)
+        for peak in peaks.get(key, []):
+            axes[key]['Main Axis'].plot(
+                peak.pop('xdata'), peak.pop('ydata'), **peak
+            )
 
     return axes, gui_values, fig_kwargs, rc_changes
 
@@ -1337,6 +1359,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     window : sg.Window
         The window that contains the plotting options.
 
+    TODO set metadata for elements to determine whether they should be readonly when enabled
+
     """
 
     line_width = plt.rcParams['lines.linewidth']
@@ -1753,10 +1777,17 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     ],
                     'Annotations': [
                         [sg.Button('Add Annotation', key=f'add_annotation_{i}_{j}'),
-                         sg.Button('Edit Annotation', key=f'edit_annotation_{i}_{j}',
+                         sg.Button('Edit Annotations', key=f'edit_annotation_{i}_{j}',
                                    disabled=not axis.texts),
-                         sg.Button('Delete Annotation', key=f'delete_annotation_{i}_{j}',
+                         sg.Button('Delete Annotations', key=f'delete_annotation_{i}_{j}',
                                    disabled=not axis.texts)]
+                    ],
+                    'Peak Labels': [
+                        [sg.Button('Add Peak', key=f'add_peak_{i}_{j}'),
+                         sg.Button('Edit Peaks', key=f'edit_peak_{i}_{j}',
+                                   disabled=not any(line.get_label().startswith('-PEAK-') for line in axis.lines)),
+                         sg.Button('Delete Peaks', key=f'delete_peak_{i}_{j}',
+                                   disabled=not any(line.get_label().startswith('-PEAK-') for line in axis.lines))]
                     ]
                 })
 
@@ -1772,15 +1803,19 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                               border_width=0,  pad=(5, (10, 20)))]
                 ])
             label_tabs.append(
-                [sg.Tab(label,
-                        [[sg.Column([
+                [sg.Tab(
+                    label,
+                    [[
+                        sg.Column([
                             [sg.Text(f'\nOptions for Plot in {axis.get_label()}\n',
                                      relief='ridge', size=(column_width, 3),
                                      justification='center')],
                             [sg.Text('')],
                             *column_layout
-                        ], scrollable=True, vertical_scroll_only=True, size=(750, 650))]],
-                        key=f'label_tab_{i}_{j}')]
+                        ], scrollable=True, vertical_scroll_only=True,
+                        size=(CANVAS_SIZE[0] - 50, CANVAS_SIZE[1] - 100))
+                    ]],
+                    key=f'label_tab_{i}_{j}')]
             )
 
         axis_label = axes[key]['Main Axis'].get_label().split(', ')
@@ -1888,9 +1923,14 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
         if old_axes is not None:
             annotations = {}
+            peaks = {}
             for key in axes:
                 if 'Invisible' not in axes[key]['Main Axis'].get_label() and key in old_axes:
                     annotations[key] = old_axes[key]['Main Axis'].texts
+                    peaks[key] = []
+                    for line in old_axes[key]['Main Axis'].lines:
+                        if line.get_label().startswith('-PEAK-'):
+                            peaks[key].append(line)
 
         for i, key in enumerate(axes):
             if 'Invisible' in axes[key]['Main Axis'].get_label():
@@ -2042,20 +2082,38 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
     except Exception as e:
         sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
     finally:
-        # Ensures that the annotations are maintained if an exception occurres
+        # Ensures that the annotations and peaks are maintained if an exception occurres
         if old_axes is not None:
             for key in annotations:
                 for annotation in annotations[key]:
                     # Cannot directly copy artists because the transformations will not
                     # update in the new axis
                     axes[key]['Main Axis'].annotate(
-                        annotation.get_text(), xy=annotation.xy,
+                        annotation.get_text(),
+                        xy=annotation.xy,
                         xytext=annotation.xyann,
                         fontsize=annotation.get_fontsize(),
                         arrowprops=annotation.arrowprops,
                         rotation=annotation.get_rotation(),
                         color=annotation.get_color(),
-                        annotation_clip=False, in_layout=False
+                        horizontalalignment=annotation.get_horizontalalignment(),
+                        verticalalignment=annotation.get_verticalalignment(),
+                        annotation_clip=False,
+                        in_layout=False
+                    )
+
+                for peak in peaks[key]:
+                    axes[key]['Main Axis'].plot(
+                        *peak.get_data(),
+                        linestyle=peak.get_linestyle(),
+                        linewidth=peak.get_linewidth(),
+                        color=peak.get_color(),
+                        marker=peak.get_marker(),
+                        markerfacecolor=peak.get_markerfacecolor(),
+                        markeredgecolor=peak.get_markeredgecolor(),
+                        markeredgewidth=peak.get_markeredgewidth(),
+                        markersize=peak.get_markersize(),
+                        label=peak.get_label()
                     )
 
 
@@ -2190,9 +2248,9 @@ def _add_remove_annotations(axis, add_annotation):
     axis : plt.Axes
         The axis to add or remove annotations from. Contains all of the
         annotation information within axis.texts.
-    add_annotation : bool
+    add_annotation : bool or None
         If True, will give window to add an annotation; if False, will give
-        window to remove an annotation; if None, will give window to edit
+        window to remove annotations; if None, will give window to edit
         annotations.
 
     """
@@ -2454,7 +2512,7 @@ def _add_remove_annotations(axis, add_annotation):
                 window['arrows_tab'].select()
                 window['text_tab'].update(visible=False)
 
-                    #color chooser button
+        # color chooser button
         elif 'chooser' in event:
             if values[event] != 'None':
                 property_type = event.split('_')[0]
@@ -2547,6 +2605,427 @@ def _add_remove_annotations(axis, add_annotation):
 
         for index in sorted(indices, reverse=True):
             axis.texts[index].remove()
+
+
+def _add_remove_peaks(axis, add_peak):
+    """
+    Gives options to add, edit, or remove peaks and peak markers on the figure.
+
+    Parameters
+    ----------
+    axis : plt.Axes
+        The axis to add or remove peaks from. Contains all of the
+        peaks information within axis.lines. Each line for a peak
+        has a label corresponding to '-PEAK-peak_name'.
+    add_peak : bool or None
+        If True, will give window to add a peak; if False, will give
+        window to remove peaks; if None, will give window to edit
+        peaks.
+
+    """
+
+    remove_peak = False
+    validations = {'line': {'floats': [], 'user_inputs': []},
+                   'marker': {'floats': [], 'user_inputs': []}}
+
+    peaks = {}
+    for line in axis.lines:
+        if line.get_label().startswith('-PEAK-'):
+            key = ''.join(line.get_label().split('-PEAK-'))
+            if key not in peaks:
+                peaks[key] = {'peaks': [], 'annotations': []}
+            peaks[key]['peaks'].append(line)
+
+    for annotation in axis.texts:
+        if annotation.get_text() in peaks:
+            peaks[annotation.get_text()]['annotations'].append(annotation)
+
+    if add_peak:
+        window_text = 'Add Peak'
+
+        inner_layout = [
+            [sg.Text('Peak Label:'),
+             sg.Input(key='label', size=(10, 1))],
+            [sg.Check('Place label above each marker', key='show_label')],
+            [sg.Text('Defining Axis:'),
+             sg.Combo(('x', 'y'), key='defining_axis', default_value='x',
+                      size=(5, 1), readonly=True)],
+            [sg.Text('Peak Positions (separate\nmultiple entries with a comma):'),
+             sg.Input(key='positions', size=(10, 1))],
+            [sg.Text('Peak Label Type:'),
+             sg.Radio('Marker', 'label_type', default=True, key='radio_marker',
+                      enable_events=True),
+             sg.Radio('Line', 'label_type', key='radio_line', enable_events=True)],
+            [sg.TabGroup([[
+                sg.Tab('Options', [
+                    [sg.Text('Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[0], size=(9, 1),
+                              key='marker_color_', readonly=True),
+                     sg.Input(key='marker_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='marker_chooser_')],
+                    [sg.Text('Style:'),
+                     sg.Combo(MARKERS, default_value=MARKERS[1],
+                              key=f'marker_style', size=(13, 1))],
+                    [sg.Text('Fill:'),
+                     sg.Combo(['Filled', 'Hollow', 'Hollow (Transparent)'],
+                              key=f'marker_fill', size=(14, 1),
+                              default_value='Filled', readonly=True)],
+                    [sg.Text('Size:'),
+                     sg.Input(plt.rcParams['lines.markersize'], key=f'marker_size',
+                              size=(4, 1))]
+                ], key='tab_marker'),
+                sg.Tab('Options', [
+                    [sg.Text('Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[0], size=(9, 1),
+                              key='line_color_', readonly=True),
+                     sg.Input(key='line_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='line_chooser_')],
+                    [sg.Text('Style:'),
+                     sg.Combo(list(LINE_MAPPING), readonly=True, size=(10, 1),
+                              default_value=list(LINE_MAPPING)[1], key='line_style')],
+                    [sg.Text('Line width:'),
+                     sg.Input(plt.rcParams['lines.linewidth'], key='line_size',
+                              size=(4, 1))]
+                    ], visible=False, key='tab_line')
+            ]], tab_background_color=sg.theme_background_color(), key='tab')]
+        ]
+
+        for key in ('line', 'marker'):
+            validations[key]['user_inputs'].extend([
+                ['label', 'Peak Label', utils.string_to_unicode, False, None],
+                ['positions', 'Peak Positions', float]
+            ])
+            validations[key]['floats'].extend([
+                [f'{key}_size', f'{key} size']
+            ])
+        validations['marker']['user_inputs'].append(
+            ['marker_style', 'marker style', utils.string_to_unicode, True, None]
+        )
+
+    elif add_peak is None:
+        window_text = 'Edit Peaks'
+
+        for i, peak in enumerate(peaks):
+            label_text = peak
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                label_text = label_text.replace(*replacement)
+
+            annotations['text_layout'].extend([
+                [sg.Text(f'{i + 1})')],
+                [sg.Column([
+                    [sg.Text('Label:', size=(8, 1)),
+                     sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
+                    [sg.Text('x-position:', size=(8, 1)),
+                     sg.Input(annotation.get_position()[0], key=f'x_{i}', size=(10, 1))],
+                    [sg.Text('y-position:', size=(8, 1)),
+                     sg.Input(annotation.get_position()[1], key=f'y_{i}', size=(10, 1))]
+                ]),
+                 sg.Column([
+                     [sg.Text('Fontsize:', size=(7, 1)),
+                      sg.Input(annotation.get_fontsize(), key=f'fontsize_{i}', size=(10, 1))],
+                     [sg.Text('Rotation:', size=(7, 1)),
+                      sg.Input(annotation.get_rotation(), key=f'rotation_{i}', size=(10, 1))],
+                     [sg.Text('Color:'),
+                      sg.Combo(COLORS, default_value=annotation.get_color(),
+                               key=f'text_color_{i}', size=(9, 1), readonly=True),
+                      sg.Input(key=f'text_chooser_{i}', enable_events=True, visible=False),
+                      sg.ColorChooserButton('..', target=f'text_chooser_{i}')]
+                 ])],
+                [sg.Text('')]
+            ])
+
+            validations['floats'].extend([
+                [f'x_{i}', f'x position for Text {i + 1}'],
+                [f'y_{i}', f'y position for Text {i + 1}'],
+                [f'fontsize_{i}', f'fontsize for Text {i + 1}'],
+                [f'rotation_{i}', f'rotation for Text {i + 1}'],
+            ])
+
+            validations['user_inputs'].extend([
+                [f'text_{i}', f'text in Text {i + 1}',
+                 utils.string_to_unicode, False, None]
+            ])
+
+        for i, annotation in enumerate(annotations['arrows']):
+            for style in LINE_MAPPING:
+                if LINE_MAPPING[style] == annotation.arrowprops['linestyle']:
+                    break
+            else: # in case no break
+                style = annotation.arrowprops['linestyle']
+
+            annotations['arrows_layout'].extend([
+                [sg.Text(f'{i + 1})')],
+                [sg.Column([
+                    [sg.Text('Head:')],
+                    [sg.Text('    x-position:', size=(10, 1)),
+                     sg.Input(annotation.xy[0], key=f'head_x_{i}', size=(10, 1),
+                              focus=True)],
+                    [sg.Text('    y-position:', size=(10, 1)),
+                     sg.Input(annotation.xy[1], key=f'head_y_{i}', size=(10, 1))]
+                ]),
+                 sg.Column([
+                     [sg.Text('Tail:')],
+                     [sg.Text('    x-position:', size=(10, 1)),
+                      sg.Input(annotation.xyann[0], key=f'tail_x_{i}', size=(10, 1))],
+                     [sg.Text('    y-position:', size=(10, 1)),
+                      sg.Input(annotation.xyann[1], key=f'tail_y_{i}', size=(10, 1))]
+                 ])],
+                [sg.Text('Line width:'),
+                 sg.Input(annotation.arrowprops['linewidth'], key=f'linewidth_{i}',
+                          size=(5, 1))],
+                [sg.Text('Line Syle:'),
+                 sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
+                          default_value=style,
+                          key=f'linestyle_{i}', size=(11, 1))],
+                [sg.Text('Head-size multiplier:'),
+                 sg.Input(annotation.arrowprops['mutation_scale'] / 10,
+                          key=f'head_scale_{i}', size=(5, 1))],
+                [sg.Text('Arrow Style:'),
+                 sg.Combo(['-|>', '<|-', '<|-|>', '->', '<-', '<->', '-[',
+                           ']-', ']-[', '|-|', '-'],
+                          default_value=annotation.arrowprops['arrowstyle'],
+                          readonly=True, key=f'arrow_style_{i}')],
+                [sg.Text('Color:'),
+                 sg.Combo(COLORS, default_value=annotation.arrowprops['color'],
+                          key=f'arrow_color_{i}', size=(9, 1), readonly=True),
+                 sg.Input(key=f'arrow_chooser_{i}', enable_events=True, visible=False),
+                 sg.ColorChooserButton('..', target=f'arrow_chooser_{i}')],
+                [sg.Text('')]
+            ])
+
+            validations['arrows']['floats'].extend([
+                [f'head_x_{i}', f'head x position for Arrow {i + 1}'],
+                [f'head_y_{i}', f'head y position for Arrow {i + 1}'],
+                [f'tail_x_{i}', f'tail x position for Arrow {i + 1}'],
+                [f'tail_y_{i}', f'tail y position for Arrow {i + 1}'],
+                [f'linewidth_{i}', f'linewidth for Arrow {i + 1}'],
+                [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}'],
+            ])
+
+        inner_layout = [[
+            sg.TabGroup([[
+                sg.Tab('Text', [[sg.Column(annotations['text_layout'],
+                                           scrollable=True, size=(None, 400),
+                                           vertical_scroll_only=True)]],
+                       key='text_tab'),
+                sg.Tab('Arrows', [[sg.Column(annotations['arrows_layout'],
+                                             scrollable=True, size=(None, 400),
+                                             vertical_scroll_only=True)]],
+                       key='arrows_tab')
+            ]], tab_background_color=sg.theme_background_color())
+        ]]
+
+    else:
+        remove_peak = True
+        window_text = 'Remove Peaks'
+
+        labels = {}
+        for peak in peaks:
+            label_text = peak
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                label_text = label_text.replace(*replacement)
+            labels[label_text] = peak
+
+        inner_layout = [
+            [sg.Text('All markers and text for selected peaks will be deleted!\n')],
+            [sg.Listbox(list(labels), select_mode='multiple', size=(20, 5),
+                        key='peak_listbox')]
+        ]
+
+    layout = [
+        *inner_layout,
+        [sg.Text('')],
+        [sg.Button('Back'),
+         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
+    ]
+
+    window = sg.Window(window_text, layout, finalize=True)
+    window.TKroot.grab_set()
+    while True:
+        event, values = window.read()
+
+        if event in (sg.WIN_CLOSED, 'Back'):
+            add_peak = False
+            remove_peak = False
+            break
+
+        elif event.startswith('radio'):
+            if values['radio_marker']:
+                window['tab_marker'].update(visible=True)
+                window['tab_marker'].select()
+                window['tab_line'].update(visible=False)
+            else:
+                window['tab_line'].update(visible=True)
+                window['tab_line'].select()
+                window['tab_marker'].update(visible=False)
+
+        # color chooser button
+        elif 'chooser' in event:
+            if values[event] != 'None':
+                property_type = event.split('_')[0]
+                index = event.split('_')[-1]
+                window[f'{property_type}_color_{index}'].update(value=values[event])
+
+        elif event == 'Submit':
+            window.TKroot.grab_release()
+            close = True
+
+            if add_peak:
+                if values['radio_marker']:
+                    close = utils.validate_inputs(values, **validations['marker'])
+                else:
+                    close = utils.validate_inputs(values, **validations['line'])
+
+                if close and utils.string_to_unicode(values['label']) in peaks:
+                    close = False
+                    sg.popup(
+                        'The selected peak label is already a peak.\n',
+                        title='Error'
+                    )
+
+            elif add_peak is None:
+                close = (utils.validate_inputs(values, **validations['marker'])
+                         and utils.validate_inputs(values, **validations['line']))
+                if close:
+                    labels = [
+                        values[label] for label in values if label.startswith('label')
+                    ]
+                    if len(labels) != len(set(labels)):
+                        close = False
+                        sg.popup(
+                            'There cannot be repeated peak labels.\n', title='Error'
+                        )
+
+            else:
+                close = values['peak_listbox']
+                if not close:
+                    sg.popup('Please select a peak to delete.\n', title='Error')
+
+            if not close:
+                window.TKroot.grab_set()
+            else:
+                break
+
+    window.close()
+    del window
+
+    if add_peak:
+        positions = [float(value.strip()) for value in values['positions'].split(',')]
+        if values['defining_axis'] == 'x':
+            if values['radio_line']:
+                x_data = [(position, position) for position in positions]
+                y_data = [(0, 10) for _ in positions]
+            else:
+                x_data = [(position,) for position in positions]
+                y_data = [(10,) for _ in positions]
+
+            annotation_options = {
+                'rotation': 90,
+                'horizontalalignment': 'center'
+            }
+        else:
+            y_data = positions
+            annotation_options = {
+                'rotation': 0,
+                'verticalalignment': 'center'
+            }
+
+        # determine x and y values here
+        _plot_peaks(axis, values['radio_line'], x_data, y_data, values)
+        # annotate plot here
+        if values['show_label']:
+            for data in zip(x_data, y_data):
+                annotation_position = (data[0][-1], data[1][-1] + 5)
+                axis.annotate(
+                    utils.string_to_unicode(values['label']),
+                    xy=annotation_position,
+                    annotation_clip=False,
+                    in_layout=False,
+                    **annotation_options
+                )
+
+    elif add_peak is None:
+        # delete existing peaks, group x and y, plot new peaks, update annotations
+        for i, annotation in enumerate(annotations['text']):
+            annotation.update({
+                'text': utils.string_to_unicode(values[f'label_{i}']),
+            })
+
+    elif remove_peak:
+        for entry in values['peak_listbox']:
+            label = labels[entry]
+
+            for line in peaks[label]['peaks']:
+                line.remove()
+            for annotation in peaks[label]['annotations']:
+                annotation.remove()
+
+
+def _plot_peaks(axis, line_bool, x_data, y_data, gui_values, index=''):
+    """
+    Handles plotting peaks onto the specified axis based on the input gui_values.
+
+    Parameters
+    ----------
+    axis : plt.Axes
+        The axis to add the peaks to.
+    line_bool : bool
+        If True, designates that the peak marker is a line; if False,
+        designates that the peak marker is a marker.
+    x_data : list(Union[np.ndarray, list])
+        A list of ndarrays or lists corresponding to points to plot.
+        Each entry in the list is an individual marker for the peak.
+    y_data : list(Union[np.ndarray, list])
+        A list of ndarrays or lists corresponding to points to plot.
+        Each entry in the list is an individual marker for the peak.
+    gui_values : dict
+        [description]
+    index : str, optional
+        A string of the index for the peak to get the correct values
+        from gui_values. No input assumes that there is no index, ie.
+        index = ''. Include the underscore when specifying index, eg.
+        index = '_1'.
+
+    """
+
+    if line_bool:
+        plot_kwargs = {
+            'color': gui_values['line_color_' + index.replace('_', '')],
+            'linewidth': float(gui_values['line_size' + index]),
+            'linestyle': LINE_MAPPING[gui_values['line_style' + index]],
+        }
+
+    else:
+        plot_kwargs = {
+            'marker': utils.string_to_unicode(gui_values['marker_style' + index].split(' ')[0]),
+            'markersize': float(gui_values['marker_size' + index]),
+        }
+
+        if gui_values['marker_fill' + index] == 'Filled':
+            plot_kwargs.update({
+                'markerfacecolor': gui_values['marker_color_' + index.replace('_', '')],
+                'markeredgecolor': 'black', #TODO allow specifying this?
+                'markeredgewidth': plt.rcParams['lines.markeredgewidth']
+            })
+        elif gui_values['marker_fill' + index] == 'Hollow':
+            plot_kwargs.update({
+                'markerfacecolor': 'white',
+                'markeredgecolor': gui_values['marker_color_' + index.replace('_', '')],
+                'markeredgewidth': HOLLOW_THICKNESS * float(gui_values['marker_size' + index])
+            })
+        else:
+            plot_kwargs.update({
+                'markerfacecolor': 'None',
+                'markeredgecolor': gui_values['marker_color_' + index.replace('_', '')],
+                'markeredgewidth': HOLLOW_THICKNESS * float(gui_values['marker_size' + index])
+            })
+
+    for data in zip(x_data, y_data):
+        axis.plot(
+            *data,
+            label='-PEAK-' + utils.string_to_unicode(gui_values['label' + index]),
+            **plot_kwargs
+        )
 
 
 def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
@@ -2679,13 +3158,14 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     window = _create_plot_options_gui(
                         data, fig, axes, values, axes, **fig_kwargs
                     )
-                # add/remove annotations
+                # add/edit/remove annotations
                 elif 'annotation' in event:
-                    add_annotation = False
                     if event.startswith('add_annotation'):
                         add_annotation = True
                     elif event.startswith('edit_annotation'):
                         add_annotation = None
+                    else:
+                        add_annotation = False
 
                     index = [int(num) for num in event.split('_')[-2:]]
                     key = list(axes)[index[0]]
@@ -2701,6 +3181,32 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     )
                     window[f'delete_annotation_{index[0]}_{index[1]}'].update(
                         disabled=not axes[key][label].texts
+                    )
+                # add/edit/remove peaks
+                elif 'peak' in event:
+                    if event.startswith('add_peak'):
+                        add_peak = True
+                    elif event.startswith('edit_peak'):
+                        add_peak = None
+                    else:
+                        add_peak = False
+
+                    index = [int(num) for num in event.split('_')[-2:]]
+                    key = list(axes)[index[0]]
+                    label = list(axes[key])[index[1]]
+                    _add_remove_peaks(axes[key][label], add_peak)
+
+                    _plot_data(data, axes, axes, **values, **fig_kwargs)
+                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
+                                           window['controls_canvas'].TKCanvas)
+
+                    window[f'edit_peak_{index[0]}_{index[1]}'].update(
+                        disabled=not any(
+                            line.get_label().startswith('-PEAK-') for line in axes[key][label].lines)
+                    )
+                    window[f'delete_peak_{index[0]}_{index[1]}'].update(
+                        disabled=not any(
+                            line.get_label().startswith('-PEAK-') for line in axes[key][label].lines)
                     )
                 # go back to plot type picker
                 elif event == 'Back':

@@ -145,6 +145,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -162,6 +164,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -179,6 +183,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -196,6 +202,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -213,6 +221,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -230,6 +240,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": null,
         "annotation_clip": false,
         "in_layout": false
@@ -247,6 +259,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": {
           "linewidth": 1.5,
           "mutation_scale": 10.0,
@@ -270,6 +284,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": {
           "linewidth": 1.5,
           "mutation_scale": 10.0,
@@ -293,6 +309,8 @@
         "fontsize": 12.0,
         "rotation": 0.0,
         "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
         "arrowprops": {
           "linewidth": 1.5,
           "mutation_scale": 7.0,
@@ -304,5 +322,8 @@
         "in_layout": false
       }
     ]
+  },
+  "PEAKS": {
+    "Row 1, Col 1": []
   }
 }
