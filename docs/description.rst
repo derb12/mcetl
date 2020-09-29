@@ -7,10 +7,11 @@ Purpose
 
 The aim of mcetl is to ease the repeated processing of data files. Contrary to its name, mcetl
 can process any tabulated files (txt, csv, tsv, etc.), and does not require that the files originate
-from materials characterization (abbreviated as MC). However, the focus on MC was selected because:
+from materials characterization. However, the focus on materials characterization was selected because:
 
-* Most data files from MC are relatively small in size (a few kB or MB).
-* MC files are typically cleanly tabulated and do not require handling messy or missing data.
+* Most data files from materials characterization are relatively small in size (a few kB or MB).
+* Materials characterization files are typically cleanly tabulated and do not require handling
+  messy or missing data.
 * Shamelessly improving my SEO :)
 
 
