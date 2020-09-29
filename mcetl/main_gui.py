@@ -35,14 +35,17 @@ def _get_save_location():
         be saved.
 
     """
-    
+
+    path = None
     if sys.platform.startswith('win'): # Windows
         path = Path('~/AppData/Local/mcetl')
     elif sys.platform.startswith('darwin'): # Mac
         path = Path('~/Library/Application Support/mcetl')
     elif sys.platform.startswith('linux'): # Linux
         path = Path('~/.config/mcetl')
-    else:
+
+    if path is None or not path.expanduser().parent.exists():
+        # in case the Windows/Mac/Linux places are wrong
         path = Path('~/.mcetl')
 
     return path.expanduser()
@@ -398,8 +401,7 @@ def _select_processing_options(data_sources):
 
         elif event == 'save_as' and values['save_as']:
             file_path = Path(values['save_as'])
-            file_extension = file_path.suffix.lower()
-            if not file_extension or file_extension != '.xlsx':
+            if file_path.suffix.lower() != '.xlsx':
                 file_path = Path(file_path.parent, file_path.stem + '.xlsx')
             window['file_name'].update(value=str(file_path))
 
@@ -1175,7 +1177,7 @@ def launch_main_gui(data_sources):
                 )
                 # Assign reference indices for all relevant columns
                 data_source.set_references(dataframes, import_vals)
-                
+
                 _collect_column_labels(dataframes, data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
