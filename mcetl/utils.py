@@ -236,7 +236,7 @@ def validate_inputs(window_values, integers=None, floats=None,
         ['peak_width', 'peak width', float], # ensures each entry is a float
         ['peak_width_2', 'peak width 2', int, False, ';'], # uses ';' as the separator
         ['peak_width_3', 'peak width 3', function, False, None], # no separator, verify with function
-        ['peak_width_3', 'peak width 3', function, True, None] # allows empty input
+        ['peak_width_4', 'peak width 4', function, True, None] # allows empty input
     ]
 
     The display text will be the text that is shown to the user if the value
@@ -269,25 +269,22 @@ def validate_inputs(window_values, integers=None, floats=None,
 
     if strings is not None:
         for entry in strings:
-            try:
-                if not window_values[entry[0]]:
-                    raise ValueError
-            except:
+            if not window_values[entry[0]]:
                 sg.popup(f'Need to enter information in "{entry[1]}".\n',
                          title='Error')
                 return False
 
     if user_inputs is not None:
         for entry in user_inputs:
-            allow_empty_input = False
-            separator = ','
-
             if len(entry) > 4:
                 allow_empty_input = entry[3]
                 separator = entry[4]
-
             elif len(entry) > 3:
                 allow_empty_input = entry[3]
+                separator = ','
+            else:
+                allow_empty_input = False
+                separator = ','
 
             try:
                 inputs = [

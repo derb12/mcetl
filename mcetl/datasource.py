@@ -56,8 +56,7 @@ class DataSource:
             excel_column_offset=0,
             entry_separation=0,
             sample_separation=0,
-            label_entries=True
-        ):
+            label_entries=True):
         """
         DataSource initialization.
 
