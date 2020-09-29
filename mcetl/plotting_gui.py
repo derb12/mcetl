@@ -12,8 +12,6 @@ CANVAS_SIZE : tuple(int, int)
 COLORS : tuple(str)
     A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
-HOLLOW_THICKNESS : float
-    The fraction of the marker that is filled when hollow; rethink this.
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
     are used by matplotlib to specify the line style.
@@ -52,10 +50,9 @@ from . import utils
 
 CANVAS_SIZE = (800, 800)
 COLORS = (
-    'Black', 'Blue', 'Red', 'Green', 'Chocolate', 'Magenta',
-    'Cyan', 'Orange', 'Coral', 'Dodgerblue'
+    'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
+    'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue'
 )
-HOLLOW_THICKNESS = 0.3
 LINE_MAPPING = {
     'None': '',
     'Solid': '-',
@@ -72,7 +69,6 @@ MARKERS = (
     'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
     '> Triangle-Right', '* Star'
 )
-
 TIGHT_LAYOUT_PAD = 0.3
 TIGHT_LAYOUT_H_PAD = 0.6
 TIGHT_LAYOUT_W_PAD = 0.6
@@ -154,55 +150,56 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     """
 
-    annotations = {}
-    peaks = {}
-    for key in axes:
-        annotations[key] = []
-        peaks[key] = []
-        # only the main axis is allowed annotations and peaks
-        for annotation in axes[key]['Main Axis'].texts:
-            annotations[key].append({
-                'text': annotation.get_text(),
-                'xy': annotation.xy,
-                'xytext': annotation.xyann,
-                'fontsize': annotation.get_fontsize(),
-                'rotation': annotation.get_rotation(),
-                'color': annotation.get_color(),
-                'horizontalalignment': annotation.get_horizontalalignment(),
-                'verticalalignment': annotation.get_verticalalignment(),
-                'arrowprops': annotation.arrowprops,
-                'annotation_clip': False,
-                'in_layout': False
-            })
-
-        for line in axes[key]['Main Axis'].lines:
-            if line.get_label().startswith('-PEAK-'):
-                peaks[key].append({
-                    'xdata': line.get_xdata().tolist(),
-                    'ydata': line.get_ydata().tolist(),
-                    'label': line.get_label(),
-                    'marker': line.get_marker(),
-                    'markerfacecolor': line.get_markerfacecolor(),
-                    'markeredgecolor': line.get_markeredgecolor(),
-                    'markersize': line.get_markersize(),
-                    'linestyle': line.get_linestyle(),
-                    'linewidth': line.get_linewidth(),
-                    'color': line.get_color()
-
-                })
-
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
         file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
     )
 
     if filename:
-        try:
-            if not Path(filename).suffix or Path(filename).suffix != _THEME_EXTENSION:
-                filename = str(
-                    Path(Path(filename).parent, Path(filename).stem + _THEME_EXTENSION)
-                )
 
+        annotations = {}
+        peaks = {}
+        for key in axes:
+            annotations[key] = []
+            peaks[key] = []
+            # only the main axis is allowed annotations and peaks
+            for annotation in axes[key]['Main Axis'].texts:
+                annotations[key].append({
+                    'text': annotation.get_text(),
+                    'xy': annotation.xy,
+                    'xytext': annotation.xyann,
+                    'fontsize': annotation.get_fontsize(),
+                    'rotation': annotation.get_rotation(),
+                    'color': annotation.get_color(),
+                    'horizontalalignment': annotation.get_horizontalalignment(),
+                    'verticalalignment': annotation.get_verticalalignment(),
+                    'arrowprops': annotation.arrowprops,
+                    'annotation_clip': False,
+                    'in_layout': False
+                })
+
+            for line in axes[key]['Main Axis'].lines:
+                if line.get_label().startswith('-PEAK-'):
+                    peaks[key].append({
+                        'xdata': line.get_xdata().tolist(),
+                        'ydata': line.get_ydata().tolist(),
+                        'label': line.get_label(),
+                        'marker': line.get_marker(),
+                        'markerfacecolor': line.get_markerfacecolor(),
+                        'markeredgecolor': line.get_markeredgecolor(),
+                        'markeredgewidth': line.get_markeredgewidth(),
+                        'markersize': line.get_markersize(),
+                        'linestyle': line.get_linestyle(),
+                        'linewidth': line.get_linewidth(),
+                        'color': line.get_color()
+                    })
+
+        if Path(filename).suffix != _THEME_EXTENSION:
+            filename = str(
+                Path(Path(filename).parent, Path(filename).stem + _THEME_EXTENSION)
+            )
+
+        try:
             with open(filename, 'w') as f:
                 json.dump(
                     {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
@@ -212,8 +209,20 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                      'PEAKS': peaks},
                     f, indent=2
                 )
-
-            if data is not None:
+        except PermissionError:
+            sg.popup(
+                ('The .figtheme file is currently open.\n'
+                 'Please close and try to save again.\n'),
+                title='Save Failed'
+            )
+        else:
+            if data is None:
+                sg.popup(
+                    ('Successfully saved to '
+                     f'{str(Path(filename).with_suffix(""))}\n'),
+                    title='Save Successful'
+                )
+            else:
                 saved_data = []
                 # creates separator columns
                 for i, dataframe in enumerate(data):
@@ -225,18 +234,20 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                     saved_data.append(df)
 
                 filename = str(Path(filename).with_suffix('.csv'))
-                pd.concat(saved_data, axis=1).to_csv(filename, index=False)
-
-            sg.popup(
-                f'Successfully saved to {str(Path(filename).with_suffix(""))}\n',
-                title='Save Successful'
-            )
-
-        except PermissionError:
-            sg.popup(
-                'Designated file is currently open. Please close and try to save again.\n',
-                title='Save Failed'
-            )
+                try:
+                    pd.concat(saved_data, axis=1).to_csv(filename, index=False)
+                except PermissionError:
+                    sg.popup(
+                        ('The .csv file is currently open.\n'
+                         'Please close and try to save again.\n'),
+                        title='Save Failed'
+                    )
+                else:
+                    sg.popup(
+                        ('Successfully saved to '
+                         f'{str(Path(filename).with_suffix(""))}\n'),
+                        title='Save Successful'
+                    )
 
 
 def load_previous_figure(filename=None, new_rc_changes=None):
@@ -1363,11 +1374,6 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
     """
 
-    line_width = plt.rcParams['lines.linewidth']
-    marker_size = plt.rcParams['lines.markersize']
-    line_plot = kwargs['line']
-    scatter_plot = kwargs['scatter']
-
     default_inputs = {}
     # generates default values based on the Axes and data length
     for i, key in enumerate(axes):
@@ -1375,13 +1381,12 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             continue
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
-            marker_colors = itertools.cycle(COLORS)
-            line_colors = itertools.cycle(COLORS)
+            color_cyle = itertools.cycle(COLORS[1:])
 
-            if line_plot:
+            if kwargs['line']:
                 marker_cycler = itertools.cycle([''])
                 line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
-            elif scatter_plot:
+            elif kwargs['scatter']:
                 marker_cycler = itertools.cycle(MARKERS[1:])
                 line_cycler = itertools.cycle(['None'])
             else:
@@ -1453,19 +1458,22 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             # Options for each data entry
             for k in range(len(data)):
+                data_color = next(color_cyle)
+
                 default_inputs.update({
                     f'plot_boolean_{i}_{j}_{k}': True,
                     f'x_col_{i}_{j}_{k}': '0',
                     f'y_col_{i}_{j}_{k}': '1',
                     f'label_{i}_{j}_{k}': f'Data {k + 1}',
                     f'offset_{i}_{j}_{k}': 0,
-                    f'marker_color_{i}_{j}_{k}': next(marker_colors),
+                    f'markerface_color_{i}_{j}_{k}': data_color,
+                    f'markeredge_color_{i}_{j}_{k}': data_color,
+                    f'marker_edgewidth_{i}_{j}_{k}': plt.rcParams['lines.markeredgewidth'],
                     f'marker_style_{i}_{j}_{k}': next(marker_cycler),
-                    f'marker_fill_{i}_{j}_{k}': 'Filled',
-                    f'marker_size_{i}_{j}_{k}': marker_size,
-                    f'line_color_{i}_{j}_{k}': next(line_colors),
+                    f'marker_size_{i}_{j}_{k}': plt.rcParams['lines.markersize'],
+                    f'line_color_{i}_{j}_{k}': data_color,
                     f'line_style_{i}_{j}_{k}': next(line_cycler),
-                    f'line_size_{i}_{j}_{k}': line_width
+                    f'line_size_{i}_{j}_{k}': plt.rcParams['lines.linewidth']
                 })
 
     if user_inputs is not None:
@@ -1535,34 +1543,41 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                       default_value=default_inputs[f'y_col_{i}_{j}_{k}'],
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Offset:', size=(6, 1)),
-                             sg.Input(default_inputs[f'offset_{i}_{j}_{k}'], size=(5, 1),
+                             sg.Input(default_inputs[f'offset_{i}_{j}_{k}'], size=(8, 1),
                                       key=f'offset_{i}_{j}_{k}',
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Label:', size=(6, 1)),
                              sg.Input(default_inputs[f'label_{i}_{j}_{k}'], key=f'label_{i}_{j}_{k}',
-                                      size=(10, 1), disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
+                                      size=(8, 1), disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
                         ], pad=((5, 5), 5)),
                         sg.Column([
                             [sg.Text('      Marker')],
-                            [sg.Text('Color:'),
-                             sg.Combo(COLORS, default_value=default_inputs[f'marker_color_{i}_{j}_{k}'],
-                                      key=f'marker_color_{i}_{j}_{k}', size=(9, 1),
+                            [sg.Text('Face\nColor:'),
+                             sg.Combo(COLORS, default_value=default_inputs[f'markerface_color_{i}_{j}_{k}'],
+                                      key=f'markerface_color_{i}_{j}_{k}', size=(9, 1),
                                       readonly=True,
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}']),
-                             sg.Input(key=f'marker_chooser_{i}_{j}_{k}', enable_events=True,
+                             sg.Input(key=f'markerface_chooser_{i}_{j}_{k}', enable_events=True,
                                       visible=False),
-                             sg.ColorChooserButton('..', target=f'marker_chooser_{i}_{j}_{k}',
+                             sg.ColorChooserButton('..', target=f'markerface_chooser_{i}_{j}_{k}',
+                                                   disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
+                            [sg.Text('Edge\nColor:'),
+                             sg.Combo(COLORS, default_value=default_inputs[f'markeredge_color_{i}_{j}_{k}'],
+                                      key=f'markeredge_color_{i}_{j}_{k}', size=(9, 1),
+                                      readonly=True,
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}']),
+                             sg.Input(key=f'markeredge_chooser_{i}_{j}_{k}', enable_events=True,
+                                      visible=False),
+                             sg.ColorChooserButton('..', target=f'markeredge_chooser_{i}_{j}_{k}',
                                                    disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Style:'),
                              sg.Combo(MARKERS, default_value=default_inputs[f'marker_style_{i}_{j}_{k}'],
                                       key=f'marker_style_{i}_{j}_{k}', size=(13, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
-                            [sg.Text('Fill:'),
-                             sg.Combo(['Filled', 'Hollow', 'Hollow (Transparent)'],
-                                      key=f'marker_fill_{i}_{j}_{k}', size=(14, 1),
-                                      default_value=default_inputs[f'marker_fill_{i}_{j}_{k}'],
-                                      readonly=True, disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
-                            [sg.Text('Size:'),
+                            [sg.Text('Edge Width:'),
+                             sg.Input(default_inputs[f'marker_edgewidth_{i}_{j}_{k}'],
+                                      key=f'marker_edgewidth_{i}_{j}_{k}', size=(4, 1))],
+                            [sg.Text('Marker Size:'),
                              sg.Input(default_text=default_inputs[f'marker_size_{i}_{j}_{k}'],
                                       key=f'marker_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
@@ -1583,7 +1598,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                                       default_value=default_inputs[f'line_style_{i}_{j}_{k}'],
                                       key=f'line_style_{i}_{j}_{k}', size=(10, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
-                            [sg.Text('Size:'),
+                            [sg.Text('Line Width:'),
                              sg.Input(default_text=default_inputs[f'line_size_{i}_{j}_{k}'],
                                       key=f'line_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
@@ -1953,33 +1968,17 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         x = x_data[nan_mask]
                         y = y_data[nan_mask] + float(kwargs[f'offset_{i}_{j}_{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}_{j}'])
 
-                        if kwargs[f'marker_fill_{i}_{j}_{k}'] == 'Filled':
-                            marker_kws = {
-                                'markerfacecolor': kwargs[f'marker_color_{i}_{j}_{k}'],
-                                'markeredgewidth': plt.rcParams['lines.markeredgewidth']
-                            }
-                        elif kwargs[f'marker_fill_{i}_{j}_{k}'] == 'Hollow':
-                            marker_kws = {
-                                'markerfacecolor': 'white',
-                                'markeredgecolor': kwargs[f'marker_color_{i}_{j}_{k}'],
-                                'markeredgewidth': HOLLOW_THICKNESS * float(kwargs[f'marker_size_{i}_{j}_{k}'])
-                            }
-                        else:
-                            marker_kws = {
-                                'markerfacecolor': 'None',
-                                'markeredgecolor': kwargs[f'marker_color_{i}_{j}_{k}'],
-                                'markeredgewidth': HOLLOW_THICKNESS * float(kwargs[f'marker_size_{i}_{j}_{k}'])
-                            }
-
                         axis.plot(
                             x, y,
                             marker=utils.string_to_unicode(kwargs[f'marker_style_{i}_{j}_{k}'].split(' ')[0]),
                             markersize=float(kwargs[f'marker_size_{i}_{j}_{k}']),
+                            markerfacecolor=kwargs[f'markerface_color_{i}_{j}_{k}'],
+                            markeredgecolor=kwargs[f'markeredge_color_{i}_{j}_{k}'],
+                            markeredgewidth=float(kwargs[f'marker_edgewidth_{i}_{j}_{k}']),
                             color=kwargs[f'line_color_{i}_{j}_{k}'],
                             linewidth=float(kwargs[f'line_size_{i}_{j}_{k}']),
                             label=utils.string_to_unicode(kwargs[f'label_{i}_{j}_{k}']),
                             linestyle=LINE_MAPPING[kwargs[f'line_style_{i}_{j}_{k}']],
-                            **marker_kws
                         )
 
                 if kwargs[f'show_x_label_{i}_{j}']:
@@ -2225,8 +2224,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
             dataset_index = int(selected_dataset.split(' ')[-1]) - 1
             del current_data[dataset_index]
             properties = (
-                'plot_boolean', 'x_col', 'y_col', 'label', 'offset',
-                'marker_color', 'marker_style', 'marker_fill',
+                'plot_boolean', 'x_col', 'y_col', 'label', 'offset', 'markerface_color',
+                'markeredge_color', 'marker_edgewidth', 'marker_style',
                 'marker_size', 'line_color', 'line_style', 'line_size'
             )
             # reorders the plot properties
@@ -2278,7 +2277,7 @@ def _add_remove_annotations(axis, add_annotation):
                     [sg.Text('Rotation, in degrees\n(positive angle rotates\ncounter-clockwise)'),
                      sg.Input('0', key='rotation', size=(5, 1))],
                     [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value='Black',
+                     sg.Combo(COLORS, default_value=COLORS[1],
                               key='text_color_', size=(9, 1), readonly=True),
                      sg.Input(key='text_chooser_', enable_events=True,
                               visible=False),
@@ -2310,7 +2309,7 @@ def _add_remove_annotations(axis, add_annotation):
                                ']-', ']-[', '|-|', '-'], default_value='-|>',
                               readonly=True, key='arrow_style')],
                     [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value='Black',
+                     sg.Combo(COLORS, default_value=COLORS[1],
                               key='arrow_color_', size=(9, 1), readonly=True),
                      sg.Input(key='arrow_chooser_', enable_events=True,
                               visible=False),
@@ -2629,12 +2628,16 @@ def _add_remove_peaks(axis, add_peak):
                    'marker': {'floats': [], 'user_inputs': []}}
 
     peaks = {}
-    for line in axis.lines:
+    non_peaks = {}
+    for i, line in enumerate(axis.lines):
         if line.get_label().startswith('-PEAK-'):
             key = ''.join(line.get_label().split('-PEAK-'))
             if key not in peaks:
                 peaks[key] = {'peaks': [], 'annotations': []}
             peaks[key]['peaks'].append(line)
+
+        else:
+            non_peaks[i] = line
 
     for annotation in axis.texts:
         if annotation.get_text() in peaks:
@@ -2642,6 +2645,9 @@ def _add_remove_peaks(axis, add_peak):
 
     if add_peak:
         window_text = 'Add Peak'
+        non_peak_labels = [
+            f'Line #{key + 1} ({line.get_label()})' for key, line in non_peaks.items()
+        ]
 
         inner_layout = [
             [sg.Text('Peak Label:'),
@@ -2652,38 +2658,45 @@ def _add_remove_peaks(axis, add_peak):
                       size=(5, 1), readonly=True)],
             [sg.Text('Peak Positions (separate\nmultiple entries with a comma):'),
              sg.Input(key='positions', size=(10, 1))],
+            [sg.Text('Select all lines to add peaks to')],
+            [sg.Listbox(non_peak_labels, select_mode='multiple',
+                        size=(30, 5), key='peak_listbox')],
             [sg.Text('Peak Label Type:'),
              sg.Radio('Marker', 'label_type', default=True, key='radio_marker',
                       enable_events=True),
              sg.Radio('Line', 'label_type', key='radio_line', enable_events=True)],
             [sg.TabGroup([[
                 sg.Tab('Options', [
-                    [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value=COLORS[0], size=(9, 1),
-                              key='marker_color_', readonly=True),
-                     sg.Input(key='marker_chooser_', enable_events=True, visible=False),
-                     sg.ColorChooserButton('..', target='marker_chooser_')],
+                    [sg.Text('Face Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
+                              key='face_color_', readonly=True),
+                     sg.Input(key='face_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='face_chooser_')],
+                    [sg.Text('Edge Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
+                              key='edge_color_', readonly=True),
+                     sg.Input(key='edge_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='edge_chooser_')],
+                    [sg.Text('Edge Line Width:'),
+                     sg.Input(plt.rcParams['lines.markeredgewidth'],
+                              key='edge_width', size=(4, 1))],
                     [sg.Text('Style:'),
                      sg.Combo(MARKERS, default_value=MARKERS[1],
-                              key=f'marker_style', size=(13, 1))],
-                    [sg.Text('Fill:'),
-                     sg.Combo(['Filled', 'Hollow', 'Hollow (Transparent)'],
-                              key=f'marker_fill', size=(14, 1),
-                              default_value='Filled', readonly=True)],
+                              key='marker_style', size=(13, 1))],
                     [sg.Text('Size:'),
-                     sg.Input(plt.rcParams['lines.markersize'], key=f'marker_size',
-                              size=(4, 1))]
+                     sg.Input(plt.rcParams['lines.markersize'],
+                              key='marker_size', size=(4, 1))]
                 ], key='tab_marker'),
                 sg.Tab('Options', [
                     [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value=COLORS[0], size=(9, 1),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
                               key='line_color_', readonly=True),
                      sg.Input(key='line_chooser_', enable_events=True, visible=False),
                      sg.ColorChooserButton('..', target='line_chooser_')],
                     [sg.Text('Style:'),
                      sg.Combo(list(LINE_MAPPING), readonly=True, size=(10, 1),
                               default_value=list(LINE_MAPPING)[1], key='line_style')],
-                    [sg.Text('Line width:'),
+                    [sg.Text('Line Width:'),
                      sg.Input(plt.rcParams['lines.linewidth'], key='line_size',
                               size=(4, 1))]
                     ], visible=False, key='tab_line')
@@ -2695,125 +2708,124 @@ def _add_remove_peaks(axis, add_peak):
                 ['label', 'Peak Label', utils.string_to_unicode, False, None],
                 ['positions', 'Peak Positions', float]
             ])
-            validations[key]['floats'].extend([
+            validations[key]['floats'].append(
                 [f'{key}_size', f'{key} size']
-            ])
+            )
         validations['marker']['user_inputs'].append(
             ['marker_style', 'marker style', utils.string_to_unicode, True, None]
         )
+        validations['marker']['floats'].append(['edge_width', 'edge line width'])
 
     elif add_peak is None:
         window_text = 'Edit Peaks'
 
+        column_layout = []
         for i, peak in enumerate(peaks):
             label_text = peak
             for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
                 label_text = label_text.replace(*replacement)
 
-            annotations['text_layout'].extend([
-                [sg.Text(f'{i + 1})')],
-                [sg.Column([
-                    [sg.Text('Label:', size=(8, 1)),
-                     sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
-                    [sg.Text('x-position:', size=(8, 1)),
-                     sg.Input(annotation.get_position()[0], key=f'x_{i}', size=(10, 1))],
-                    [sg.Text('y-position:', size=(8, 1)),
-                     sg.Input(annotation.get_position()[1], key=f'y_{i}', size=(10, 1))]
-                ]),
-                 sg.Column([
-                     [sg.Text('Fontsize:', size=(7, 1)),
-                      sg.Input(annotation.get_fontsize(), key=f'fontsize_{i}', size=(10, 1))],
-                     [sg.Text('Rotation:', size=(7, 1)),
-                      sg.Input(annotation.get_rotation(), key=f'rotation_{i}', size=(10, 1))],
-                     [sg.Text('Color:'),
-                      sg.Combo(COLORS, default_value=annotation.get_color(),
-                               key=f'text_color_{i}', size=(9, 1), readonly=True),
-                      sg.Input(key=f'text_chooser_{i}', enable_events=True, visible=False),
-                      sg.ColorChooserButton('..', target=f'text_chooser_{i}')]
-                 ])],
-                [sg.Text('')]
+            column_layout.extend([
+                [sg.Text(f'Peak #{i + 1}', relief='ridge', justification='center')],
+                [sg.Text('Peak Label:'),
+                 sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
+                [sg.Text('Positions:')]
             ])
 
-            validations['floats'].extend([
-                [f'x_{i}', f'x position for Text {i + 1}'],
-                [f'y_{i}', f'y position for Text {i + 1}'],
-                [f'fontsize_{i}', f'fontsize for Text {i + 1}'],
-                [f'rotation_{i}', f'rotation for Text {i + 1}'],
-            ])
+            for j, line in enumerate(peaks[peak]['peaks']):
+                column_layout.append([
+                    sg.Text(f'  Position #{j + 1}:    '),
+                    sg.Check('Delete?', key=f'delete_peak_{i}_{j}')
+                ])
 
-            validations['user_inputs'].extend([
-                [f'text_{i}', f'text in Text {i + 1}',
-                 utils.string_to_unicode, False, None]
-            ])
+                for k, data in enumerate(line.get_xydata()):
+                    column_layout.append([
+                        sg.Text(f'    X{k + 1}:'),
+                        sg.Input(data[0], size=(8, 1), key=f'x_{i}_{j}_{k}'),
+                        sg.Text(f'Y{k + 1}:'),
+                        sg.Input(data[1], size=(8, 1), key=f'y_{i}_{j}_{k}')
+                    ])
 
-        for i, annotation in enumerate(annotations['arrows']):
-            for style in LINE_MAPPING:
-                if LINE_MAPPING[style] == annotation.arrowprops['linestyle']:
-                    break
-            else: # in case no break
-                style = annotation.arrowprops['linestyle']
+                    validations['marker']['floats'].extend([
+                        [f'x_{i}_{j}_{k}', f'Position #{j + 1}, X{k + 1} for peak #{i + 1}'],
+                        [f'y_{i}_{j}_{k}', f'Position #{j + 1}, Y{k + 1} for peak #{i + 1}']
+                    ])
 
-            annotations['arrows_layout'].extend([
-                [sg.Text(f'{i + 1})')],
-                [sg.Column([
-                    [sg.Text('Head:')],
-                    [sg.Text('    x-position:', size=(10, 1)),
-                     sg.Input(annotation.xy[0], key=f'head_x_{i}', size=(10, 1),
-                              focus=True)],
-                    [sg.Text('    y-position:', size=(10, 1)),
-                     sg.Input(annotation.xy[1], key=f'head_y_{i}', size=(10, 1))]
-                ]),
-                 sg.Column([
-                     [sg.Text('Tail:')],
-                     [sg.Text('    x-position:', size=(10, 1)),
-                      sg.Input(annotation.xyann[0], key=f'tail_x_{i}', size=(10, 1))],
-                     [sg.Text('    y-position:', size=(10, 1)),
-                      sg.Input(annotation.xyann[1], key=f'tail_y_{i}', size=(10, 1))]
-                 ])],
-                [sg.Text('Line width:'),
-                 sg.Input(annotation.arrowprops['linewidth'], key=f'linewidth_{i}',
-                          size=(5, 1))],
-                [sg.Text('Line Syle:'),
-                 sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
-                          default_value=style,
-                          key=f'linestyle_{i}', size=(11, 1))],
-                [sg.Text('Head-size multiplier:'),
-                 sg.Input(annotation.arrowprops['mutation_scale'] / 10,
-                          key=f'head_scale_{i}', size=(5, 1))],
-                [sg.Text('Arrow Style:'),
-                 sg.Combo(['-|>', '<|-', '<|-|>', '->', '<-', '<->', '-[',
-                           ']-', ']-[', '|-|', '-'],
-                          default_value=annotation.arrowprops['arrowstyle'],
-                          readonly=True, key=f'arrow_style_{i}')],
-                [sg.Text('Color:'),
-                 sg.Combo(COLORS, default_value=annotation.arrowprops['color'],
-                          key=f'arrow_color_{i}', size=(9, 1), readonly=True),
-                 sg.Input(key=f'arrow_chooser_{i}', enable_events=True, visible=False),
-                 sg.ColorChooserButton('..', target=f'arrow_chooser_{i}')],
-                [sg.Text('')]
-            ])
+            validations['marker']['user_inputs'].append(
+                [f'label_{i}', f'Peak Label {i + 1}', utils.string_to_unicode, False, None]
+            )
 
-            validations['arrows']['floats'].extend([
-                [f'head_x_{i}', f'head x position for Arrow {i + 1}'],
-                [f'head_y_{i}', f'head y position for Arrow {i + 1}'],
-                [f'tail_x_{i}', f'tail x position for Arrow {i + 1}'],
-                [f'tail_y_{i}', f'tail y position for Arrow {i + 1}'],
-                [f'linewidth_{i}', f'linewidth for Arrow {i + 1}'],
-                [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}'],
-            ])
+            if peaks[peak]['peaks'][0].get_xdata().size > 1: # a line
+                for style, linestyle in LINE_MAPPING.items():
+                    if linestyle == line.get_linestyle():
+                        break
+                else: # in case no break
+                    style = line.get_linestyle()
 
-        inner_layout = [[
-            sg.TabGroup([[
-                sg.Tab('Text', [[sg.Column(annotations['text_layout'],
-                                           scrollable=True, size=(None, 400),
-                                           vertical_scroll_only=True)]],
-                       key='text_tab'),
-                sg.Tab('Arrows', [[sg.Column(annotations['arrows_layout'],
-                                             scrollable=True, size=(None, 400),
-                                             vertical_scroll_only=True)]],
-                       key='arrows_tab')
-            ]], tab_background_color=sg.theme_background_color())
-        ]]
+                column_layout.extend([
+                    [sg.Text('Color:'),
+                     sg.Combo(COLORS, default_value=line.get_color(), size=(9, 1),
+                              key=f'line_color_{i}', readonly=True),
+                     sg.Input(key=f'line_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'line_chooser_{i}')],
+                    [sg.Text('Style:'),
+                     sg.Combo(list(LINE_MAPPING), readonly=True, size=(10, 1),
+                              default_value=style, key=f'line_style_{i}')],
+                    [sg.Text('Line Width:'),
+                     sg.Input(line.get_linewidth(), key=f'line_size_{i}',
+                              size=(5, 1))]
+                ])
+
+                validations['marker']['floats'].append(
+                    [f'line_size_{i}', f'line width for peak #{i + 1}']
+                )
+
+            else: # a marker
+                marker = line.get_marker()
+                for replacement in (('\\', '\\\\'), ('\n', '\\n'),
+                                    ('\t', '\\t'), ('\r', '\\r')):
+                    marker = marker.replace(*replacement)
+
+                for j, mark in enumerate(MARKERS):
+                    if mark[0] == marker:
+                        marker = MARKERS[j]
+                        break
+
+                column_layout.extend([
+                    [sg.Text('Face Color:'),
+                     sg.Combo(COLORS, default_value=line.get_markerfacecolor(),
+                              size=(9, 1), key=f'face_color_{i}', readonly=True),
+                     sg.Input(key=f'face_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'face_chooser_{i}')],
+                    [sg.Text('Edge Color:'),
+                     sg.Combo(COLORS, default_value=line.get_markeredgecolor(),
+                              size=(9, 1), key=f'edge_color_{i}', readonly=True),
+                     sg.Input(key=f'edge_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'edge_chooser_{i}')],
+                    [sg.Text('Edge Line Width:'),
+                     sg.Input(line.get_markeredgewidth(),
+                              key=f'edge_width_{i}', size=(4, 1))],
+                    [sg.Text('Style:'),
+                     sg.Combo(MARKERS, default_value=marker,
+                              key=f'marker_style_{i}', size=(13, 1))],
+                    [sg.Text('Size:'),
+                     sg.Input(line.get_markersize(),
+                              key=f'marker_size_{i}', size=(4, 1))],
+                ])
+
+                validations['marker']['floats'].extend([
+                    [f'marker_size_{i}', f'marker size for peak #{i + 1}'],
+                    [f'edge_width_{i}', f'edge line width for peak #{i + 1}']
+                ])
+                validations['marker']['user_inputs'].append(
+                    [f'marker_style_{i}', f'marker style for peak #{i + 1}',
+                     utils.string_to_unicode, True, None]
+                )
+
+        inner_layout = [
+            [sg.Column(column_layout, #size=(None, 400),
+                       scrollable=True, vertical_scroll_only=True)]
+        ]
 
     else:
         remove_peak = True
@@ -2876,16 +2888,22 @@ def _add_remove_peaks(axis, add_peak):
                 else:
                     close = utils.validate_inputs(values, **validations['line'])
 
-                if close and utils.string_to_unicode(values['label']) in peaks:
-                    close = False
-                    sg.popup(
-                        'The selected peak label is already a peak.\n',
-                        title='Error'
-                    )
+                if close:
+                    if utils.string_to_unicode(values['label']) in peaks:
+                        close = False
+                        sg.popup(
+                            'The selected peak label is already a peak.\n',
+                            title='Error'
+                        )
+                    elif not values['peak_listbox']:
+                        close = False
+                        sg.popup(
+                            'Please select a line on which to add peak markers.\n',
+                            title='Error'
+                        )
 
             elif add_peak is None:
-                close = (utils.validate_inputs(values, **validations['marker'])
-                         and utils.validate_inputs(values, **validations['line']))
+                close = utils.validate_inputs(values, **validations['marker'])
                 if close:
                     labels = [
                         values[label] for label in values if label.startswith('label')
@@ -2910,122 +2928,99 @@ def _add_remove_peaks(axis, add_peak):
     del window
 
     if add_peak:
+        # main designates defining axis, secondary designates non-defining axis
         positions = [float(value.strip()) for value in values['positions'].split(',')]
-        if values['defining_axis'] == 'x':
-            if values['radio_line']:
-                x_data = [(position, position) for position in positions]
-                y_data = [(0, 10) for _ in positions]
-            else:
-                x_data = [(position,) for position in positions]
-                y_data = [(10,) for _ in positions]
+        secondary_limits = getattr(
+            axis, f'get_{"xy".replace(values["defining_axis"], "")}lim')()
+        offset = 0.05 * (secondary_limits[1] - secondary_limits[0])
 
-            annotation_options = {
-                'rotation': 90,
-                'horizontalalignment': 'center'
-            }
-        else:
-            y_data = positions
-            annotation_options = {
-                'rotation': 0,
-                'verticalalignment': 'center'
-            }
+        plot_data = {'x': [], 'y': []}
+        for peak in values['peak_listbox']:
+            line = non_peaks[non_peak_labels.index(peak)]
 
-        # determine x and y values here
-        _plot_peaks(axis, values['radio_line'], x_data, y_data, values)
-        # annotate plot here
-        if values['show_label']:
-            for data in zip(x_data, y_data):
-                annotation_position = (data[0][-1], data[1][-1] + 5)
+            main_data = getattr(line, f'get_{values["defining_axis"]}data')()
+            secondary_data = getattr(
+                line, f'get_{"xy".replace(values["defining_axis"], "")}data')()
+
+            for position in positions:
+                plot_data[values['defining_axis']].append(
+                    (position, position) if values['radio_line'] else (position,)
+                )
+
+                if values['radio_marker']:
+                    data_point = (secondary_data[np.abs(main_data - position).argmin()] + offset,)
+                else:
+                    min_secondary = secondary_data.min()
+                    max_secondary = secondary_data.max()
+                    data_point = (min_secondary - offset, max_secondary + offset)
+
+                plot_data['xy'.replace(values['defining_axis'], '')].append(data_point)
+
+        for data in zip(plot_data['x'], plot_data['y']):
+            axis.plot(
+                *data,
+                label='-PEAK-' + utils.string_to_unicode(values['label']),
+                marker=utils.string_to_unicode(values['marker_style'].split(' ')[0]) if values['radio_marker'] else 'None',
+                markersize=float(values['marker_size']) if values['radio_marker'] else None,
+                markerfacecolor=values['face_color_'] if values['radio_marker'] else 'None',
+                markeredgecolor=values['edge_color_'] if values['radio_marker'] else 'None',
+                markeredgewidth=float(values[f'edge_width']) if values['radio_marker'] else None,
+                color=values['line_color_'] if values['radio_line'] else 'None',
+                linewidth=float(values['line_size']) if values['radio_line'] else None,
+                linestyle=LINE_MAPPING[values['line_style']] if values['radio_line'] else ''
+            )
+
+            if values['show_label']:
+                annotation_position = (
+                    data[0][-1] + offset if values['defining_axis'] == 'y' else data[0][-1],
+                    data[1][-1] + offset if values['defining_axis'] == 'x' else data[1][-1]
+                )
                 axis.annotate(
                     utils.string_to_unicode(values['label']),
                     xy=annotation_position,
+                    rotation=90 if values['defining_axis'] == 'x' else 0,
+                    horizontalalignment='center' if values['defining_axis'] == 'x' else 'left',
+                    verticalalignment='center' if values['defining_axis'] == 'y' else 'baseline',
                     annotation_clip=False,
                     in_layout=False,
-                    **annotation_options
                 )
 
     elif add_peak is None:
-        # delete existing peaks, group x and y, plot new peaks, update annotations
-        for i, annotation in enumerate(annotations['text']):
-            annotation.update({
-                'text': utils.string_to_unicode(values[f'label_{i}']),
-            })
+        for i, key in enumerate(peaks):
+            for annotation in peaks[key]['annotations']:
+                annotation.update({
+                    'text': utils.string_to_unicode(values[f'label_{i}']),
+                })
+
+            deleted_peaks = []
+            for j, line in enumerate(peaks[key]['peaks']):
+                if values[f'delete_peak_{i}_{j}']:
+                    deleted_peaks.append(line)
+                else:
+                    line.update({
+                        'xdata': [float(values[entry]) for entry in values if entry.startswith(f'x_{i}_{j}_')],
+                        'ydata': [float(values[entry]) for entry in values if entry.startswith(f'y_{i}_{j}_')],
+                        'label': '-PEAK-' + utils.string_to_unicode(values[f'label_{i}']),
+                        'marker': utils.string_to_unicode(values.get(f'marker_style_{i}', 'None').split(' ')[0]),
+                        'markerfacecolor': values.get(f'face_color_{i}', 'None'),
+                        'markeredgecolor': values.get(f'edge_color_{i}', 'None'),
+                        'markeredgewidth': float(values.get(f'edge_width_{i}', 0)),
+                        'markersize': float(values.get(f'marker_size_{i}', 0)),
+                        'linestyle': LINE_MAPPING[values.get(f'line_style_{i}', 'None')],
+                        'linewidth': float(values.get(f'line_size_{i}', 0)),
+                        'color': values.get(f'line_color_{i}', 'None'),
+                    })
+
+            for line in deleted_peaks:
+                line.remove()
 
     elif remove_peak:
         for entry in values['peak_listbox']:
-            label = labels[entry]
-
-            for line in peaks[label]['peaks']:
+            key = labels[entry]
+            for line in peaks[key]['peaks']:
                 line.remove()
-            for annotation in peaks[label]['annotations']:
+            for annotation in peaks[key]['annotations']:
                 annotation.remove()
-
-
-def _plot_peaks(axis, line_bool, x_data, y_data, gui_values, index=''):
-    """
-    Handles plotting peaks onto the specified axis based on the input gui_values.
-
-    Parameters
-    ----------
-    axis : plt.Axes
-        The axis to add the peaks to.
-    line_bool : bool
-        If True, designates that the peak marker is a line; if False,
-        designates that the peak marker is a marker.
-    x_data : list(Union[np.ndarray, list])
-        A list of ndarrays or lists corresponding to points to plot.
-        Each entry in the list is an individual marker for the peak.
-    y_data : list(Union[np.ndarray, list])
-        A list of ndarrays or lists corresponding to points to plot.
-        Each entry in the list is an individual marker for the peak.
-    gui_values : dict
-        [description]
-    index : str, optional
-        A string of the index for the peak to get the correct values
-        from gui_values. No input assumes that there is no index, ie.
-        index = ''. Include the underscore when specifying index, eg.
-        index = '_1'.
-
-    """
-
-    if line_bool:
-        plot_kwargs = {
-            'color': gui_values['line_color_' + index.replace('_', '')],
-            'linewidth': float(gui_values['line_size' + index]),
-            'linestyle': LINE_MAPPING[gui_values['line_style' + index]],
-        }
-
-    else:
-        plot_kwargs = {
-            'marker': utils.string_to_unicode(gui_values['marker_style' + index].split(' ')[0]),
-            'markersize': float(gui_values['marker_size' + index]),
-        }
-
-        if gui_values['marker_fill' + index] == 'Filled':
-            plot_kwargs.update({
-                'markerfacecolor': gui_values['marker_color_' + index.replace('_', '')],
-                'markeredgecolor': 'black', #TODO allow specifying this?
-                'markeredgewidth': plt.rcParams['lines.markeredgewidth']
-            })
-        elif gui_values['marker_fill' + index] == 'Hollow':
-            plot_kwargs.update({
-                'markerfacecolor': 'white',
-                'markeredgecolor': gui_values['marker_color_' + index.replace('_', '')],
-                'markeredgewidth': HOLLOW_THICKNESS * float(gui_values['marker_size' + index])
-            })
-        else:
-            plot_kwargs.update({
-                'markerfacecolor': 'None',
-                'markeredgecolor': gui_values['marker_color_' + index.replace('_', '')],
-                'markeredgewidth': HOLLOW_THICKNESS * float(gui_values['marker_size' + index])
-            })
-
-    for data in zip(x_data, y_data):
-        axis.plot(
-            *data,
-            label='-PEAK-' + utils.string_to_unicode(gui_values['label' + index]),
-            **plot_kwargs
-        )
 
 
 def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
@@ -3208,6 +3203,12 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         disabled=not any(
                             line.get_label().startswith('-PEAK-') for line in axes[key][label].lines)
                     )
+                    window[f'edit_annotation_{index[0]}_{index[1]}'].update(
+                        disabled=not axes[key][label].texts
+                    )
+                    window[f'delete_annotation_{index[0]}_{index[1]}'].update(
+                        disabled=not axes[key][label].texts
+                    )
                 # go back to plot type picker
                 elif event == 'Back':
                     plt.close(_PREVIEW_NAME)
@@ -3272,9 +3273,9 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 elif 'plot_boolean' in event:
                     index = '_'.join(event.split('_')[-3:])
                     properties = (
-                        'x_col', 'y_col', 'label', 'offset', 'marker_color',
-                        'marker_style', 'marker_fill', 'marker_size', 'line_color',
-                        'line_style', 'line_size'
+                        'x_col', 'y_col', 'label', 'offset', 'markerface_color',
+                        'markeredge_color', 'marker_edgewidth', 'marker_style',
+                        'marker_size', 'line_color', 'line_style', 'line_size'
                     )
                     if values[event]:
                         for prop in properties:
