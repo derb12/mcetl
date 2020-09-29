@@ -2636,7 +2636,7 @@ def _add_remove_peaks(axis, add_peak):
                 peaks[key] = {'peaks': [], 'annotations': []}
             peaks[key]['peaks'].append(line)
 
-        else:
+        elif not all(np.isnan(line.get_xdata())):
             non_peaks[i] = line
 
     for annotation in axis.texts:
@@ -2936,7 +2936,7 @@ def _add_remove_peaks(axis, add_peak):
 
         plot_data = {'x': [], 'y': []}
         for peak in values['peak_listbox']:
-            line = non_peaks[non_peak_labels.index(peak)]
+            line = non_peaks[int(peak.split(' ')[1].replace('#', '')) - 1]
 
             main_data = getattr(line, f'get_{values["defining_axis"]}data')()
             secondary_data = getattr(
