@@ -845,15 +845,15 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     figure : plt.Figure
         The Figure that the gridspec and axes belong to.
     fig_kwargs : dict
-        [description]
+        The keyword arguments needed to create the figure and axes.
 
     Returns
     -------
     axes : dict
         A nested dictionary containing all of the axes within the figure. Each
         key details the position of the axis within the figure, and each value
-        is a dictionary containing at most three keys, 'Main Axis', 'Twin x axis',
-        and 'Twin y axis', with each value corresponding to the plt.Axes object
+        is a dictionary containing at most three keys, 'Main Axis', 'Twin X axis',
+        and 'Twin Y axis', with each value corresponding to the plt.Axes object
         for that key.
 
     """
@@ -952,7 +952,7 @@ def _annotate_example_figure(axes, canvas, figure):
     canvas : tk.Canvas
         The canvas for the figure.
     figure : plt.Figure
-        The figure to that will be shown.
+        The figure that will be shown.
 
     """
 
@@ -977,18 +977,20 @@ def _annotate_example_figure(axes, canvas, figure):
     _draw_figure_on_canvas(canvas, figure)
 
 
-def _create_advanced_layout(input_values, canvas, fig):
+def _create_advanced_layout(input_values, canvas, figure):
     """
-    [summary]
+    Specifies the row and column layout for plots in the figure
 
     Parameters
     ----------
-    input_values : [type]
-        [description]
-    canvas : [type]
-        [description]
-    fig : [type]
-        [description]
+    input_values : dict
+        The dictionary containing the values describing the layout
+        of axes within the figure. Will be modified inplace by
+        this function.
+    canvas : tk.Canvas
+        The canvas for the figure.
+    figure : plt.Figure
+        The figure that will be shown.
 
     """
 
@@ -1049,10 +1051,10 @@ def _create_advanced_layout(input_values, canvas, fig):
             window.TKroot.grab_release()
             proceed = utils.validate_inputs(values, **validations)
             if proceed:
-                fig, axes = _create_figure_components(**input_values)
+                figure, axes = _create_figure_components(**input_values)
 
                 if event == 'Preview':
-                    _annotate_example_figure(axes, canvas, fig)
+                    _annotate_example_figure(axes, canvas, figure)
 
                 elif event == 'Submit':
                     break
@@ -1066,6 +1068,20 @@ def _create_advanced_layout(input_values, canvas, fig):
 
 def _create_gridspec_labels(fig_kwargs):
     """
+    Ensures that the gridspec layout matches the desired rows and columns in the plot.
+
+    Parameters
+    ----------
+    fig_kwargs : dict
+        The keyword arguments used to create the figure.
+
+    Returns
+    -------
+    new_kwargs : dict
+        A dictionary containing the original keyword arguments from
+        fig_kwargs after modifying to match the new number of rows
+        and columns within the figure.
+
     """
 
     num_cols = int(fig_kwargs['num_cols'])
@@ -1112,6 +1128,20 @@ def _create_gridspec_labels(fig_kwargs):
 
 def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     """
+    Allows setting twin axes for any of the axes in the figure.
+
+    Parameters
+    ----------
+    gridspec_layout : dict
+        A dictionary that details where plots go within the gridspec. Each key
+        is a unique plot, and its values are the row and column indices for
+        the plot within the gridspec.
+    user_inputs : dict
+        The dictionary containing the values needed to create the plt.Figure.
+        Will be modified inplace by this function to include any twin axes.
+    canvas : tk.Canvas
+        The tkinter canvas on which the figure resides.
+
     """
 
     default_inputs = {}
@@ -2125,12 +2155,16 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
     ----------
     current_data : list
         The current list of DataFrames that are being plotted.
+    plot_details : dict
+        The dictionary containing all the plot properties for each dataset.
     data_list : list
         A nested list of lists of DataFrames; contains all of the
         data that will eventually be plotted.
     add_dataset : bool
         If True, will launch gui to add a dataset; if False, will launch
         gui to delete a dataset.
+    axes : dict, optional
+        A dictionary of axes in the figure.
 
     Returns
     -------
