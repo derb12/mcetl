@@ -54,7 +54,7 @@ class FunctionBase:
             self.name = name
         else:
             raise ValueError('Function name cannot be a blank string.')
-        
+
         if isinstance(target_columns, str):
             self.target_columns = [target_columns]
         else:
