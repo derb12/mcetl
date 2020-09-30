@@ -137,7 +137,7 @@ class SeparationFunction(FunctionBase):
                 )
 
                 for df in new_dataframes:
-                    #ensures that the new dataframe indices start at 0
+                    # ensures that the new dataframe indices start at 0
                     df.reset_index(drop=True, inplace=True)
 
                 new_samples.extend(new_dataframes)

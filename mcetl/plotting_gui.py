@@ -1373,8 +1373,8 @@ def _select_plot_type(user_inputs=None):
     return fig_kwargs
 
 
-def _create_plot_options_gui(data, figure, axes, user_inputs=None,
-                             old_axes=None, **kwargs):
+def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None,
+                             location=(None, None), **kwargs):
     """
     Creates a new window with all of the plotting options.
 
@@ -1392,6 +1392,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     old_axes : dict
         A dictionary of plt.Axes objects that were previously used. Used
         to transfer annotations to the new axes.
+    location : tuple(int, int)
+        Describes the position to place the window.
     kwargs : dict
         Additional keyword arguments to create the plots.
 
@@ -1895,7 +1897,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     ]
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
-    window = sg.Window('Plot Options', layout, resizable=True, finalize=True)
+    window = sg.Window('Plot Options', layout, resizable=True,
+                       finalize=True, location=location)
     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
                            window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) # expands the column when window changes size
@@ -3148,13 +3151,14 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     if not new_figure_theme:
                         window.un_hide()
                     else:
+                        old_location = window.current_location()
                         window.close()
                         window = None
                         plt.close(_PREVIEW_NAME)
                         old_axes, values, fig_kwargs = new_figure_theme
                         fig, axes = _create_figure_components(**fig_kwargs)
                         window = _create_plot_options_gui(
-                            data, fig, axes, values, old_axes, **fig_kwargs
+                            data, fig, axes, values, old_axes, old_location, **fig_kwargs
                         )
                 # show tables of data
                 elif event == 'Show Data':
@@ -3182,10 +3186,11 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         )
 
                     plt.close(_PREVIEW_NAME)
+                    old_location = window.current_location()
                     window.close()
                     window = None
                     window = _create_plot_options_gui(
-                        data, fig, axes, values, axes, **fig_kwargs
+                        data, fig, axes, values, axes, old_location, **fig_kwargs
                     )
                 # add/edit/remove annotations
                 elif 'annotation' in event:
@@ -3246,13 +3251,14 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # go back to plot type picker
                 elif event == 'Back':
                     plt.close(_PREVIEW_NAME)
+                    old_location = window.current_location()
                     window.close()
                     window = None
                     fig_kwargs = _select_plot_type(fig_kwargs)
                     old_axes = axes
                     fig, axes = _create_figure_components(**fig_kwargs)
                     window = _create_plot_options_gui(
-                        data, fig, axes, values, old_axes, **fig_kwargs
+                        data, fig, axes, values, old_axes, old_location, **fig_kwargs
                     )
                 # update the figure
                 elif event == 'Update Figure':
@@ -3267,11 +3273,12 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     )
                     if reset == 'Yes':
                         plt.close(_PREVIEW_NAME)
+                        old_location = window.current_location()
                         window.close()
                         window = None
                         fig, axes = _create_figure_components(**fig_kwargs)
                         window = _create_plot_options_gui(
-                            data, fig, axes, **fig_kwargs
+                            data, fig, axes, location=old_location, **fig_kwargs
                         )
                 # toggles legend options
                 elif 'show_legend' in event:

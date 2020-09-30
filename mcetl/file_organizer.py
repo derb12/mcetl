@@ -304,7 +304,8 @@ def _generate_keyword_window(
 def _get_keywords(
         num_keyword_1, num_keyword_2, keyword_1=None,
         keyword_2=None, num_kw_values=None):
-    """Launches the GUI to enter the terms for each keyword.
+    """
+    Launches the GUI to enter the terms for each keyword.
 
     Parameters
     ----------
