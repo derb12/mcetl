@@ -53,7 +53,7 @@ def _generate_peaks(x, y, peak_type, params, param_var, **func_kwargs):
 
     """
 
-    #to prevent overwriting the input collection objects
+    # to prevent overwriting the input collection objects
     new_params = [param.copy() for param in params]
 
     for param in new_params:
@@ -128,7 +128,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     ti_path.mkdir(parents=True, exist_ok=True)
 
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: ', 3: 'Fraction: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n'+'-' * 40 + '\nXRD\n' + '-' * 40)
 
     plt.figure(num='xrd')
@@ -149,7 +149,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
                        header=['2theta', 'Counts'], index_label='Number')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.4*x^2 - 60*x + 2250\n')
             for j, param in enumerate(param_list[i]):
@@ -160,7 +160,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
 
     plt.title('XRD')
     plt.legend(ncol=2)
-    plt.xlabel('$2\\theta$ $(\degree)$')
+    plt.xlabel(r'$2\theta$ $(\degree)$')
     plt.ylabel('Intensity (a.u.)')
 
     if show_plots:
@@ -231,7 +231,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
     file_path = Path(directory, 'FTIR')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nFTIR\n' + '-' * 40)
 
     plt.figure(num='ftir')
@@ -246,7 +246,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
                        header=None, index=False)
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.08 - 0.00004 * x for x <= 2000')
             f.write('\n                    -0.03 + 0.000015 * x for x > 2000\n')
@@ -325,7 +325,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'Raman')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nRaman\n' + '-' * 40)
 
     plt.figure(num='raman')
@@ -340,7 +340,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
                        header=None, index=False, sep="\t")
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.000001 * x\n')
             for j, param in enumerate(param_list[i]):
@@ -426,7 +426,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'TGA')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nTGA\n' + '-' * 40)
 
     plt.figure(num='tga')
@@ -446,7 +446,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x\n')
             for j, param in enumerate(param_list[i]):
@@ -457,7 +457,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
 
     plt.title('TGA')
     plt.legend(ncol=2)
-    plt.xlabel('Temperature ($\degree$C)')
+    plt.xlabel(r'Temperature ($\degree$C)')
     plt.ylabel('Mass (%)')
 
     if show_plots:
@@ -544,7 +544,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'DSC')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
 
     plt.figure(num='dsc')
@@ -564,7 +564,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x for heating')
             f.write('\n                     5 + 0 * x for cooling\n')
@@ -576,7 +576,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
 
     plt.title('DSC')
     plt.legend(ncol=2)
-    plt.xlabel('Temperature ($\degree$C)')
+    plt.xlabel(r'Temperature ($\degree$C)')
     plt.ylabel('Heat Flow (mW/mg), exotherm up')
 
     if show_plots:
@@ -661,7 +661,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'DSC')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
 
     plt.figure(num='dsc')
@@ -681,7 +681,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('data peak parameters.txt'), 'a') as f:
+        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x for heating')
             f.write('\n                     5 + 0 * x for cooling\n')
@@ -693,7 +693,7 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
 
     plt.title('DSC')
     plt.legend(ncol=2)
-    plt.xlabel('Temperature ($\degree$C)')
+    plt.xlabel(r'Temperature ($\degree$C)')
     plt.ylabel('Heat Flow (mW/mg), exotherm up')
 
     if show_plots:
@@ -722,11 +722,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     Notes
     -----
     Currently supported characterization techniques include:
-        XRD
-        FTIR
-        Raman
-        TGA
-        DSC
+        XRD, FTIR, Raman, TGA, DSC
 
     """
 
@@ -782,7 +778,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
 
         data_path.mkdir(parents=True, exist_ok=True)
 
-        with open(data_path.joinpath('data peak parameters.txt'), 'w') as f:
+        with open(data_path.joinpath('raw data parameters.txt'), 'w') as f:
             f.write('Parameters for all of the data in the Raw Data folder.')
 
         # Ensures that plots are not shown until plt.show() is called.

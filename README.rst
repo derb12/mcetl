@@ -270,10 +270,8 @@ Short Term
 
 * Develop tests for all modules in the package.
 * Switch from print statements to logging.
-* Simplify file searching and make it more flexible.
 * Transfer documentation from PDF/Word files to automatic documentation with Sphinx.
 * Improve usage when opening existing Excel files.
-* Add automatic and manual peak labeling for the plotting gui.
 
 
 Long Term
