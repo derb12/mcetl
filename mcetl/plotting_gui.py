@@ -2,21 +2,21 @@
 """GUIs to plot data using various plot layouts and save the resulting figures.
 
 @author: Donald Erb
-Created on Sun Jun 28 18:40:04 2020
+Created on Jun 28, 2020
 
 Attributes
 ----------
 CANVAS_SIZE : tuple(int, int)
-    A tuple specifying the size of the figure canvas in the GUI. This
-    can be modified if the user wishes a larger or smaller canvas.
+    A tuple specifying the size (in pixels) of the figure canvas in the GUI.
+    This can be modified if the user wishes a larger or smaller canvas.
 COLORS : tuple(str)
     A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
-HOLLOW_THICKNESS : float
-    The fraction of the marker that is filled when hollow; rethink this.
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
     are used by matplotlib to specify the line style.
+MARKERS : tuple(str)
+    A tuple of strings for the default markers to use for plotting.
 TIGHT_LAYOUT_PAD : float
     The padding placed between the edge of the figure and the edge of
     the canvas; used by matplotlib's tight_layout option.
@@ -37,9 +37,8 @@ from pathlib import Path
 import string
 import traceback
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
 import pandas as pd
@@ -51,10 +50,9 @@ from . import utils
 
 CANVAS_SIZE = (800, 800)
 COLORS = (
-    'Black', 'Blue', 'Red', 'Green', 'Chocolate', 'Magenta',
-    'Cyan', 'Orange', 'Coral', 'Dodgerblue'
+    'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
+    'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue'
 )
-HOLLOW_THICKNESS = 0.3
 LINE_MAPPING = {
     'None': '',
     'Solid': '-',
@@ -66,6 +64,11 @@ LINE_MAPPING = {
                      + plt.rcParams['lines.dashdot_pattern'][1:]
                      + plt.rcParams['lines.dashdot_pattern'][-2:])
 }
+MARKERS = (
+    ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
+    'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
+    '> Triangle-Right', '* Star'
+)
 TIGHT_LAYOUT_PAD = 0.3
 TIGHT_LAYOUT_H_PAD = 0.6
 TIGHT_LAYOUT_W_PAD = 0.6
@@ -147,49 +150,79 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     """
 
-    annotations = [[] for key in axes]
-    for i, key in enumerate(axes):
-        annotations[i] = [[] for label in axes[key]]
-        for j, label in enumerate(axes[key]):
-            axis = axes[key][label]
-            for annotation in axis.texts:
-                annotations[i][j].append({
-                    'text': annotation.get_text(),
-                    'xy': annotation.xy,
-                    'xytext': annotation.xyann,
-                    'fontsize': annotation.get_fontsize(),
-                    'rotation': annotation.get_rotation(),
-                    'color': annotation.get_color(),
-                    'arrowprops': annotation.arrowprops,
-                    'annotation_clip': False,
-                    'in_layout': False
-                })
-
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
         file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
     )
 
     if filename:
+
+        annotations = {}
+        peaks = {}
+        for key in axes:
+            annotations[key] = []
+            peaks[key] = []
+            # only the main axis is allowed annotations and peaks
+            for annotation in axes[key]['Main Axis'].texts:
+                annotations[key].append({
+                    'text': annotation.get_text(),
+                    'xy': annotation.xy,
+                    'xytext': annotation.xyann,
+                    'fontsize': annotation.get_fontsize(),
+                    'rotation': annotation.get_rotation(),
+                    'color': annotation.get_color(),
+                    'horizontalalignment': annotation.get_horizontalalignment(),
+                    'verticalalignment': annotation.get_verticalalignment(),
+                    'arrowprops': annotation.arrowprops,
+                    'annotation_clip': False,
+                    'in_layout': False
+                })
+
+            for line in axes[key]['Main Axis'].lines:
+                if line.get_label().startswith('-PEAK-'):
+                    peaks[key].append({
+                        'xdata': line.get_xdata().tolist(),
+                        'ydata': line.get_ydata().tolist(),
+                        'label': line.get_label(),
+                        'marker': line.get_marker(),
+                        'markerfacecolor': line.get_markerfacecolor(),
+                        'markeredgecolor': line.get_markeredgecolor(),
+                        'markeredgewidth': line.get_markeredgewidth(),
+                        'markersize': line.get_markersize(),
+                        'linestyle': line.get_linestyle(),
+                        'linewidth': line.get_linewidth(),
+                        'color': line.get_color()
+                    })
+
+        if Path(filename).suffix != _THEME_EXTENSION:
+            filename = str(
+                Path(Path(filename).parent, Path(filename).stem + _THEME_EXTENSION)
+            )
+
         try:
-            if not Path(filename).suffix or Path(filename).suffix != _THEME_EXTENSION:
-                filename = str(
-                    Path(Path(filename).parent, Path(filename).stem + _THEME_EXTENSION)
-                )
-
             with open(filename, 'w') as f:
-                f.write('FIGURE KEYWORD ARGUMENTS\n')
-                json.dump(fig_kwargs, f)
-                f.write('\n\nGUI VALUES\n')
-                json.dump(gui_values, f)
-                f.write('\n\nMATPLOTLIB RCPARAM CHANGES\n')
-                json.dump(rc_changes, f)
-                f.write('\n\nANNOTATIONS\n')
-                json.dump(annotations, f)
-
-            if data is not None:
-                filename = filename.replace(_THEME_EXTENSION, '.csv')
-
+                json.dump(
+                    {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
+                     'GUI VALUES': gui_values,
+                     'MATPLOTLIB RCPARAM CHANGES': rc_changes,
+                     'ANNOTATIONS': annotations,
+                     'PEAKS': peaks},
+                    f, indent=2
+                )
+        except PermissionError:
+            sg.popup(
+                ('The .figtheme file is currently open.\n'
+                 'Please close and try to save again.\n'),
+                title='Save Failed'
+            )
+        else:
+            if data is None:
+                sg.popup(
+                    ('Successfully saved to '
+                     f'{str(Path(filename).with_suffix(""))}\n'),
+                    title='Save Successful'
+                )
+            else:
                 saved_data = []
                 # creates separator columns
                 for i, dataframe in enumerate(data):
@@ -200,20 +233,21 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                                                                      dtype=np.float16)
                     saved_data.append(df)
 
-                with open(filename, 'w') as f:
+                filename = str(Path(filename).with_suffix('.csv'))
+                try:
                     pd.concat(saved_data, axis=1).to_csv(filename, index=False)
-
-            sg.popup(
-                'Successfully saved to '\
-                f'{filename.replace(_THEME_EXTENSION, "").replace(".csv", "")}\n',
-                title='Save Successful'
-            )
-
-        except PermissionError:
-            sg.popup(
-                'Designated file is currently open. Please close and try to save again.\n',
-                title='Save Failed'
-            )
+                except PermissionError:
+                    sg.popup(
+                        ('The .csv file is currently open.\n'
+                         'Please close and try to save again.\n'),
+                        title='Save Failed'
+                    )
+                else:
+                    sg.popup(
+                        ('Successfully saved to '
+                         f'{str(Path(filename).with_suffix(""))}\n'),
+                        title='Save Successful'
+                    )
 
 
 def load_previous_figure(filename=None, new_rc_changes=None):
@@ -250,7 +284,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     if filename:
         # loads the figure theme file, if it exists
         if Path(filename).with_suffix(_THEME_EXTENSION).exists():
-            fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(
+            axes, gui_values, fig_kwargs, rc_changes = _load_theme_file(
                 str(Path(filename).with_suffix(_THEME_EXTENSION))
             )
             if new_rc_changes is not None:
@@ -278,7 +312,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         data.append(dataframe.iloc[:, row:])
         for dataframe in data:
             dataframe.columns = [
-                ''.join(col.split('_')[:-1]) for col in dataframe.columns
+                '_'.join(col.split('_')[:-1]) for col in dataframe.columns
             ]
 
         figures = launch_plotting_gui(
@@ -307,34 +341,36 @@ def _load_theme_file(filename):
     rc_changes : dict
         Changes to matplotlib's rcParams file to alter the saved figure.
     axes : dict
-        The dictionary of plt.Axes objects, with annotations added to them.
+        The dictionary of plt.Axes objects, with annotations and peaks
+        added to them.
 
     """
 
     with open(filename, 'r') as f:
-        theme_file = f.readlines()
+        theme_file = json.load(f)
 
-    fig_kwargs = json.loads(theme_file[1])
-    gui_values = json.loads(theme_file[4])
-    rc_changes = json.loads(theme_file[7])
-    annotations = json.loads(theme_file[10])
+    #TODO should change these to theme_file.get(key, default) since user can modify/delete; check that defaults will be okay
+    fig_kwargs = theme_file['FIGURE KEYWORD ARGUMENTS']
+    gui_values = theme_file['GUI VALUES']
+    rc_changes = theme_file['MATPLOTLIB RCPARAM CHANGES']
+    annotations = theme_file['ANNOTATIONS']
+    peaks = theme_file['PEAKS']
 
     with plt.rc_context({'interactive': False}):
         fig, axes = _create_figure_components(**fig_kwargs)
         plt.close(_PREVIEW_NAME)
         del fig
 
-    for i, key in enumerate(axes):
-        for j, label in enumerate(axes[key]):
-            axis = axes[key][label]
-            for annotation in annotations[i][j]:
-                # The annotation text keyword changed from 's' to 'text' in matplotlib version 3.3.0
-                if int(''.join(mpl.__version__.split('.')[:2])) < 33:
-                    annotation['s'] = annotation.pop('text')
+    for key in axes:
+        for annotation in annotations.get(key, []):
+            axes[key]['Main Axis'].annotate(annotation.pop('text'), **annotation)
 
-                axis.annotate(**annotation)
+        for peak in peaks.get(key, []):
+            axes[key]['Main Axis'].plot(
+                peak.pop('xdata'), peak.pop('ydata'), **peak
+            )
 
-    return fig_kwargs, gui_values, rc_changes, axes
+    return axes, gui_values, fig_kwargs, rc_changes
 
 
 def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
@@ -373,9 +409,7 @@ def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
     )
 
     if filename:
-        fig_kwargs, gui_values, rc_changes, axes = _load_theme_file(filename)
-        del rc_changes
-        new_theme = (axes, gui_values, fig_kwargs)
+        new_theme = _load_theme_file(filename)[:-1]
     else:
         new_theme = ()
 
@@ -397,33 +431,31 @@ def _save_image_options(figure):
     """
 
     extension_mapping = {
-        'jpeg':'JPEG', 'jpg':'JPEG', 'tiff':'TIFF', 'tif':'TIFF', 'png':'PNG',
-        'pdf':'PDF', 'eps':'EPS', 'ps':'PS', 'svg':'SVG', 'svgz':'SVGZ'
+        'jpeg': 'JPEG', 'jpg': 'JPEG', 'tiff': 'TIFF', 'tif': 'TIFF',
+        'png': 'PNG', 'pdf': 'PDF', 'eps': 'EPS', 'ps': 'PS', 'svg': 'SVG',
+        'svgz': 'SVGZ'
     }
 
     extension_dict = defaultdict(list)
-    for ext in sorted(set(extension_mapping.values())):
-        for key in extension_mapping:
-            if ext == extension_mapping[key]:
-                extension_dict[ext].append(key)
+    for key, value in sorted(extension_mapping.items(), key=lambda tup: tup[1]):
+        extension_dict[value].append(key)
 
     extension_displays = {
-        key: f'{key} ({", ".join(extension_dict[key])})' for key in extension_dict
+        key: f'{key} ({", ".join(values)})' for key, values in extension_dict.items()
     }
-    extension_regex = [
-        [f'*.{val}' for val in extension_dict[key]] for key in extension_dict
-    ]
-    file_types = tuple(zip(extension_displays.values(), extension_regex))
+    extension_regex = (
+        [f'*.{value}' for value in values] for values in extension_dict.values()
+    )
 
     layout = [
         [sg.Text('Filename:'),
          sg.Input('', disabled=True, size=(20, 1), key='file_name'),
          sg.Input('', key='save_as', visible=False,
                   enable_events=True, do_not_clear=False),
-         sg.SaveAs(file_types=file_types, key='file_save_as',
-                   target='save_as')],
+         sg.SaveAs(file_types=tuple(zip(extension_displays.values(), extension_regex)),
+                   key='file_save_as', target='save_as')],
         [sg.Text('Image Type:'),
-         sg.Combo([*extension_displays.values()], key='extension',
+         sg.Combo(list(extension_displays.values()), key='extension',
                   default_value=extension_displays['TIFF'], size=(15, 1),
                   readonly=True)],
         [sg.Text('')],
@@ -515,10 +547,10 @@ def _save_image_options(figure):
                 except Exception as e:
                     sg.popup(
                         (f'Save failed...\n\nSaving to "{file_extension}" may not '
-                            'be supported by matplotlib, or an additional error may '
-                            'have occured.\nIf trying to save to tiff/tif, try saving '
-                            'without compression.'
-                            f'\n\nError:\n    {repr(e)}\n'),
+                         'be supported by matplotlib, or an additional error may '
+                         'have occured.\nIf trying to save to tiff/tif, try saving '
+                         'without compression.'
+                         f'\n\nError:\n    {repr(e)}\n'),
                         title='Error'
                     )
                     window_1.un_hide()
@@ -659,6 +691,8 @@ def _create_figure_components(saving=False, **fig_kwargs):
 
     """
 
+    #TODO should set defaults for fig_kwargs since user can modify/delete them in the saved json file
+
     figure = _create_figure(fig_kwargs, saving)
     gridspec, gridspec_layout = _create_gridspec(fig_kwargs, figure)
     axes = _create_axes(gridspec, gridspec_layout, figure, fig_kwargs)
@@ -764,11 +798,11 @@ def _create_gridspec(gs_kwargs, figure):
     else:
         blank_num = 0
         for key, value in gs_kwargs.items():
-            if key.startswith('gs_'):
+            if key.startswith('gridspec_'):
                 if value:
-                    selections[value].append(key.split('_')[-1])
+                    selections[value].append(key.split('_')[-2:])
                 else:
-                    selections[f'blank_{blank_num}'].append(key.split('_')[-1])
+                    selections[f'blank_{blank_num}'].append(key.split('_')[-2:])
                     blank_num += 1
         for key, vals in selections.items():
             rows = [int(val[0]) for val in vals]
@@ -788,8 +822,8 @@ def _create_gridspec(gs_kwargs, figure):
     default_inputs = {}
     for entry, val in gridspec_layout.items():
         if not entry.startswith('blank'):
-            default_inputs[f'twin_x_{val[0][0]}{val[1][0]}'] = False
-            default_inputs[f'twin_y_{val[0][0]}{val[1][0]}'] = False
+            default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'] = False
+            default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'] = False
     default_inputs.update(gs_kwargs)
     gs_kwargs.update(default_inputs)
 
@@ -811,15 +845,15 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
     figure : plt.Figure
         The Figure that the gridspec and axes belong to.
     fig_kwargs : dict
-        [description]
+        The keyword arguments needed to create the figure and axes.
 
     Returns
     -------
     axes : dict
         A nested dictionary containing all of the axes within the figure. Each
         key details the position of the axis within the figure, and each value
-        is a dictionary containing at most three keys, 'Main Axis', 'Twin x axis',
-        and 'Twin y axis', with each value corresponding to the plt.Axes object
+        is a dictionary containing at most three keys, 'Main Axis', 'Twin X axis',
+        and 'Twin Y axis', with each value corresponding to the plt.Axes object
         for that key.
 
     """
@@ -885,7 +919,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
 
         if 'blank' not in key:
 
-            if fig_kwargs[f'twin_x_{val[0][0]}{val[1][0]}']:
+            if fig_kwargs[f'twin_x_{val[0][0]}_{val[1][0]}']:
                 ax2 = ax.twinx()
                 ax2.set_label(f'{ax.get_label()} (Twin x)')
                 ax2.set_frame_on(False)
@@ -893,7 +927,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                 ax2.tick_params(which='both', labelright=label_right)
                 axes[entry_key]['Twin X'] = ax2
 
-            if fig_kwargs[f'twin_y_{val[0][0]}{val[1][0]}']:
+            if fig_kwargs[f'twin_y_{val[0][0]}_{val[1][0]}']:
                 ax3 = ax.twiny()
                 ax3.set_label(f'{ax.get_label()} (Twin y)')
                 ax3.set_frame_on(False)
@@ -918,7 +952,7 @@ def _annotate_example_figure(axes, canvas, figure):
     canvas : tk.Canvas
         The canvas for the figure.
     figure : plt.Figure
-        The figure to that will be shown.
+        The figure that will be shown.
 
     """
 
@@ -943,18 +977,20 @@ def _annotate_example_figure(axes, canvas, figure):
     _draw_figure_on_canvas(canvas, figure)
 
 
-def _create_advanced_layout(input_values, canvas, fig):
+def _create_advanced_layout(input_values, canvas, figure):
     """
-    [summary]
+    Specifies the row and column layout for plots in the figure
 
     Parameters
     ----------
-    input_values : [type]
-        [description]
-    canvas : [type]
-        [description]
-    fig : [type]
-        [description]
+    input_values : dict
+        The dictionary containing the values describing the layout
+        of axes within the figure. Will be modified inplace by
+        this function.
+    canvas : tk.Canvas
+        The canvas for the figure.
+    figure : plt.Figure
+        The figure that will be shown.
 
     """
 
@@ -967,15 +1003,15 @@ def _create_advanced_layout(input_values, canvas, fig):
 
     columm_layout =  [
         [sg.Text(i+1, size=(2, 1), justification='right')]
-        + [sg.Input(input_values[f'gs_{i}{j}'], size=(5, 1), pad=(1, 1),
-                    justification='right', key=f'gs_{i}{j}') for j in range(num_cols)]
+        + [sg.Input(input_values[f'gridspec_{i}_{j}'], size=(5, 1), pad=(1, 1),
+                    justification='right', key=f'gridspec_{i}_{j}') for j in range(num_cols)]
         for i in range(num_rows)]
 
     widths = [
-        sg.Input(input_values[f'width_{i}'], key=f'width_{i}', size=(5,1)) for i in range(num_cols)
+        sg.Input(input_values[f'width_{i}'], key=f'width_{i}', size=(5, 1)) for i in range(num_cols)
     ]
     heights = [
-        [sg.Input(input_values[f'height_{i}'], key=f'height_{i}', size=(5,1))] for i in range(num_rows)
+        [sg.Input(input_values[f'height_{i}'], key=f'height_{i}', size=(5, 1))] for i in range(num_rows)
     ]
 
     header_layout = [
@@ -1015,10 +1051,10 @@ def _create_advanced_layout(input_values, canvas, fig):
             window.TKroot.grab_release()
             proceed = utils.validate_inputs(values, **validations)
             if proceed:
-                fig, axes = _create_figure_components(**input_values)
+                figure, axes = _create_figure_components(**input_values)
 
                 if event == 'Preview':
-                    _annotate_example_figure(axes, canvas, fig)
+                    _annotate_example_figure(axes, canvas, figure)
 
                 elif event == 'Submit':
                     break
@@ -1032,6 +1068,20 @@ def _create_advanced_layout(input_values, canvas, fig):
 
 def _create_gridspec_labels(fig_kwargs):
     """
+    Ensures that the gridspec layout matches the desired rows and columns in the plot.
+
+    Parameters
+    ----------
+    fig_kwargs : dict
+        The keyword arguments used to create the figure.
+
+    Returns
+    -------
+    new_kwargs : dict
+        A dictionary containing the original keyword arguments from
+        fig_kwargs after modifying to match the new number of rows
+        and columns within the figure.
+
     """
 
     num_cols = int(fig_kwargs['num_cols'])
@@ -1040,21 +1090,23 @@ def _create_gridspec_labels(fig_kwargs):
     new_kwargs = fig_kwargs.copy()
     # deletes previous gridspec values
     for key in fig_kwargs:
-        if key.startswith('gs') or key.startswith('width') or key.startswith('height'):
-            index = key.split('_')[-1]
-            if key.startswith('gs'):
+        if key.startswith('gridspec') or key.startswith('width') or key.startswith('height'):
+            if key.startswith('gridspec'):
+                index = key.split('_')[-2:]
                 if num_rows <= int(index[0]) or num_cols <= int(index[1]):
                     new_kwargs.pop(key)
-            elif key.startswith('width'):
-                if int(index) >= num_cols:
-                    new_kwargs.pop(key)
-            elif key.startswith('height'):
-                if int(index) >= num_rows:
-                    new_kwargs.pop(key)
+            else:
+                index = key.split('_')[-1]
+                if key.startswith('width'):
+                    if int(index) >= num_cols:
+                        new_kwargs.pop(key)
+                if key.startswith('height'):
+                    if int(index) >= num_rows:
+                        new_kwargs.pop(key)
 
-    if any(key.startswith('gs') for key in new_kwargs):
+    if any(key.startswith('gridspec') for key in new_kwargs):
         # ensures a new key is always generated when creating new axes
-        len_string = max(len(new_kwargs[key]) for key in new_kwargs if key.startswith('gs')) + 1
+        len_string = max(len(new_kwargs[key]) for key in new_kwargs if key.startswith('gridspec')) + 1
         # ensures current height and width ratios are not overwritten
         current_col = max(int(key.split('_')[-1]) for key in new_kwargs if key.startswith('width')) + 1
         current_row = max(int(key.split('_')[-1]) for key in new_kwargs if key.startswith('height')) + 1
@@ -1068,21 +1120,35 @@ def _create_gridspec_labels(fig_kwargs):
     letters = itertools.cycle(string.ascii_letters)
     for i in range(num_rows):
         for j in range(num_cols):
-            if f'gs_{i}{j}' not in new_kwargs:
-                new_kwargs.update({f'gs_{i}{j}': next(letters) * len_string})
+            if f'gridspec_{i}_{j}' not in new_kwargs:
+                new_kwargs.update({f'gridspec_{i}_{j}': next(letters) * len_string})
 
     return new_kwargs
 
 
 def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     """
+    Allows setting twin axes for any of the axes in the figure.
+
+    Parameters
+    ----------
+    gridspec_layout : dict
+        A dictionary that details where plots go within the gridspec. Each key
+        is a unique plot, and its values are the row and column indices for
+        the plot within the gridspec.
+    user_inputs : dict
+        The dictionary containing the values needed to create the plt.Figure.
+        Will be modified inplace by this function to include any twin axes.
+    canvas : tk.Canvas
+        The tkinter canvas on which the figure resides.
+
     """
 
     default_inputs = {}
     for entry, val in gridspec_layout.items():
         if not entry.startswith('blank'):
-            default_inputs[f'twin_x_{val[0][0]}{val[1][0]}'] = False
-            default_inputs[f'twin_y_{val[0][0]}{val[1][0]}'] = False
+            default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'] = False
+            default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'] = False
 
     default_inputs.update(user_inputs)
 
@@ -1104,12 +1170,12 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
                     [sg.Text(f'Row {val[0][0] + 1}, Column {val[1][0] + 1}   ')]
                 ]),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_x_{val[0][0]}{val[1][0]}',
-                                 default=default_inputs[f'twin_x_{val[0][0]}{val[1][0]}'])]
+                    [sg.Checkbox('      ', key=f'twin_x_{val[0][0]}_{val[1][0]}',
+                                 default=default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'])]
                 ], element_justification='center'),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_y_{val[0][0]}{val[1][0]}',
-                                 default=default_inputs[f'twin_y_{val[0][0]}{val[1][0]}'])]
+                    [sg.Checkbox('      ', key=f'twin_y_{val[0][0]}_{val[1][0]}',
+                                 default=default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'])]
                 ], element_justification='center')
             ])
 
@@ -1198,10 +1264,10 @@ def _select_plot_type(user_inputs=None):
                 [sg.Radio(plot, 'plots', key=plot, enable_events=True,
                           default=default_inputs[plot])],
                 [sg.Text('      Rows:', size=(11, 1)),
-                 sg.Combo([*range(1, 7)], key='num_rows', size=(3, 1), disabled=disabled,
+                 sg.Combo(list(range(1, 7)), key='num_rows', size=(3, 1), disabled=disabled,
                           default_value=default_inputs['num_rows'], readonly=True)],
                 [sg.Text('      Columns:', size=(11, 1)),
-                 sg.Combo([*range(1, 7)], key='num_cols', size=(3, 1), disabled=disabled,
+                 sg.Combo(list(range(1, 7)), key='num_cols', size=(3, 1), disabled=disabled,
                           default_value=default_inputs['num_cols'], readonly=True)],
                 [sg.Check('Same X Axis', key='share_x', disabled=disabled,
                           default=default_inputs['share_x'], pad=(40, 1))],
@@ -1307,8 +1373,8 @@ def _select_plot_type(user_inputs=None):
     return fig_kwargs
 
 
-def _create_plot_options_gui(data, figure, axes, user_inputs=None,
-                             old_axes=None, **kwargs):
+def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None,
+                             location=(None, None), **kwargs):
     """
     Creates a new window with all of the plotting options.
 
@@ -1326,6 +1392,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     old_axes : dict
         A dictionary of plt.Axes objects that were previously used. Used
         to transfer annotations to the new axes.
+    location : tuple(int, int)
+        Describes the position to place the window.
     kwargs : dict
         Additional keyword arguments to create the plots.
 
@@ -1334,20 +1402,9 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     window : sg.Window
         The window that contains the plotting options.
 
-    #TODO disable secondary axes in plots with twin axes
+    TODO set metadata for elements to determine whether they should be readonly when enabled
 
     """
-
-    markers = (
-        ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
-        'v Triangle-Down', 'p Pentagon', '< Triangle-Left',
-        '> Triangle-Right', '* Star'
-    )
-
-    line_width = plt.rcParams['lines.linewidth']
-    marker_size = plt.rcParams['lines.markersize']
-    line_plot = kwargs['line']
-    scatter_plot = kwargs['scatter']
 
     default_inputs = {}
     # generates default values based on the Axes and data length
@@ -1356,18 +1413,17 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             continue
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
-            marker_colors = itertools.cycle(COLORS)
-            line_colors = itertools.cycle(COLORS)
+            color_cyle = itertools.cycle(COLORS[1:])
 
-            if line_plot:
+            if kwargs['line']:
                 marker_cycler = itertools.cycle([''])
-                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
-            elif scatter_plot:
-                marker_cycler = itertools.cycle(markers[1:])
+                line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
+            elif kwargs['scatter']:
+                marker_cycler = itertools.cycle(MARKERS[1:])
                 line_cycler = itertools.cycle(['None'])
             else:
-                marker_cycler = itertools.cycle(markers[1:])
-                line_cycler = itertools.cycle([*LINE_MAPPING][1:])
+                marker_cycler = itertools.cycle(MARKERS[1:])
+                line_cycler = itertools.cycle(list(LINE_MAPPING)[1:])
 
             if not axis.get_xlabel():
                 x_label = ''
@@ -1389,64 +1445,67 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             # Options for each axis
             default_inputs.update({
-                f'show_x_label_{i}{j}': show_x_label,
-                f'show_y_label_{i}{j}': show_y_label,
-                f'x_axis_min_{i}{j}': None,
-                f'x_axis_max_{i}{j}': None,
-                f'x_label_{i}{j}': x_label,
-                f'x_label_offset_{i}{j}': '' if x_label_disabled else plt.rcParams['axes.labelpad'],
-                f'x_label_disabled_{i}{j}': x_label_disabled,
-                f'y_axis_min_{i}{j}': None,
-                f'y_axis_max_{i}{j}': None,
-                f'y_label_{i}{j}': y_label,
-                f'y_label_offset_{i}{j}': '' if y_label_disabled else plt.rcParams['axes.labelpad'],
-                f'y_label_disabled_{i}{j}': y_label_disabled,
-                f'secondary_x_{i}{j}': False,
-                f'secondary_x_label_{i}{j}': '',
-                f'secondary_x_label_offset_{i}{j}': plt.rcParams['axes.labelpad'],
-                f'secondary_x_expr_{i}{j}': '',
-                f'secondary_y_{i}{j}': False,
-                f'secondary_y_label_{i}{j}': '',
-                f'secondary_y_label_offset_{i}{j}': plt.rcParams['axes.labelpad'],
-                f'secondary_y_expr_{i}{j}': '',
-                f'show_legend_{i}{j}': True,
-                f'legend_cols_{i}{j}': 1 if len(data) < 5 else 2,
-                f'legend_auto_{i}{j}': True,
-                f'legend_auto_loc_{i}{j}': 'best',
-                f'legend_manual_{i}{j}': False,
-                f'legend_manual_x_{i}{j}': '',
-                f'legend_manual_y_{i}{j}': '',
-                f'auto_ticks_{i}{j}': True,
-                f'x_major_ticks_{i}{j}': 5 if label != 'Twin X' else '',
-                f'x_minor_ticks_{i}{j}': 2 if label != 'Twin X' else '',
-                f'y_major_ticks_{i}{j}': 5 if label != 'Twin Y' else '',
-                f'y_minor_ticks_{i}{j}': 2 if label != 'Twin Y' else '',
-                f'auto_ticks_secondary{i}{j}': True,
-                f'secondary_x_major_ticks_{i}{j}': 5,
-                f'secondary_x_minor_ticks_{i}{j}': 2,
-                f'secondary_y_major_ticks_{i}{j}': 5,
-                f'secondary_y_minor_ticks_{i}{j}': 2,
-                f'x_major_grid_{i}{j}': False,
-                f'x_minor_grid_{i}{j}': False,
-                f'y_major_grid_{i}{j}': False,
-                f'y_minor_grid_{i}{j}': False,
+                f'show_x_label_{i}_{j}': show_x_label,
+                f'show_y_label_{i}_{j}': show_y_label,
+                f'x_axis_min_{i}_{j}': None,
+                f'x_axis_max_{i}_{j}': None,
+                f'x_label_{i}_{j}': x_label,
+                f'x_label_offset_{i}_{j}': '' if x_label_disabled else plt.rcParams['axes.labelpad'],
+                f'x_label_disabled_{i}_{j}': x_label_disabled,
+                f'y_axis_min_{i}_{j}': None,
+                f'y_axis_max_{i}_{j}': None,
+                f'y_label_{i}_{j}': y_label,
+                f'y_label_offset_{i}_{j}': '' if y_label_disabled else plt.rcParams['axes.labelpad'],
+                f'y_label_disabled_{i}_{j}': y_label_disabled,
+                f'secondary_x_{i}_{j}': False,
+                f'secondary_x_label_{i}_{j}': '',
+                f'secondary_x_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
+                f'secondary_x_expr_{i}_{j}': '',
+                f'secondary_y_{i}_{j}': False,
+                f'secondary_y_label_{i}_{j}': '',
+                f'secondary_y_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
+                f'secondary_y_expr_{i}_{j}': '',
+                f'show_legend_{i}_{j}': True,
+                f'legend_cols_{i}_{j}': 1 if len(data) < 5 else 2,
+                f'legend_auto_{i}_{j}': True,
+                f'legend_auto_loc_{i}_{j}': 'best',
+                f'legend_manual_{i}_{j}': False,
+                f'legend_manual_x_{i}_{j}': '',
+                f'legend_manual_y_{i}_{j}': '',
+                f'auto_ticks_{i}_{j}': True,
+                f'x_major_ticks_{i}_{j}': 5 if label != 'Twin X' else '',
+                f'x_minor_ticks_{i}_{j}': 2 if label != 'Twin X' else '',
+                f'y_major_ticks_{i}_{j}': 5 if label != 'Twin Y' else '',
+                f'y_minor_ticks_{i}_{j}': 2 if label != 'Twin Y' else '',
+                f'auto_ticks_secondary_{i}_{j}': True,
+                f'secondary_x_major_ticks_{i}_{j}': 5,
+                f'secondary_x_minor_ticks_{i}_{j}': 2,
+                f'secondary_y_major_ticks_{i}_{j}': 5,
+                f'secondary_y_minor_ticks_{i}_{j}': 2,
+                f'x_major_grid_{i}_{j}': False,
+                f'x_minor_grid_{i}_{j}': False,
+                f'y_major_grid_{i}_{j}': False,
+                f'y_minor_grid_{i}_{j}': False,
             })
 
             # Options for each data entry
             for k in range(len(data)):
+                data_color = next(color_cyle)
+
                 default_inputs.update({
-                    f'plot_boolean_{i}{j}{k}': True,
-                    f'x_col_{i}{j}{k}': '0',
-                    f'y_col_{i}{j}{k}': '1',
-                    f'label_{i}{j}{k}': f'Data {k + 1}',
-                    f'offset_{i}{j}{k}': 0,
-                    f'marker_color_{i}{j}{k}': next(marker_colors),
-                    f'marker_style_{i}{j}{k}': next(marker_cycler),
-                    f'marker_fill_{i}{j}{k}': 'Filled',
-                    f'marker_size_{i}{j}{k}': marker_size,
-                    f'line_color_{i}{j}{k}': next(line_colors),
-                    f'line_style_{i}{j}{k}': next(line_cycler),
-                    f'line_size_{i}{j}{k}': line_width
+                    f'plot_boolean_{i}_{j}_{k}': True,
+                    f'x_col_{i}_{j}_{k}': '0',
+                    f'y_col_{i}_{j}_{k}': '1',
+                    f'label_{i}_{j}_{k}': f'Data {k + 1}',
+                    f'offset_{i}_{j}_{k}': 0,
+                    f'markerface_color_{i}_{j}_{k}': data_color,
+                    f'markeredge_color_{i}_{j}_{k}': data_color,
+                    f'marker_edgewidth_{i}_{j}_{k}': plt.rcParams['lines.markeredgewidth'],
+                    f'marker_style_{i}_{j}_{k}': next(marker_cycler),
+                    f'marker_size_{i}_{j}_{k}': plt.rcParams['lines.markersize'],
+                    f'line_color_{i}_{j}_{k}': data_color,
+                    f'line_style_{i}_{j}_{k}': next(line_cycler),
+                    f'line_size_{i}_{j}_{k}': plt.rcParams['lines.linewidth']
                 })
 
     if user_inputs is not None:
@@ -1465,23 +1524,23 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
 
             # Have to update axis limits after plotting the data
             default_inputs.update({
-                f'x_axis_min_{i}{j}': axis.get_xlim()[0] if label != 'Twin X' else '',
-                f'x_axis_max_{i}{j}': axis.get_xlim()[1] if label != 'Twin X' else '',
-                f'y_axis_min_{i}{j}': axis.get_ylim()[0] if label != 'Twin Y' else '',
-                f'y_axis_max_{i}{j}': axis.get_ylim()[1] if label != 'Twin Y' else '',
-                f'secondary_x_axis_min_{i}{j}': axis.get_xlim()[0],
-                f'secondary_x_axis_max_{i}{j}': axis.get_xlim()[1],
-                f'secondary_y_axis_min_{i}{j}': axis.get_ylim()[0],
-                f'secondary_y_axis_max_{i}{j}': axis.get_ylim()[1],
+                f'x_axis_min_{i}_{j}': axis.get_xlim()[0] if label != 'Twin X' else '',
+                f'x_axis_max_{i}_{j}': axis.get_xlim()[1] if label != 'Twin X' else '',
+                f'y_axis_min_{i}_{j}': axis.get_ylim()[0] if label != 'Twin Y' else '',
+                f'y_axis_max_{i}_{j}': axis.get_ylim()[1] if label != 'Twin Y' else '',
+                f'secondary_x_axis_min_{i}_{j}': axis.get_xlim()[0],
+                f'secondary_x_axis_max_{i}_{j}': axis.get_xlim()[1],
+                f'secondary_y_axis_min_{i}_{j}': axis.get_ylim()[0],
+                f'secondary_y_axis_max_{i}_{j}': axis.get_ylim()[1],
             })
 
             if 'Twin X' in axes[key] or 'Twin' in label: #TODO why is this here and not in the upper statement??
                 secondary_y_disabled = True
                 default_inputs.update({
-                    f'secondary_y_{i}{j}': False,
-                    f'secondary_y_label_{i}{j}': '',
-                    f'secondary_y_label_offset_{i}{j}': '',
-                    f'secondary_y_expr_{i}{j}': ''
+                    f'secondary_y_{i}_{j}': False,
+                    f'secondary_y_label_{i}_{j}': '',
+                    f'secondary_y_label_offset_{i}_{j}': '',
+                    f'secondary_y_expr_{i}_{j}': ''
                 })
             else:
                 secondary_y_disabled = False
@@ -1489,10 +1548,10 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             if 'Twin Y' in axes[key] or 'Twin' in label:
                 secondary_x_disabled = True
                 default_inputs.update({
-                    f'secondary_x_{i}{j}': False,
-                    f'secondary_x_label_{i}{j}': '',
-                    f'secondary_x_label_offset_{i}{j}': '',
-                    f'secondary_x_expr_{i}{j}': ''
+                    f'secondary_x_{i}_{j}': False,
+                    f'secondary_x_label_{i}_{j}': '',
+                    f'secondary_x_label_offset_{i}_{j}': '',
+                    f'secondary_x_expr_{i}_{j}': ''
                 })
             else:
                 secondary_x_disabled = False
@@ -1503,71 +1562,78 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                     sg.Frame(f'Entry {k + 1}', [[
                         sg.Column([
                             [sg.Check('Show', enable_events=True,
-                                      default=default_inputs[f'plot_boolean_{i}{j}{k}'],
-                                      key=f'plot_boolean_{i}{j}{k}')],
+                                      default=default_inputs[f'plot_boolean_{i}_{j}_{k}'],
+                                      key=f'plot_boolean_{i}_{j}_{k}')],
                             [sg.Text('X Column:'),
                              sg.Combo([num for num in range(len(dataset.columns))],
-                                      key=f'x_col_{i}{j}{k}', size=(3, 1), readonly=True,
-                                      default_value=default_inputs[f'x_col_{i}{j}{k}'],
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
+                                      key=f'x_col_{i}_{j}_{k}', size=(3, 1), readonly=True,
+                                      default_value=default_inputs[f'x_col_{i}_{j}_{k}'],
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Y Column:'),
                              sg.Combo([num for num in range(len(dataset.columns))],
-                                      key=f'y_col_{i}{j}{k}', size=(3, 1), readonly=True,
-                                      default_value=default_inputs[f'y_col_{i}{j}{k}'],
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
+                                      key=f'y_col_{i}_{j}_{k}', size=(3, 1), readonly=True,
+                                      default_value=default_inputs[f'y_col_{i}_{j}_{k}'],
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Offset:', size=(6, 1)),
-                             sg.Input(default_inputs[f'offset_{i}{j}{k}'], size=(5, 1),
-                                      key=f'offset_{i}{j}{k}',
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
+                             sg.Input(default_inputs[f'offset_{i}_{j}_{k}'], size=(8, 1),
+                                      key=f'offset_{i}_{j}_{k}',
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Label:', size=(6, 1)),
-                             sg.Input(default_inputs[f'label_{i}{j}{k}'], key=f'label_{i}{j}{k}',
-                                      size=(10, 1), disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])]
+                             sg.Input(default_inputs[f'label_{i}_{j}_{k}'], key=f'label_{i}_{j}_{k}',
+                                      size=(8, 1), disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
                         ], pad=((5, 5), 5)),
                         sg.Column([
                             [sg.Text('      Marker')],
-                            [sg.Text('Color:'),
-                             sg.Combo(COLORS, default_value=default_inputs[f'marker_color_{i}{j}{k}'],
-                                      key=f'marker_color_{i}{j}{k}', size=(9, 1),
+                            [sg.Text('Face\nColor:'),
+                             sg.Combo(COLORS, default_value=default_inputs[f'markerface_color_{i}_{j}_{k}'],
+                                      key=f'markerface_color_{i}_{j}_{k}', size=(9, 1),
                                       readonly=True,
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}']),
-                             sg.Input(key=f'marker_chooser_{i}{j}{k}', enable_events=True,
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}']),
+                             sg.Input(key=f'markerface_chooser_{i}_{j}_{k}', enable_events=True,
                                       visible=False),
-                             sg.ColorChooserButton('..', target=f'marker_chooser_{i}{j}{k}',
-                                                   disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
+                             sg.ColorChooserButton('..', target=f'markerface_chooser_{i}_{j}_{k}',
+                                                   disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
+                            [sg.Text('Edge\nColor:'),
+                             sg.Combo(COLORS, default_value=default_inputs[f'markeredge_color_{i}_{j}_{k}'],
+                                      key=f'markeredge_color_{i}_{j}_{k}', size=(9, 1),
+                                      readonly=True,
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}']),
+                             sg.Input(key=f'markeredge_chooser_{i}_{j}_{k}', enable_events=True,
+                                      visible=False),
+                             sg.ColorChooserButton('..', target=f'markeredge_chooser_{i}_{j}_{k}',
+                                                   disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Style:'),
-                             sg.Combo(markers, default_value=default_inputs[f'marker_style_{i}{j}{k}'],
-                                      key=f'marker_style_{i}{j}{k}', size=(13, 1),
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
-                            [sg.Text('Fill:'),
-                             sg.Combo(['Filled', 'Hollow', 'Hollow (Transparent)'],
-                                      key=f'marker_fill_{i}{j}{k}', size=(14, 1),
-                                      default_value=default_inputs[f'marker_fill_{i}{j}{k}'],
-                                      readonly=True, disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
-                            [sg.Text('Size:'),
-                             sg.Input(default_text=default_inputs[f'marker_size_{i}{j}{k}'],
-                                      key=f'marker_size_{i}{j}{k}', size=(4, 1),
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])]
+                             sg.Combo(MARKERS, default_value=default_inputs[f'marker_style_{i}_{j}_{k}'],
+                                      key=f'marker_style_{i}_{j}_{k}', size=(13, 1),
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
+                            [sg.Text('Edge Width:'),
+                             sg.Input(default_inputs[f'marker_edgewidth_{i}_{j}_{k}'],
+                                      key=f'marker_edgewidth_{i}_{j}_{k}', size=(4, 1))],
+                            [sg.Text('Marker Size:'),
+                             sg.Input(default_text=default_inputs[f'marker_size_{i}_{j}_{k}'],
+                                      key=f'marker_size_{i}_{j}_{k}', size=(4, 1),
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
                         ], pad=((20, 5), 5), element_justification='center'),
                         sg.Column([
                             [sg.Text('      Line')],
                             [sg.Text('Color:'),
-                             sg.Combo(COLORS, default_value=default_inputs[f'line_color_{i}{j}{k}'],
-                                      key=f'line_color_{i}{j}{k}', size=(9, 1),
+                             sg.Combo(COLORS, default_value=default_inputs[f'line_color_{i}_{j}_{k}'],
+                                      key=f'line_color_{i}_{j}_{k}', size=(9, 1),
                                       readonly=True,
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}']),
-                             sg.Input(key=f'line_chooser_{i}{j}{k}', enable_events=True,
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}']),
+                             sg.Input(key=f'line_chooser_{i}_{j}_{k}', enable_events=True,
                                       visible=False),
-                             sg.ColorChooserButton('..', target=f'line_chooser_{i}{j}{k}',
-                                                   disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
+                             sg.ColorChooserButton('..', target=f'line_chooser_{i}_{j}_{k}',
+                                                   disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
                             [sg.Text('Style:'),
-                             sg.Combo([*LINE_MAPPING], readonly=True,
-                                      default_value=default_inputs[f'line_style_{i}{j}{k}'],
-                                      key=f'line_style_{i}{j}{k}', size=(10, 1),
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])],
-                            [sg.Text('Size:'),
-                             sg.Input(default_text=default_inputs[f'line_size_{i}{j}{k}'],
-                                      key=f'line_size_{i}{j}{k}', size=(4, 1),
-                                      disabled=not default_inputs[f'plot_boolean_{i}{j}{k}'])]
+                             sg.Combo(list(LINE_MAPPING), readonly=True,
+                                      default_value=default_inputs[f'line_style_{i}_{j}_{k}'],
+                                      key=f'line_style_{i}_{j}_{k}', size=(10, 1),
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])],
+                            [sg.Text('Line Width:'),
+                             sg.Input(default_text=default_inputs[f'line_size_{i}_{j}_{k}'],
+                                      key=f'line_size_{i}_{j}_{k}', size=(4, 1),
+                                      disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
                         ], pad=((20, 5), 5), element_justification='center')
                     ]])
                 ]])
@@ -1575,122 +1641,122 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             sections = {
                 'Plot Details': plot_details,
                 'Legend': [
-                    [sg.Check('Show Legend', default=default_inputs[f'show_legend_{i}{j}'],
-                              key=f'show_legend_{i}{j}', enable_events=True)],
+                    [sg.Check('Show Legend', default=default_inputs[f'show_legend_{i}_{j}'],
+                              key=f'show_legend_{i}_{j}', enable_events=True)],
                     [sg.Text('Number of Columns:'),
                      sg.Combo([num + 1 for num in range(len(data))],
-                              default_value=default_inputs[f'legend_cols_{i}{j}'],
-                              key=f'legend_cols_{i}{j}', readonly=True, size=(3, 1))],
+                              default_value=default_inputs[f'legend_cols_{i}_{j}'],
+                              key=f'legend_cols_{i}_{j}', readonly=True, size=(3, 1))],
                     [sg.Text('Legend Location:')],
-                    [sg.Radio('Automatic', f'legend_pos_{i}{j}', key=f'legend_auto_{i}{j}',
-                              default=default_inputs[f'legend_auto_{i}{j}'],
+                    [sg.Radio('Automatic', f'legend_pos_{i}_{j}', key=f'legend_auto_{i}_{j}',
+                              default=default_inputs[f'legend_auto_{i}_{j}'],
                               enable_events=True, pad=((20, 10), 3))],
                     [sg.Text('Position:', pad=((60, 3), 3)),
                      sg.Combo(['best', 'upper left', 'upper center', 'upper right',
                                'lower left', 'lower center', 'lower right',
                                'center left', 'center', 'center right'],
-                              default_inputs[f'legend_auto_loc_{i}{j}'],
-                              key=f'legend_auto_loc_{i}{j}', readonly=True,
-                              disabled=not default_inputs[f'legend_auto_{i}{j}'])],
-                    [sg.Radio('Manual', f'legend_pos_{i}{j}', key=f'legend_manual_{i}{j}',
-                              default=default_inputs[f'legend_manual_{i}{j}'],
+                              default_inputs[f'legend_auto_loc_{i}_{j}'],
+                              key=f'legend_auto_loc_{i}_{j}', readonly=True,
+                              disabled=not default_inputs[f'legend_auto_{i}_{j}'])],
+                    [sg.Radio('Manual', f'legend_pos_{i}_{j}', key=f'legend_manual_{i}_{j}',
+                              default=default_inputs[f'legend_manual_{i}_{j}'],
                               enable_events=True, pad=((20, 10), 3))],
                     [sg.Text(('Position of lower-left corner, as a fraction of the axis size'
                               '\n    (< 0 or > 1 will be outside of axis)'),
                              pad=((60, 3), 3))],
                     [sg.Text('x-position:', pad=((60, 3), 3)),
-                     sg.Input(default_inputs[f'legend_manual_x_{i}{j}'],
-                              key=f'legend_manual_x_{i}{j}', size=(4, 1),
-                              disabled=default_inputs[f'legend_auto_{i}{j}']),
+                     sg.Input(default_inputs[f'legend_manual_x_{i}_{j}'],
+                              key=f'legend_manual_x_{i}_{j}', size=(4, 1),
+                              disabled=default_inputs[f'legend_auto_{i}_{j}']),
                      sg.Text('y-position:', pad=((10, 3), 3)),
-                     sg.Input(default_inputs[f'legend_manual_y_{i}{j}'],
-                              key=f'legend_manual_y_{i}{j}', size=(4, 1),
-                              disabled=default_inputs[f'legend_auto_{i}{j}'])]
+                     sg.Input(default_inputs[f'legend_manual_y_{i}_{j}'],
+                              key=f'legend_manual_y_{i}_{j}', size=(4, 1),
+                              disabled=default_inputs[f'legend_auto_{i}_{j}'])]
                 ],
                 'Grid Lines': [
                     [sg.Column([
                         [sg.Text('X Axis:')],
-                        [sg.Check('Major Ticks', key=f'x_major_grid_{i}{j}',
-                                  default=default_inputs[f'x_major_grid_{i}{j}'],
+                        [sg.Check('Major Ticks', key=f'x_major_grid_{i}_{j}',
+                                  default=default_inputs[f'x_major_grid_{i}_{j}'],
                                   disabled=label=='Twin X')],
-                        [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}{j}',
-                                  default=default_inputs[f'x_minor_grid_{i}{j}'],
+                        [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}_{j}',
+                                  default=default_inputs[f'x_minor_grid_{i}_{j}'],
                                   disabled=label=='Twin X')]
                      ], pad=((20, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
-                         [sg.Check('Major Ticks', key=f'y_major_grid_{i}{j}',
-                                   default=default_inputs[f'y_major_grid_{i}{j}'],
+                         [sg.Check('Major Ticks', key=f'y_major_grid_{i}_{j}',
+                                   default=default_inputs[f'y_major_grid_{i}_{j}'],
                                    disabled=label=='Twin Y')],
-                         [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}{j}',
-                                   default=default_inputs[f'y_minor_grid_{i}{j}'],
+                         [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}_{j}',
+                                   default=default_inputs[f'y_minor_grid_{i}_{j}'],
                                    disabled=label=='Twin Y')]
                      ], pad=((20, 5), 3), element_justification='center')]
                 ],
                 'Axes': [
                     [sg.Text('Labels')],
-                    [sg.Check('X Axis Label:', default=default_inputs[f'show_x_label_{i}{j}'],
-                              key=f'show_x_label_{i}{j}', enable_events=True,
-                              disabled=default_inputs[f'x_label_disabled_{i}{j}']),
-                     sg.Input(default_text=default_inputs[f'x_label_{i}{j}'],
-                              key=f'x_label_{i}{j}', size=(40, 1),
-                              disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
+                    [sg.Check('X Axis Label:', default=default_inputs[f'show_x_label_{i}_{j}'],
+                              key=f'show_x_label_{i}_{j}', enable_events=True,
+                              disabled=default_inputs[f'x_label_disabled_{i}_{j}']),
+                     sg.Input(default_text=default_inputs[f'x_label_{i}_{j}'],
+                              key=f'x_label_{i}_{j}', size=(40, 1),
+                              disabled=default_inputs[f'x_label_disabled_{i}_{j}'])],
                     [sg.Text('    Label Offset:'),
-                     sg.Input(default_inputs[f'x_label_offset_{i}{j}'],
-                              key=f'x_label_offset_{i}{j}',
-                              disabled=default_inputs[f'x_label_disabled_{i}{j}'])],
-                    [sg.Check('Y Axis Label:', default=default_inputs[f'show_y_label_{i}{j}'],
-                              key=f'show_y_label_{i}{j}', enable_events=True,
-                              disabled=default_inputs[f'y_label_disabled_{i}{j}']),
-                     sg.Input(default_text=default_inputs[f'y_label_{i}{j}'],
-                              key=f'y_label_{i}{j}', size=(40, 1),
-                              disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
+                     sg.Input(default_inputs[f'x_label_offset_{i}_{j}'],
+                              key=f'x_label_offset_{i}_{j}',
+                              disabled=default_inputs[f'x_label_disabled_{i}_{j}'])],
+                    [sg.Check('Y Axis Label:', default=default_inputs[f'show_y_label_{i}_{j}'],
+                              key=f'show_y_label_{i}_{j}', enable_events=True,
+                              disabled=default_inputs[f'y_label_disabled_{i}_{j}']),
+                     sg.Input(default_text=default_inputs[f'y_label_{i}_{j}'],
+                              key=f'y_label_{i}_{j}', size=(40, 1),
+                              disabled=default_inputs[f'y_label_disabled_{i}_{j}'])],
                     [sg.Text('    Label Offset:'),
-                    sg.Input(default_inputs[f'y_label_offset_{i}{j}'],
-                             key=f'y_label_offset_{i}{j}',
-                             disabled=default_inputs[f'y_label_disabled_{i}{j}'])],
+                    sg.Input(default_inputs[f'y_label_offset_{i}_{j}'],
+                             key=f'y_label_offset_{i}_{j}',
+                             disabled=default_inputs[f'y_label_disabled_{i}_{j}'])],
                     [sg.Text('')],
                     [sg.Text('Bounds')],
                     [sg.Text('    X Minimum:'),
-                     sg.Input(default_inputs[f'x_axis_min_{i}{j}'], size=(12, 1),
-                              key=f'x_axis_min_{i}{j}', disabled=label=='Twin X'),
+                     sg.Input(default_inputs[f'x_axis_min_{i}_{j}'], size=(12, 1),
+                              key=f'x_axis_min_{i}_{j}', disabled=label=='Twin X'),
                      sg.Text('X Maximum:'),
-                     sg.Input(default_inputs[f'x_axis_max_{i}{j}'], size=(12, 1),
-                              key=f'x_axis_max_{i}{j}', disabled=label=='Twin X')],
+                     sg.Input(default_inputs[f'x_axis_max_{i}_{j}'], size=(12, 1),
+                              key=f'x_axis_max_{i}_{j}', disabled=label=='Twin X')],
                     [sg.Text('    Y Minimum:'),
-                     sg.Input(default_inputs[f'y_axis_min_{i}{j}'], size=(12, 1),
-                              key=f'y_axis_min_{i}{j}', disabled=label=='Twin Y'),
+                     sg.Input(default_inputs[f'y_axis_min_{i}_{j}'], size=(12, 1),
+                              key=f'y_axis_min_{i}_{j}', disabled=label=='Twin Y'),
                      sg.Text('Y Maximum:'),
-                     sg.Input(default_inputs[f'y_axis_max_{i}{j}'], size=(12, 1),
-                              key=f'y_axis_max_{i}{j}', disabled=label=='Twin Y')],
+                     sg.Input(default_inputs[f'y_axis_max_{i}_{j}'], size=(12, 1),
+                              key=f'y_axis_max_{i}_{j}', disabled=label=='Twin Y')],
                     [sg.Text('')],
                     [sg.Text('Tick Marks')],
-                    [sg.Radio('Automatic', f'ticks_{i}{j}', key=f'auto_ticks_{i}{j}',
-                              default=default_inputs[f'auto_ticks_{i}{j}'],
+                    [sg.Radio('Automatic', f'ticks_{i}_{j}', key=f'auto_ticks_{i}_{j}',
+                              default=default_inputs[f'auto_ticks_{i}_{j}'],
                               enable_events=True, pad=((20, 10), 3))],
                     [sg.Column([
                         [sg.Text('X Axis:')],
                         [sg.Text('Major Ticks'),
-                         sg.Spin([num for num in range(2, 11)],
-                                 initial_value=default_inputs[f'x_major_ticks_{i}{j}'],
-                                 key=f'x_major_ticks_{i}{j}', size=(3, 1),
+                         sg.Spin(list(range(2, 11)),
+                                 initial_value=default_inputs[f'x_major_ticks_{i}_{j}'],
+                                 key=f'x_major_ticks_{i}_{j}', size=(3, 1),
                                  disabled=label=='Twin X')],
                         [sg.Text('Minor Ticks'),
-                         sg.Spin([num for num in range(11)],
-                                 initial_value=default_inputs[f'x_minor_ticks_{i}{j}'],
-                                 key=f'x_minor_ticks_{i}{j}', size=(3, 1),
+                         sg.Spin(list(range(11)),
+                                 initial_value=default_inputs[f'x_minor_ticks_{i}_{j}'],
+                                 key=f'x_minor_ticks_{i}_{j}', size=(3, 1),
                                  disabled=label=='Twin X')]
                      ], pad=((40, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Text('Major Ticks'),
-                         sg.Spin([num for num in range(2, 11)], size=(3, 1),
-                                 initial_value=default_inputs[f'y_major_ticks_{i}{j}'],
-                                 key=f'y_major_ticks_{i}{j}', disabled=label=='Twin Y')],
+                         sg.Spin(list(range(2, 11)), size=(3, 1),
+                                 initial_value=default_inputs[f'y_major_ticks_{i}_{j}'],
+                                 key=f'y_major_ticks_{i}_{j}', disabled=label=='Twin Y')],
                          [sg.Text('Minor Ticks'),
-                         sg.Spin([num for num in range(11)], size=(3, 1),
-                                 initial_value=default_inputs[f'y_minor_ticks_{i}{j}'],
-                                 key=f'y_minor_ticks_{i}{j}', disabled=label=='Twin Y')]
+                         sg.Spin(list(range(11)), size=(3, 1),
+                                 initial_value=default_inputs[f'y_minor_ticks_{i}_{j}'],
+                                 key=f'y_minor_ticks_{i}_{j}', disabled=label=='Twin Y')]
                      ], pad=((40, 5), 3), element_justification='center')]
                 ]
             }
@@ -1699,69 +1765,76 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
                 sections.update({
                     'Secondary Axes': [
                         [sg.Text('Labels')],
-                        [sg.Check('X Axis Label:', default=default_inputs[f'secondary_x_{i}{j}'],
-                                  key=f'secondary_x_{i}{j}', enable_events=True,
+                        [sg.Check('X Axis Label:', default=default_inputs[f'secondary_x_{i}_{j}'],
+                                  key=f'secondary_x_{i}_{j}', enable_events=True,
                                   disabled=secondary_x_disabled),
-                        sg.Input(default_text=default_inputs[f'secondary_x_label_{i}{j}'],
-                                 key=f'secondary_x_label_{i}{j}',
-                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
+                        sg.Input(default_text=default_inputs[f'secondary_x_label_{i}_{j}'],
+                                 key=f'secondary_x_label_{i}_{j}',
+                                 disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
                         [sg.Text('    Label Offset:'),
-                        sg.Input(default_inputs[f'secondary_x_label_offset_{i}{j}'],
-                                 key=f'secondary_x_label_offset_{i}{j}',
-                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
+                        sg.Input(default_inputs[f'secondary_x_label_offset_{i}_{j}'],
+                                 key=f'secondary_x_label_offset_{i}_{j}',
+                                 disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
                         [sg.Text('    Expression, using "x" as the variable (eg. x + 200):'),
-                        sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}{j}'],
-                                 key=f'secondary_x_expr_{i}{j}', size=(15, 1),
-                                 disabled=not default_inputs[f'secondary_x_{i}{j}'])],
-                        [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}{j}'],
-                                  key=f'secondary_y_{i}{j}', enable_events=True,
+                        sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}_{j}'],
+                                 key=f'secondary_x_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
+                        [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}_{j}'],
+                                  key=f'secondary_y_{i}_{j}', enable_events=True,
                                   disabled=secondary_y_disabled),
-                        sg.Input(default_text=default_inputs[f'secondary_y_label_{i}{j}'],
-                                 key=f'secondary_y_label_{i}{j}',
-                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        sg.Input(default_text=default_inputs[f'secondary_y_label_{i}_{j}'],
+                                 key=f'secondary_y_label_{i}_{j}',
+                                 disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
                         [sg.Text('    Label Offset:'),
-                        sg.Input(default_inputs[f'secondary_y_label_offset_{i}{j}'],
-                                 key=f'secondary_y_label_offset_{i}{j}',
-                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        sg.Input(default_inputs[f'secondary_y_label_offset_{i}_{j}'],
+                                 key=f'secondary_y_label_offset_{i}_{j}',
+                                 disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
                         [sg.Text('    Expression, using "y" as the variable (eg. y - 50):'),
-                        sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}{j}'],
-                                 key=f'secondary_y_expr_{i}{j}', size=(15, 1),
-                                 disabled=not default_inputs[f'secondary_y_{i}{j}'])],
+                        sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}_{j}'],
+                                 key=f'secondary_y_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
                         [sg.Text('')],
                         [sg.Text('Tick Marks')],
-                        [sg.Radio('Automatic', f'secondary_ticks_{i}{j}',
-                                  key=f'auto_ticks_secondary{i}{j}',
-                                  default=default_inputs[f'auto_ticks_secondary{i}{j}'],
+                        [sg.Radio('Automatic', f'secondary_ticks_{i}_{j}',
+                                  key=f'auto_ticks_secondary_{i}_{j}',
+                                  default=default_inputs[f'auto_ticks_secondary_{i}_{j}'],
                                   enable_events=True, pad=((20, 10), 3))],
                         [sg.Column([
                             [sg.Text('X Axis:')],
                             [sg.Text('Major Ticks'),
-                             sg.Spin([num for num in range(2, 11)],
-                                     initial_value=default_inputs[f'secondary_x_major_ticks_{i}{j}'],
-                                     key=f'secondary_x_major_ticks_{i}{j}', size=(3, 1))],
+                             sg.Spin(list(range(2, 11)),
+                                     initial_value=default_inputs[f'secondary_x_major_ticks_{i}_{j}'],
+                                     key=f'secondary_x_major_ticks_{i}_{j}', size=(3, 1))],
                             [sg.Text('Minor Ticks'),
-                             sg.Spin([num for num in range(11)],
-                                     initial_value=default_inputs[f'secondary_x_minor_ticks_{i}{j}'],
-                                     key=f'secondary_x_minor_ticks_{i}{j}', size=(3, 1))]
+                             sg.Spin(list(range(11)),
+                                     initial_value=default_inputs[f'secondary_x_minor_ticks_{i}_{j}'],
+                                     key=f'secondary_x_minor_ticks_{i}_{j}', size=(3, 1))]
                          ], pad=((40, 5), 3), element_justification='center'),
                          sg.Column([
                              [sg.Text('Y Axis:')],
                              [sg.Text('Major Ticks'),
-                              sg.Spin([num for num in range(2, 11)],
-                                      initial_value=default_inputs[f'secondary_y_major_ticks_{i}{j}'],
-                                      key=f'secondary_y_major_ticks_{i}{j}', size=(3, 1))],
+                              sg.Spin(list(range(2, 11)),
+                                      initial_value=default_inputs[f'secondary_y_major_ticks_{i}_{j}'],
+                                      key=f'secondary_y_major_ticks_{i}_{j}', size=(3, 1))],
                              [sg.Text('Minor Ticks'),
-                              sg.Spin([num for num in range(11)], size=(3, 1),
-                                      initial_value=default_inputs[f'secondary_y_minor_ticks_{i}{j}'],
-                                      key=f'secondary_y_minor_ticks_{i}{j}')]
+                              sg.Spin(list(range(11)), size=(3, 1),
+                                      initial_value=default_inputs[f'secondary_y_minor_ticks_{i}_{j}'],
+                                      key=f'secondary_y_minor_ticks_{i}_{j}')]
                          ], pad=((40, 5), 3), element_justification='center')]
                     ],
                     'Annotations': [
-                        [sg.Button('Add Annotation', key=f'add_annotation_{i}{j}'),
-                         sg.Button('Edit Annotation', key=f'edit_annotation_{i}{j}',
+                        [sg.Button('Add Annotation', key=f'add_annotation_{i}_{j}'),
+                         sg.Button('Edit Annotations', key=f'edit_annotation_{i}_{j}',
                                    disabled=not axis.texts),
-                         sg.Button('Delete Annotation', key=f'delete_annotation_{i}{j}',
+                         sg.Button('Delete Annotations', key=f'delete_annotation_{i}_{j}',
                                    disabled=not axis.texts)]
+                    ],
+                    'Peak Labels': [
+                        [sg.Button('Add Peak', key=f'add_peak_{i}_{j}'),
+                         sg.Button('Edit Peaks', key=f'edit_peak_{i}_{j}',
+                                   disabled=not any(line.get_label().startswith('-PEAK-') for line in axis.lines)),
+                         sg.Button('Delete Peaks', key=f'delete_peak_{i}_{j}',
+                                   disabled=not any(line.get_label().startswith('-PEAK-') for line in axis.lines))]
                     ]
                 })
 
@@ -1771,21 +1844,25 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
             #TODO need some way to know if a section should be collapsed -> if right-arrow in default_inputs[key]
             for k, section in enumerate(sections.items()):
                 column_layout.extend([
-                    [sg.Text(section[0], key=f'-SECTION_header_{i}{j}{k}', relief='ridge',
+                    [sg.Text(section[0], key=f'-SECTION_header_{i}_{j}_{k}', relief='ridge',
                              size=(column_width, 1), justification='center')],
-                    [sg.Frame('', section[1], key=f'-SECTION_{i}{j}{k}',
+                    [sg.Frame('', section[1], key=f'-SECTION_{i}_{j}_{k}',
                               border_width=0,  pad=(5, (10, 20)))]
                 ])
             label_tabs.append(
-                [sg.Tab(label,
-                        [[sg.Column([
+                [sg.Tab(
+                    label,
+                    [[
+                        sg.Column([
                             [sg.Text(f'\nOptions for Plot in {axis.get_label()}\n',
                                      relief='ridge', size=(column_width, 3),
                                      justification='center')],
                             [sg.Text('')],
                             *column_layout
-                        ], scrollable=True, vertical_scroll_only=True, size=(750, 650))]],
-                        key=f'label_tab_{i}{j}')]
+                        ], scrollable=True, vertical_scroll_only=True,
+                        size=(CANVAS_SIZE[0] - 50, CANVAS_SIZE[1] - 100))
+                    ]],
+                    key=f'label_tab_{i}_{j}')]
             )
 
         axis_label = axes[key]['Main Axis'].get_label().split(', ')
@@ -1820,7 +1897,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None,
     ]
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
-    window = sg.Window('Plot Options', layout, resizable=True, finalize=True)
+    window = sg.Window('Plot Options', layout, resizable=True,
+                       finalize=True, location=location)
     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
                            window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) # expands the column when window changes size
@@ -1893,9 +1971,14 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
         if old_axes is not None:
             annotations = {}
+            peaks = {}
             for key in axes:
                 if 'Invisible' not in axes[key]['Main Axis'].get_label() and key in old_axes:
                     annotations[key] = old_axes[key]['Main Axis'].texts
+                    peaks[key] = []
+                    for line in old_axes[key]['Main Axis'].lines:
+                        if line.get_label().startswith('-PEAK-'):
+                            peaks[key].append(line)
 
         for i, key in enumerate(axes):
             if 'Invisible' in axes[key]['Main Axis'].get_label():
@@ -1906,104 +1989,87 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                 axis.clear() #TODO check if this is needed, or can be replaced with a faster alternative
 
                 for k, dataset in enumerate(data):
-                    if kwargs[f'plot_boolean_{i}{j}{k}']:
+                    if kwargs[f'plot_boolean_{i}_{j}_{k}']:
 
-                        headers = dataset.columns
-                        x_index = int(kwargs[f'x_col_{i}{j}{k}'])
-                        y_index = int(kwargs[f'y_col_{i}{j}{k}'])
-                        x_data = dataset[headers[x_index]].astype(float)
-                        y_data = dataset[headers[y_index]].astype(float)
+                        x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
+                        y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
+                        x_data = dataset[dataset.columns[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
+                        y_data = dataset[dataset.columns[y_index]].astype(float)
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
                         x = x_data[nan_mask]
-                        y = y_data[nan_mask] + float(kwargs[f'offset_{i}{j}{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}{j}'])
-
-                        if kwargs[f'marker_fill_{i}{j}{k}'] == 'Filled':
-                            marker_kws = {
-                                'markerfacecolor': kwargs[f'marker_color_{i}{j}{k}'],
-                                'markeredgewidth': plt.rcParams['lines.markeredgewidth']
-                            }
-                        elif kwargs[f'marker_fill_{i}{j}{k}'] == 'Hollow':
-                            marker_kws = {
-                                'markerfacecolor': 'white',
-                                'markeredgecolor': kwargs[f'marker_color_{i}{j}{k}'],
-                                'markeredgewidth': HOLLOW_THICKNESS * float(kwargs[f'marker_size_{i}{j}{k}'])
-                            }
-                        else:
-                            marker_kws = {
-                                'markerfacecolor': 'None',
-                                'markeredgecolor': kwargs[f'marker_color_{i}{j}{k}'],
-                                'markeredgewidth': HOLLOW_THICKNESS * float(kwargs[f'marker_size_{i}{j}{k}'])
-                            }
+                        y = y_data[nan_mask] + float(kwargs[f'offset_{i}_{j}_{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}_{j}'])
 
                         axis.plot(
                             x, y,
-                            marker=utils.string_to_unicode(kwargs[f'marker_style_{i}{j}{k}'].split(' ')[0]),
-                            markersize=float(kwargs[f'marker_size_{i}{j}{k}']),
-                            color=kwargs[f'line_color_{i}{j}{k}'],
-                            linewidth=float(kwargs[f'line_size_{i}{j}{k}']),
-                            label=utils.string_to_unicode(kwargs[f'label_{i}{j}{k}']),
-                            linestyle=LINE_MAPPING[kwargs[f'line_style_{i}{j}{k}']],
-                            **marker_kws
+                            marker=utils.string_to_unicode(kwargs[f'marker_style_{i}_{j}_{k}'].split(' ')[0]),
+                            markersize=float(kwargs[f'marker_size_{i}_{j}_{k}']),
+                            markerfacecolor=kwargs[f'markerface_color_{i}_{j}_{k}'],
+                            markeredgecolor=kwargs[f'markeredge_color_{i}_{j}_{k}'],
+                            markeredgewidth=float(kwargs[f'marker_edgewidth_{i}_{j}_{k}']),
+                            color=kwargs[f'line_color_{i}_{j}_{k}'],
+                            linewidth=float(kwargs[f'line_size_{i}_{j}_{k}']),
+                            label=utils.string_to_unicode(kwargs[f'label_{i}_{j}_{k}']),
+                            linestyle=LINE_MAPPING[kwargs[f'line_style_{i}_{j}_{k}']],
                         )
 
-                if kwargs[f'show_x_label_{i}{j}']:
-                    axis.set_xlabel(utils.string_to_unicode(kwargs[f'x_label_{i}{j}']),
-                                    labelpad=float(kwargs[f'x_label_offset_{i}{j}']))
-                if kwargs[f'show_y_label_{i}{j}']:
-                    axis.set_ylabel(utils.string_to_unicode(kwargs[f'y_label_{i}{j}']),
-                                    labelpad=float(kwargs[f'y_label_offset_{i}{j}']))
+                if kwargs[f'show_x_label_{i}_{j}']:
+                    axis.set_xlabel(utils.string_to_unicode(kwargs[f'x_label_{i}_{j}']),
+                                    labelpad=float(kwargs[f'x_label_offset_{i}_{j}']))
+                if kwargs[f'show_y_label_{i}_{j}']:
+                    axis.set_ylabel(utils.string_to_unicode(kwargs[f'y_label_{i}_{j}']),
+                                    labelpad=float(kwargs[f'y_label_offset_{i}_{j}']))
 
                 if label != 'Twin X':
-                    axis.grid(kwargs[f'x_major_grid_{i}{j}'], which='major', axis='x')
-                    axis.grid(kwargs[f'x_minor_grid_{i}{j}'], which='minor', axis='x')
+                    axis.grid(kwargs[f'x_major_grid_{i}_{j}'], which='major', axis='x')
+                    axis.grid(kwargs[f'x_minor_grid_{i}_{j}'], which='minor', axis='x')
                 if label != 'Twin Y':
-                    axis.grid(kwargs[f'y_major_grid_{i}{j}'], which='major', axis='y')
-                    axis.grid(kwargs[f'y_minor_grid_{i}{j}'], which='minor', axis='y')
+                    axis.grid(kwargs[f'y_major_grid_{i}_{j}'], which='major', axis='y')
+                    axis.grid(kwargs[f'y_minor_grid_{i}_{j}'], which='minor', axis='y')
 
-                if kwargs['share_x'] and i not in (0, len(axes) - 1):
+                if kwargs['share_x'] and i not in (0, len(axes) - 1): #TODO does this actually do anything??/will it be needed since user can set tick marks?
                     prune = 'both'
                 else:
                     prune = None
 
-                if kwargs[f'x_axis_min_{i}{j}'] is not None: # Initial plot of data
+                if kwargs[f'x_axis_min_{i}_{j}'] is not None:
                     if label != 'Twin X':
-                        axis.set_xlim(float(kwargs[f'x_axis_min_{i}{j}']),
-                                      float(kwargs[f'x_axis_max_{i}{j}']))
+                        axis.set_xlim(float(kwargs[f'x_axis_min_{i}_{j}']),
+                                      float(kwargs[f'x_axis_max_{i}_{j}']))
                     if label != 'Twin Y':
-                        axis.set_ylim(float(kwargs[f'y_axis_min_{i}{j}']),
-                                      float(kwargs[f'y_axis_max_{i}{j}']))
+                        axis.set_ylim(float(kwargs[f'y_axis_min_{i}_{j}']),
+                                      float(kwargs[f'y_axis_max_{i}_{j}']))
 
                 if label != 'Twin X':
                     axis.xaxis.set_major_locator(
-                        MaxNLocator(prune=None, nbins=kwargs[f'x_major_ticks_{i}{j}'],
+                        MaxNLocator(prune=None, nbins=kwargs[f'x_major_ticks_{i}_{j}'],
                                     steps=[1, 2, 2.5, 4, 5, 10]))
                     axis.xaxis.set_minor_locator(
-                        AutoMinorLocator(kwargs[f'x_minor_ticks_{i}{j}'] + 1))
+                        AutoMinorLocator(kwargs[f'x_minor_ticks_{i}_{j}'] + 1))
                 if label != 'Twin Y':
                     axis.yaxis.set_major_locator(
-                        MaxNLocator(prune=prune, nbins=kwargs[f'y_major_ticks_{i}{j}'],
+                        MaxNLocator(prune=prune, nbins=kwargs[f'y_major_ticks_{i}_{j}'],
                                     steps=[1, 2, 2.5, 4, 5, 10]))
                     axis.yaxis.set_minor_locator(
-                        AutoMinorLocator(kwargs[f'y_minor_ticks_{i}{j}'] + 1))
+                        AutoMinorLocator(kwargs[f'y_minor_ticks_{i}_{j}'] + 1))
 
-                if kwargs[f'show_legend_{i}{j}']:
-                    if kwargs[f'legend_auto_{i}{j}']:
-                        loc = kwargs[f'legend_auto_loc_{i}{j}']
+                if kwargs[f'show_legend_{i}_{j}']:
+                    if kwargs[f'legend_auto_{i}_{j}']:
+                        loc = kwargs[f'legend_auto_loc_{i}_{j}']
                     else:
                         loc = (
-                            float(kwargs[f'legend_manual_x_{i}{j}']),
-                            float(kwargs[f'legend_manual_y_{i}{j}'])
+                            float(kwargs[f'legend_manual_x_{i}_{j}']),
+                            float(kwargs[f'legend_manual_y_{i}_{j}'])
                         )
-                    legend = axis.legend(ncol=kwargs[f'legend_cols_{i}{j}'], loc=loc)
+                    legend = axis.legend(ncol=kwargs[f'legend_cols_{i}_{j}'], loc=loc)
                     legend.set_in_layout(False)
 
-                if 'Twin' not in label and kwargs[f'secondary_x_{i}{j}']:
-                    if not kwargs[f'secondary_x_expr_{i}{j}']:
+                if 'Twin' not in label and kwargs[f'secondary_x_{i}_{j}']:
+                    if not kwargs[f'secondary_x_expr_{i}_{j}']:
                         functions = None
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_x_expr_{i}{j}'])
+                        eqn_a = sp.parse_expr(kwargs[f'secondary_x_expr_{i}_{j}'])
                         forward_eqn = sp.lambdify(['x'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('y') - eqn_a],
                                          [sp.Symbol('x')])[sp.Symbol('x')]
@@ -2013,20 +2079,20 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                     sec_x_axis = axis.secondary_xaxis('top', functions=functions)
                     sec_x_axis.set_xlabel(
-                        utils.string_to_unicode(kwargs[f'secondary_x_label_{i}{j}']),
-                        labelpad=float(kwargs[f'secondary_x_label_offset_{i}{j}'])
+                        utils.string_to_unicode(kwargs[f'secondary_x_label_{i}_{j}']),
+                        labelpad=float(kwargs[f'secondary_x_label_offset_{i}_{j}'])
                     )
                     sec_x_axis.xaxis.set_major_locator(
-                        MaxNLocator(prune=None, nbins=kwargs[f'secondary_x_major_ticks_{i}{j}'],
+                        MaxNLocator(prune=None, nbins=kwargs[f'secondary_x_major_ticks_{i}_{j}'],
                                     steps=[1, 2, 2.5, 4, 5, 10]))
                     sec_x_axis.xaxis.set_minor_locator(
-                        AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}{j}'] + 1))
+                        AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}_{j}'] + 1))
 
-                if 'Twin' not in label and kwargs[f'secondary_y_{i}{j}']:
-                    if not kwargs[f'secondary_y_expr_{i}{j}']:
+                if 'Twin' not in label and kwargs[f'secondary_y_{i}_{j}']:
+                    if not kwargs[f'secondary_y_expr_{i}_{j}']:
                         functions = None
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_y_expr_{i}{j}'])
+                        eqn_a = sp.parse_expr(kwargs[f'secondary_y_expr_{i}_{j}'])
                         forward_eqn = sp.lambdify(['y'], eqn_a, ['numpy'])
                         eqn_b = sp.solve([sp.Symbol('x') - eqn_a],
                                          [sp.Symbol('y')])[sp.Symbol('y')]
@@ -2036,32 +2102,50 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                     sec_y_axis = axis.secondary_yaxis('right', functions=functions)
                     sec_y_axis.set_ylabel(
-                        utils.string_to_unicode(kwargs[f'secondary_y_label_{i}{j}']),
-                        labelpad=float(kwargs[f'secondary_y_label_offset_{i}{j}'])
+                        utils.string_to_unicode(kwargs[f'secondary_y_label_{i}_{j}']),
+                        labelpad=float(kwargs[f'secondary_y_label_offset_{i}_{j}'])
                     )
                     sec_y_axis.yaxis.set_major_locator(
-                        MaxNLocator(prune=None, nbins=kwargs[f'secondary_y_major_ticks_{i}{j}'],
+                        MaxNLocator(prune=None, nbins=kwargs[f'secondary_y_major_ticks_{i}_{j}'],
                                     steps=[1, 2, 2.5, 4, 5, 10]))
                     sec_y_axis.yaxis.set_minor_locator(
-                        AutoMinorLocator(kwargs[f'secondary_y_minor_ticks_{i}{j}'] + 1))
+                        AutoMinorLocator(kwargs[f'secondary_y_minor_ticks_{i}_{j}'] + 1))
 
     except Exception as e:
         sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
     finally:
-        # Ensures that the annotations are maintained if an exception occurres
+        # Ensures that the annotations and peaks are maintained if an exception occurres
         if old_axes is not None:
             for key in annotations:
                 for annotation in annotations[key]:
                     # Cannot directly copy artists because the transformations will not
                     # update in the new axis
                     axes[key]['Main Axis'].annotate(
-                        annotation.get_text(), xy=annotation.xy,
+                        annotation.get_text(),
+                        xy=annotation.xy,
                         xytext=annotation.xyann,
                         fontsize=annotation.get_fontsize(),
                         arrowprops=annotation.arrowprops,
                         rotation=annotation.get_rotation(),
                         color=annotation.get_color(),
-                        annotation_clip=False, in_layout=False
+                        horizontalalignment=annotation.get_horizontalalignment(),
+                        verticalalignment=annotation.get_verticalalignment(),
+                        annotation_clip=False,
+                        in_layout=False
+                    )
+
+                for peak in peaks[key]:
+                    axes[key]['Main Axis'].plot(
+                        *peak.get_data(),
+                        linestyle=peak.get_linestyle(),
+                        linewidth=peak.get_linewidth(),
+                        color=peak.get_color(),
+                        marker=peak.get_marker(),
+                        markerfacecolor=peak.get_markerfacecolor(),
+                        markeredgecolor=peak.get_markeredgecolor(),
+                        markeredgewidth=peak.get_markeredgewidth(),
+                        markersize=peak.get_markersize(),
+                        label=peak.get_label()
                     )
 
 
@@ -2074,12 +2158,16 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
     ----------
     current_data : list
         The current list of DataFrames that are being plotted.
+    plot_details : dict
+        The dictionary containing all the plot properties for each dataset.
     data_list : list
         A nested list of lists of DataFrames; contains all of the
         data that will eventually be plotted.
     add_dataset : bool
         If True, will launch gui to add a dataset; if False, will launch
         gui to delete a dataset.
+    axes : dict, optional
+        A dictionary of axes in the figure.
 
     Returns
     -------
@@ -2173,8 +2261,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
             dataset_index = int(selected_dataset.split(' ')[-1]) - 1
             del current_data[dataset_index]
             properties = (
-                'plot_boolean', 'x_col', 'y_col', 'label', 'offset',
-                'marker_color', 'marker_style', 'marker_fill',
+                'plot_boolean', 'x_col', 'y_col', 'label', 'offset', 'markerface_color',
+                'markeredge_color', 'marker_edgewidth', 'marker_style',
                 'marker_size', 'line_color', 'line_style', 'line_size'
             )
             # reorders the plot properties
@@ -2182,7 +2270,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                 for j in range(len(axes[key])):
                     for k in range(dataset_index, len(current_data)):
                         for prop in properties:
-                            plot_details[f'{prop}_{i}{j}{k}'] = plot_details.pop(f'{prop}_{i}{j}{k + 1}')
+                            plot_details[f'{prop}_{i}_{j}_{k}'] = plot_details.pop(f'{prop}_{i}_{j}_{k + 1}')
 
     return current_data, plot_details
 
@@ -2196,9 +2284,9 @@ def _add_remove_annotations(axis, add_annotation):
     axis : plt.Axes
         The axis to add or remove annotations from. Contains all of the
         annotation information within axis.texts.
-    add_annotation : bool
+    add_annotation : bool or None
         If True, will give window to add an annotation; if False, will give
-        window to remove an annotation; if None, will give window to edit
+        window to remove annotations; if None, will give window to edit
         annotations.
 
     """
@@ -2226,7 +2314,7 @@ def _add_remove_annotations(axis, add_annotation):
                     [sg.Text('Rotation, in degrees\n(positive angle rotates\ncounter-clockwise)'),
                      sg.Input('0', key='rotation', size=(5, 1))],
                     [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value='Black',
+                     sg.Combo(COLORS, default_value=COLORS[1],
                               key='text_color_', size=(9, 1), readonly=True),
                      sg.Input(key='text_chooser_', enable_events=True,
                               visible=False),
@@ -2248,8 +2336,8 @@ def _add_remove_annotations(axis, add_annotation):
                      sg.Input(plt.rcParams['lines.linewidth'], key='linewidth',
                               size=(5, 1))],
                     [sg.Text('Line Syle:'),
-                     sg.Combo([*LINE_MAPPING][1:], readonly=True,
-                              default_value=[*LINE_MAPPING][1],
+                     sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
+                              default_value=list(LINE_MAPPING)[1],
                               key='linestyle', size=(11, 1))],
                     [sg.Text('Head-size multiplier:'),
                      sg.Input('1', key='head_scale', size=(5, 1))],
@@ -2258,7 +2346,7 @@ def _add_remove_annotations(axis, add_annotation):
                                ']-', ']-[', '|-|', '-'], default_value='-|>',
                               readonly=True, key='arrow_style')],
                     [sg.Text('Color:'),
-                     sg.Combo(COLORS, default_value='Black',
+                     sg.Combo(COLORS, default_value=COLORS[1],
                               key='arrow_color_', size=(9, 1), readonly=True),
                      sg.Input(key='arrow_chooser_', enable_events=True,
                               visible=False),
@@ -2364,7 +2452,7 @@ def _add_remove_annotations(axis, add_annotation):
                  sg.Input(annotation.arrowprops['linewidth'], key=f'linewidth_{i}',
                           size=(5, 1))],
                 [sg.Text('Line Syle:'),
-                 sg.Combo([*LINE_MAPPING][1:], readonly=True,
+                 sg.Combo(list(LINE_MAPPING)[1:], readonly=True,
                           default_value=style,
                           key=f'linestyle_{i}', size=(11, 1))],
                 [sg.Text('Head-size multiplier:'),
@@ -2422,11 +2510,11 @@ def _add_remove_annotations(axis, add_annotation):
         tab_layout = [
             [sg.Text('All selected annotations will be deleted!\n')],
             [sg.TabGroup([[
-                sg.Tab('Text', [[sg.Listbox([*annotations['text']],
+                sg.Tab('Text', [[sg.Listbox(list(annotations['text']),
                                             select_mode='multiple', size=(40, 5),
                                             key='text_listbox')]],
                        key='text_tab'),
-                sg.Tab('Arrows', [[sg.Listbox([*annotations['arrows']],
+                sg.Tab('Arrows', [[sg.Listbox(list(annotations['arrows']),
                                               select_mode='multiple', size=(40, 5),
                                               key='arrows_listbox')]],
                        key='arrows_tab')
@@ -2460,7 +2548,7 @@ def _add_remove_annotations(axis, add_annotation):
                 window['arrows_tab'].select()
                 window['text_tab'].update(visible=False)
 
-                    #color chooser button
+        # color chooser button
         elif 'chooser' in event:
             if values[event] != 'None':
                 property_type = event.split('_')[0]
@@ -2530,7 +2618,7 @@ def _add_remove_annotations(axis, add_annotation):
 
         for i, annotation in enumerate(annotations['arrows']):
             # not able to move arrow head location, so have to create new annotations
-            del axis.texts[axis.texts.index(annotation)]
+            axis.texts[axis.texts.index(annotation)].remove()
 
             axis.annotate(
                 '', xy=(float(values[f'head_x_{i}']), float(values[f'head_y_{i}'])),
@@ -2552,7 +2640,424 @@ def _add_remove_annotations(axis, add_annotation):
             indices.append(annotations['arrows'][entry])
 
         for index in sorted(indices, reverse=True):
-            del axis.texts[index]
+            axis.texts[index].remove()
+
+
+def _add_remove_peaks(axis, add_peak):
+    """
+    Gives options to add, edit, or remove peaks and peak markers on the figure.
+
+    Parameters
+    ----------
+    axis : plt.Axes
+        The axis to add or remove peaks from. Contains all of the
+        peaks information within axis.lines. Each line for a peak
+        has a label corresponding to '-PEAK-peak_name'.
+    add_peak : bool or None
+        If True, will give window to add a peak; if False, will give
+        window to remove peaks; if None, will give window to edit
+        peaks.
+
+    """
+
+    remove_peak = False
+    validations = {'line': {'floats': [], 'user_inputs': []},
+                   'marker': {'floats': [], 'user_inputs': []}}
+
+    peaks = {}
+    non_peaks = {}
+    for i, line in enumerate(axis.lines):
+        if line.get_label().startswith('-PEAK-'):
+            key = ''.join(line.get_label().split('-PEAK-'))
+            if key not in peaks:
+                peaks[key] = {'peaks': [], 'annotations': []}
+            peaks[key]['peaks'].append(line)
+
+        elif not all(np.isnan(line.get_xdata())):
+            non_peaks[i] = line
+
+    for annotation in axis.texts:
+        if annotation.get_text() in peaks:
+            peaks[annotation.get_text()]['annotations'].append(annotation)
+
+    if add_peak:
+        window_text = 'Add Peak'
+        non_peak_labels = [
+            f'Line #{key + 1} ({line.get_label()})' for key, line in non_peaks.items()
+        ]
+
+        inner_layout = [
+            [sg.Text('Peak Label:'),
+             sg.Input(key='label', size=(10, 1))],
+            [sg.Check('Place label above each marker', key='show_label')],
+            [sg.Text('Defining Axis:'),
+             sg.Combo(('x', 'y'), key='defining_axis', default_value='x',
+                      size=(5, 1), readonly=True)],
+            [sg.Text('Peak Positions (separate\nmultiple entries with a comma):'),
+             sg.Input(key='positions', size=(10, 1))],
+            [sg.Text('Select all lines to add peaks to')],
+            [sg.Listbox(non_peak_labels, select_mode='multiple',
+                        size=(30, 5), key='peak_listbox')],
+            [sg.Text('Peak Label Type:'),
+             sg.Radio('Marker', 'label_type', default=True, key='radio_marker',
+                      enable_events=True),
+             sg.Radio('Line', 'label_type', key='radio_line', enable_events=True)],
+            [sg.TabGroup([[
+                sg.Tab('Options', [
+                    [sg.Text('Face Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
+                              key='face_color_', readonly=True),
+                     sg.Input(key='face_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='face_chooser_')],
+                    [sg.Text('Edge Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
+                              key='edge_color_', readonly=True),
+                     sg.Input(key='edge_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='edge_chooser_')],
+                    [sg.Text('Edge Line Width:'),
+                     sg.Input(plt.rcParams['lines.markeredgewidth'],
+                              key='edge_width', size=(4, 1))],
+                    [sg.Text('Style:'),
+                     sg.Combo(MARKERS, default_value=MARKERS[1],
+                              key='marker_style', size=(13, 1))],
+                    [sg.Text('Size:'),
+                     sg.Input(plt.rcParams['lines.markersize'],
+                              key='marker_size', size=(4, 1))]
+                ], key='tab_marker'),
+                sg.Tab('Options', [
+                    [sg.Text('Color:'),
+                     sg.Combo(COLORS, default_value=COLORS[1], size=(9, 1),
+                              key='line_color_', readonly=True),
+                     sg.Input(key='line_chooser_', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target='line_chooser_')],
+                    [sg.Text('Style:'),
+                     sg.Combo(list(LINE_MAPPING), readonly=True, size=(10, 1),
+                              default_value=list(LINE_MAPPING)[1], key='line_style')],
+                    [sg.Text('Line Width:'),
+                     sg.Input(plt.rcParams['lines.linewidth'], key='line_size',
+                              size=(4, 1))]
+                    ], visible=False, key='tab_line')
+            ]], tab_background_color=sg.theme_background_color(), key='tab')]
+        ]
+
+        for key in ('line', 'marker'):
+            validations[key]['user_inputs'].extend([
+                ['label', 'Peak Label', utils.string_to_unicode, False, None],
+                ['positions', 'Peak Positions', float]
+            ])
+            validations[key]['floats'].append(
+                [f'{key}_size', f'{key} size']
+            )
+        validations['marker']['user_inputs'].append(
+            ['marker_style', 'marker style', utils.string_to_unicode, True, None]
+        )
+        validations['marker']['floats'].append(['edge_width', 'edge line width'])
+
+    elif add_peak is None:
+        window_text = 'Edit Peaks'
+
+        column_layout = []
+        for i, peak in enumerate(peaks):
+            label_text = peak
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                label_text = label_text.replace(*replacement)
+
+            column_layout.extend([
+                [sg.Text(f'Peak #{i + 1}', relief='ridge', justification='center')],
+                [sg.Text('Peak Label:'),
+                 sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
+                [sg.Text('Positions:')]
+            ])
+
+            for j, line in enumerate(peaks[peak]['peaks']):
+                column_layout.append([
+                    sg.Text(f'  Position #{j + 1}:    '),
+                    sg.Check('Delete?', key=f'delete_peak_{i}_{j}')
+                ])
+
+                for k, data in enumerate(line.get_xydata()):
+                    column_layout.append([
+                        sg.Text(f'    X{k + 1}:'),
+                        sg.Input(data[0], size=(8, 1), key=f'x_{i}_{j}_{k}'),
+                        sg.Text(f'Y{k + 1}:'),
+                        sg.Input(data[1], size=(8, 1), key=f'y_{i}_{j}_{k}')
+                    ])
+
+                    validations['marker']['floats'].extend([
+                        [f'x_{i}_{j}_{k}', f'Position #{j + 1}, X{k + 1} for peak #{i + 1}'],
+                        [f'y_{i}_{j}_{k}', f'Position #{j + 1}, Y{k + 1} for peak #{i + 1}']
+                    ])
+
+            validations['marker']['user_inputs'].append(
+                [f'label_{i}', f'Peak Label {i + 1}', utils.string_to_unicode, False, None]
+            )
+
+            if peaks[peak]['peaks'][0].get_xdata().size > 1: # a line
+                for style, linestyle in LINE_MAPPING.items():
+                    if linestyle == line.get_linestyle():
+                        break
+                else: # in case no break
+                    style = line.get_linestyle()
+
+                column_layout.extend([
+                    [sg.Text('Color:'),
+                     sg.Combo(COLORS, default_value=line.get_color(), size=(9, 1),
+                              key=f'line_color_{i}', readonly=True),
+                     sg.Input(key=f'line_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'line_chooser_{i}')],
+                    [sg.Text('Style:'),
+                     sg.Combo(list(LINE_MAPPING), readonly=True, size=(10, 1),
+                              default_value=style, key=f'line_style_{i}')],
+                    [sg.Text('Line Width:'),
+                     sg.Input(line.get_linewidth(), key=f'line_size_{i}',
+                              size=(5, 1))]
+                ])
+
+                validations['marker']['floats'].append(
+                    [f'line_size_{i}', f'line width for peak #{i + 1}']
+                )
+
+            else: # a marker
+                marker = line.get_marker()
+                for replacement in (('\\', '\\\\'), ('\n', '\\n'),
+                                    ('\t', '\\t'), ('\r', '\\r')):
+                    marker = marker.replace(*replacement)
+
+                for j, mark in enumerate(MARKERS):
+                    if mark[0] == marker:
+                        marker = MARKERS[j]
+                        break
+
+                column_layout.extend([
+                    [sg.Text('Face Color:'),
+                     sg.Combo(COLORS, default_value=line.get_markerfacecolor(),
+                              size=(9, 1), key=f'face_color_{i}', readonly=True),
+                     sg.Input(key=f'face_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'face_chooser_{i}')],
+                    [sg.Text('Edge Color:'),
+                     sg.Combo(COLORS, default_value=line.get_markeredgecolor(),
+                              size=(9, 1), key=f'edge_color_{i}', readonly=True),
+                     sg.Input(key=f'edge_chooser_{i}', enable_events=True, visible=False),
+                     sg.ColorChooserButton('..', target=f'edge_chooser_{i}')],
+                    [sg.Text('Edge Line Width:'),
+                     sg.Input(line.get_markeredgewidth(),
+                              key=f'edge_width_{i}', size=(4, 1))],
+                    [sg.Text('Style:'),
+                     sg.Combo(MARKERS, default_value=marker,
+                              key=f'marker_style_{i}', size=(13, 1))],
+                    [sg.Text('Size:'),
+                     sg.Input(line.get_markersize(),
+                              key=f'marker_size_{i}', size=(4, 1))],
+                ])
+
+                validations['marker']['floats'].extend([
+                    [f'marker_size_{i}', f'marker size for peak #{i + 1}'],
+                    [f'edge_width_{i}', f'edge line width for peak #{i + 1}']
+                ])
+                validations['marker']['user_inputs'].append(
+                    [f'marker_style_{i}', f'marker style for peak #{i + 1}',
+                     utils.string_to_unicode, True, None]
+                )
+
+        inner_layout = [
+            [sg.Column(column_layout, #size=(None, 400),
+                       scrollable=True, vertical_scroll_only=True)]
+        ]
+
+    else:
+        remove_peak = True
+        window_text = 'Remove Peaks'
+
+        labels = {}
+        for peak in peaks:
+            label_text = peak
+            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
+                label_text = label_text.replace(*replacement)
+            labels[label_text] = peak
+
+        inner_layout = [
+            [sg.Text('All markers and text for selected peaks will be deleted!\n')],
+            [sg.Listbox(list(labels), select_mode='multiple', size=(20, 5),
+                        key='peak_listbox')]
+        ]
+
+    layout = [
+        *inner_layout,
+        [sg.Text('')],
+        [sg.Button('Back'),
+         sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
+    ]
+
+    window = sg.Window(window_text, layout, finalize=True)
+    window.TKroot.grab_set()
+    while True:
+        event, values = window.read()
+
+        if event in (sg.WIN_CLOSED, 'Back'):
+            add_peak = False
+            remove_peak = False
+            break
+
+        elif event.startswith('radio'):
+            if values['radio_marker']:
+                window['tab_marker'].update(visible=True)
+                window['tab_marker'].select()
+                window['tab_line'].update(visible=False)
+            else:
+                window['tab_line'].update(visible=True)
+                window['tab_line'].select()
+                window['tab_marker'].update(visible=False)
+
+        # color chooser button
+        elif 'chooser' in event:
+            if values[event] != 'None':
+                property_type = event.split('_')[0]
+                index = event.split('_')[-1]
+                window[f'{property_type}_color_{index}'].update(value=values[event])
+
+        elif event == 'Submit':
+            window.TKroot.grab_release()
+            close = True
+
+            if add_peak:
+                if values['radio_marker']:
+                    close = utils.validate_inputs(values, **validations['marker'])
+                else:
+                    close = utils.validate_inputs(values, **validations['line'])
+
+                if close:
+                    if utils.string_to_unicode(values['label']) in peaks:
+                        close = False
+                        sg.popup(
+                            'The selected peak label is already a peak.\n',
+                            title='Error'
+                        )
+                    elif not values['peak_listbox']:
+                        close = False
+                        sg.popup(
+                            'Please select a line on which to add peak markers.\n',
+                            title='Error'
+                        )
+
+            elif add_peak is None:
+                close = utils.validate_inputs(values, **validations['marker'])
+                if close:
+                    labels = [
+                        values[label] for label in values if label.startswith('label')
+                    ]
+                    if len(labels) != len(set(labels)):
+                        close = False
+                        sg.popup(
+                            'There cannot be repeated peak labels.\n', title='Error'
+                        )
+
+            else:
+                close = values['peak_listbox']
+                if not close:
+                    sg.popup('Please select a peak to delete.\n', title='Error')
+
+            if not close:
+                window.TKroot.grab_set()
+            else:
+                break
+
+    window.close()
+    del window
+
+    if add_peak:
+        # main designates defining axis, secondary designates non-defining axis
+        positions = [float(value.strip()) for value in values['positions'].split(',')]
+        secondary_limits = getattr(
+            axis, f'get_{"xy".replace(values["defining_axis"], "")}lim')()
+        offset = 0.05 * (secondary_limits[1] - secondary_limits[0])
+
+        plot_data = {'x': [], 'y': []}
+        for peak in values['peak_listbox']:
+            line = non_peaks[int(peak.split(' ')[1].replace('#', '')) - 1]
+
+            main_data = getattr(line, f'get_{values["defining_axis"]}data')()
+            secondary_data = getattr(
+                line, f'get_{"xy".replace(values["defining_axis"], "")}data')()
+
+            for position in positions:
+                plot_data[values['defining_axis']].append(
+                    (position, position) if values['radio_line'] else (position,)
+                )
+
+                if values['radio_marker']:
+                    data_point = (secondary_data[np.abs(main_data - position).argmin()] + offset,)
+                else:
+                    min_secondary = secondary_data.min()
+                    max_secondary = secondary_data.max()
+                    data_point = (min_secondary - offset, max_secondary + offset)
+
+                plot_data['xy'.replace(values['defining_axis'], '')].append(data_point)
+
+        for data in zip(plot_data['x'], plot_data['y']):
+            axis.plot(
+                *data,
+                label='-PEAK-' + utils.string_to_unicode(values['label']),
+                marker=utils.string_to_unicode(values['marker_style'].split(' ')[0]) if values['radio_marker'] else 'None',
+                markersize=float(values['marker_size']) if values['radio_marker'] else None,
+                markerfacecolor=values['face_color_'] if values['radio_marker'] else 'None',
+                markeredgecolor=values['edge_color_'] if values['radio_marker'] else 'None',
+                markeredgewidth=float(values[f'edge_width']) if values['radio_marker'] else None,
+                color=values['line_color_'] if values['radio_line'] else 'None',
+                linewidth=float(values['line_size']) if values['radio_line'] else None,
+                linestyle=LINE_MAPPING[values['line_style']] if values['radio_line'] else ''
+            )
+
+            if values['show_label']:
+                annotation_position = (
+                    data[0][-1] + offset if values['defining_axis'] == 'y' else data[0][-1],
+                    data[1][-1] + offset if values['defining_axis'] == 'x' else data[1][-1]
+                )
+                axis.annotate(
+                    utils.string_to_unicode(values['label']),
+                    xy=annotation_position,
+                    rotation=90 if values['defining_axis'] == 'x' else 0,
+                    horizontalalignment='center' if values['defining_axis'] == 'x' else 'left',
+                    verticalalignment='center' if values['defining_axis'] == 'y' else 'baseline',
+                    annotation_clip=False,
+                    in_layout=False,
+                )
+
+    elif add_peak is None:
+        for i, key in enumerate(peaks):
+            for annotation in peaks[key]['annotations']:
+                annotation.update({
+                    'text': utils.string_to_unicode(values[f'label_{i}']),
+                })
+
+            deleted_peaks = []
+            for j, line in enumerate(peaks[key]['peaks']):
+                if values[f'delete_peak_{i}_{j}']:
+                    deleted_peaks.append(line)
+                else:
+                    line.update({
+                        'xdata': [float(values[entry]) for entry in values if entry.startswith(f'x_{i}_{j}_')],
+                        'ydata': [float(values[entry]) for entry in values if entry.startswith(f'y_{i}_{j}_')],
+                        'label': '-PEAK-' + utils.string_to_unicode(values[f'label_{i}']),
+                        'marker': utils.string_to_unicode(values.get(f'marker_style_{i}', 'None').split(' ')[0]),
+                        'markerfacecolor': values.get(f'face_color_{i}', 'None'),
+                        'markeredgecolor': values.get(f'edge_color_{i}', 'None'),
+                        'markeredgewidth': float(values.get(f'edge_width_{i}', 0)),
+                        'markersize': float(values.get(f'marker_size_{i}', 0)),
+                        'linestyle': LINE_MAPPING[values.get(f'line_style_{i}', 'None')],
+                        'linewidth': float(values.get(f'line_size_{i}', 0)),
+                        'color': values.get(f'line_color_{i}', 'None'),
+                    })
+
+            for line in deleted_peaks:
+                line.remove()
+
+    elif remove_peak:
+        for entry in values['peak_listbox']:
+            key = labels[entry]
+            for line in peaks[key]['peaks']:
+                line.remove()
+            for annotation in peaks[key]['annotations']:
+                annotation.remove()
 
 
 def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
@@ -2646,13 +3151,14 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     if not new_figure_theme:
                         window.un_hide()
                     else:
+                        old_location = window.current_location()
                         window.close()
                         window = None
                         plt.close(_PREVIEW_NAME)
                         old_axes, values, fig_kwargs = new_figure_theme
                         fig, axes = _create_figure_components(**fig_kwargs)
                         window = _create_plot_options_gui(
-                            data, fig, axes, values, old_axes, **fig_kwargs
+                            data, fig, axes, values, old_axes, old_location, **fig_kwargs
                         )
                 # show tables of data
                 elif event == 'Show Data':
@@ -2680,44 +3186,79 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         )
 
                     plt.close(_PREVIEW_NAME)
+                    old_location = window.current_location()
                     window.close()
                     window = None
                     window = _create_plot_options_gui(
-                        data, fig, axes, values, axes, **fig_kwargs
+                        data, fig, axes, values, axes, old_location, **fig_kwargs
                     )
-                # add/remove annotations
+                # add/edit/remove annotations
                 elif 'annotation' in event:
-                    add_annotation = False
                     if event.startswith('add_annotation'):
                         add_annotation = True
                     elif event.startswith('edit_annotation'):
                         add_annotation = None
+                    else:
+                        add_annotation = False
 
-                    index = list(map(int, event.split('_')[-1]))
-                    key = [*axes][index[0]]
-                    label = [*axes[key]][index[1]]
+                    index = [int(num) for num in event.split('_')[-2:]]
+                    key = list(axes)[index[0]]
+                    label = list(axes[key])[index[1]]
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
                                            window['controls_canvas'].TKCanvas)
 
-                    window[f'edit_annotation_{index[0]}{index[1]}'].update(
+                    window[f'edit_annotation_{index[0]}_{index[1]}'].update(
                         disabled=not axes[key][label].texts
                     )
-                    window[f'delete_annotation_{index[0]}{index[1]}'].update(
+                    window[f'delete_annotation_{index[0]}_{index[1]}'].update(
+                        disabled=not axes[key][label].texts
+                    )
+                # add/edit/remove peaks
+                elif 'peak' in event:
+                    if event.startswith('add_peak'):
+                        add_peak = True
+                    elif event.startswith('edit_peak'):
+                        add_peak = None
+                    else:
+                        add_peak = False
+
+                    index = [int(num) for num in event.split('_')[-2:]]
+                    key = list(axes)[index[0]]
+                    label = list(axes[key])[index[1]]
+                    _add_remove_peaks(axes[key][label], add_peak)
+
+                    _plot_data(data, axes, axes, **values, **fig_kwargs)
+                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
+                                           window['controls_canvas'].TKCanvas)
+
+                    window[f'edit_peak_{index[0]}_{index[1]}'].update(
+                        disabled=not any(
+                            line.get_label().startswith('-PEAK-') for line in axes[key][label].lines)
+                    )
+                    window[f'delete_peak_{index[0]}_{index[1]}'].update(
+                        disabled=not any(
+                            line.get_label().startswith('-PEAK-') for line in axes[key][label].lines)
+                    )
+                    window[f'edit_annotation_{index[0]}_{index[1]}'].update(
+                        disabled=not axes[key][label].texts
+                    )
+                    window[f'delete_annotation_{index[0]}_{index[1]}'].update(
                         disabled=not axes[key][label].texts
                     )
                 # go back to plot type picker
                 elif event == 'Back':
                     plt.close(_PREVIEW_NAME)
+                    old_location = window.current_location()
                     window.close()
                     window = None
                     fig_kwargs = _select_plot_type(fig_kwargs)
                     old_axes = axes
                     fig, axes = _create_figure_components(**fig_kwargs)
                     window = _create_plot_options_gui(
-                        data, fig, axes, values, old_axes, **fig_kwargs
+                        data, fig, axes, values, old_axes, old_location, **fig_kwargs
                     )
                 # update the figure
                 elif event == 'Update Figure':
@@ -2732,15 +3273,16 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     )
                     if reset == 'Yes':
                         plt.close(_PREVIEW_NAME)
+                        old_location = window.current_location()
                         window.close()
                         window = None
                         fig, axes = _create_figure_components(**fig_kwargs)
                         window = _create_plot_options_gui(
-                            data, fig, axes, **fig_kwargs
+                            data, fig, axes, location=old_location, **fig_kwargs
                         )
                 # toggles legend options
                 elif 'show_legend' in event:
-                    index = event.split('_')[-1]
+                    index = '_'.join(event.split('_')[-2:])
                     properties = (
                         'cols', 'auto', 'auto_loc', 'manual', 'manual_x', 'manual_y' #TODO later check whether manual or auto and enable accordingly
                     )
@@ -2758,7 +3300,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # toggles secondary axis options
                 elif event.startswith('secondary'):
                     properties = ('label', 'label_offset', 'expr')
-                    index = event.split('_')[-1]
+                    index = '_'.join(event.split('_')[-2:])
                     if 'secondary_x' in event:
                         prefix = 'secondary_x'
                     else:
@@ -2770,11 +3312,11 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         )
                 # toggles dataset options for an axis
                 elif 'plot_boolean' in event:
-                    index = event.split('_')[-1]
+                    index = '_'.join(event.split('_')[-3:])
                     properties = (
-                        'x_col', 'y_col', 'label', 'offset', 'marker_color',
-                        'marker_style', 'marker_fill', 'marker_size', 'line_color',
-                        'line_style', 'line_size'
+                        'x_col', 'y_col', 'label', 'offset', 'markerface_color',
+                        'markeredge_color', 'marker_edgewidth', 'marker_style',
+                        'marker_size', 'line_color', 'line_style', 'line_size'
                     )
                     if values[event]:
                         for prop in properties:
@@ -2791,7 +3333,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 elif 'chooser' in event:
                     if values[event] != 'None':
                         property_type = event.split('_')[0]
-                        index = event.split('_')[-1]
+                        index = '_'.join(event.split('_')[-3:])
                         window[f'{property_type}_color_{index}'].update(
                             value=values[event]
                         )

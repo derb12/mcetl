@@ -6,10 +6,6 @@ mcetl - A simple Extract-Transform-Load framework focused on materials character
 mcetl provides user interfaces for processing data, performing peak fitting, and
 plotting data.
 
-
-Summary
---------
-
 mcetl is focused on easing the time required to process data files. It does this
 by allowing the user to define DataSource objects which contains the information
 for reading files for that DataSource (such as what separator to use, which
@@ -22,13 +18,13 @@ can be used without creating any DataSource objects.
 
 
 @author: Donald Erb
-Created on Wed Jul 15 23:48:02 2020
+Created on Jul 15, 2020
 
 """
 
 
 __author__ = """Donald Erb"""
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 
 
 from .datasource import DataSource

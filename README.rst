@@ -47,10 +47,11 @@ Purpose
 
 The aim of mcetl is to ease the repeated processing of data files. Contrary to its name, mcetl
 can process any tabulated files (txt, csv, tsv, etc.), and does not require that the files originate
-from materials characterization (abbreviated as MC). However, the focus on MC was selected because:
+from materials characterization. However, the focus on materials characterization was selected because:
 
-* Most data files from MC are relatively small in size (a few kB or MB).
-* MC files are typically cleanly tabulated and do not require handling messy or missing data.
+* Most data files from materials characterization are relatively small in size (a few kB or MB).
+* Materials characterization files are typically cleanly tabulated and do not require handling
+  messy or missing data.
 * Shamelessly improving my SEO :)
 
 
@@ -64,8 +65,8 @@ Limitations
 ~~~~~~~~~~~
 
 * Since mcetl uses the pandas library to load files into memory for processing, it is not suited
-  for processing files whose total memory size is large (> ~10% of total RAM). mcetl attempts to reduce
-  the required memory by downcasting types to their smallest representation (eg. converting float64 to float32),
+  for processing files whose total memory size is large. mcetl attempts to reduce the required
+  memory by downcasting types to their smallest representation (eg. converting float64 to float32),
   but this can only do so much.
 
 * mcetl does not provide any built-in resources for cleaning data, although the user can easily
@@ -120,7 +121,9 @@ Once you have a copy of the source, you can install it with:
 Usage
 -----
 
-To use mcetl in a project::
+To use mcetl in a project:
+
+.. code-block:: python
 
     import mcetl
 
@@ -128,7 +131,9 @@ To use mcetl in a project::
 Peak Fitting
 ~~~~~~~~~~~~
 
-To use the peak fitting module in mcetl, simply do::
+To use the peak fitting module in mcetl, simply do:
+
+.. code-block:: python
 
     mcetl.launch_peak_fitting_gui()
 
@@ -142,7 +147,9 @@ After doing peak fitting, the peak fitting results and plots will be saved to Ex
 Plotting
 ~~~~~~~~
 
-To use the plotting module in mcetl, simply do::
+To use the plotting module in mcetl, simply do:
+
+.. code-block:: python
 
     mcetl.launch_plotting_gui()
 
@@ -156,7 +163,9 @@ including tiff, jpg, png, svg, and pdf.
 In addition, the layout of the figure can be saved to apply to other figures later, and the data for the figure
 can be saved so that the entire figure can be recreated.
 
-To reopen a figure saved through mcetl, do::
+To reopen a figure saved through mcetl, do:
+
+.. code-block:: python
 
     mcetl.load_previous_figure()
 
@@ -173,7 +182,9 @@ for the columns, etc.), the calculations that will be performed on the data, and
 data to Excel (formatting, placement in the worksheet, etc.).
 
 For more information on creating a DataSource object, refer to the `example program`_ that shows how to use
-the main gui. Once DataSource objects are created, simply put them into a list or tuple and do::
+the main gui. Once DataSource objects are created, simply put them into a list or tuple and do:
+
+.. code-block:: python
 
     mcetl.launch_main_gui(list_of_DataSources)
 
@@ -187,7 +198,9 @@ which will run the main GUI and allow selection of all the processing steps to p
 Generating Example Data
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Example raw data files for various characterization techniques can be created using::
+Example raw data files for various characterization techniques can be created using:
+
+.. code-block:: python
 
     from mcetl import raw_data
     raw_data.generate_raw_data()
@@ -226,14 +239,18 @@ Changing GUI Colors
 ~~~~~~~~~~~~~~~~~~~
 
 All user interfaces are created using PySimpleGUI, which allows easily changing the theme of the GUIs.
-For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme::
+For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme:
+
+.. code-block:: python
 
     import PySimpleGUI as sg
     sg.theme('darkblue10')
 
 
 Additionally, mcetl uses a unique coloring for the button that advances to the next window.
-To change this button's colors (for example to use white text on a green background), do::
+To change this button's colors (for example to use white text on a green background), do:
+
+.. code-block:: python
 
     from mcetl import utils
     utils.PROCEED_COLOR = ('white', 'green')
@@ -253,10 +270,8 @@ Short Term
 
 * Develop tests for all modules in the package.
 * Switch from print statements to logging.
-* Simplify file searching and make it more flexible.
 * Transfer documentation from PDF/Word files to automatic documentation with Sphinx.
 * Improve usage when opening existing Excel files.
-* Add automatic and manual peak labeling for the plotting gui.
 
 
 Long Term
@@ -316,21 +331,18 @@ Screenshots
 Main GUI
 ~~~~~~~~
 
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_1.PNG
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu.png
    :align: center
-   :scale: 40 %
+   :width: 1600 px
+   :height: 632 px
+   :scale: 45 %
 
-   The main menu.
+   Selection of processing steps and DataSource.
 
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu_2.PNG
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.png
    :align: center
-   :scale: 40 %
-
-   Selection of the DataSource object to use.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.PNG
-   :align: center
+   :width: 1630 px
+   :height: 588 px
    :scale: 40 %
 
    The output Excel file after processing all the raw data files.
@@ -339,37 +351,30 @@ Main GUI
 Peak Fitting
 ~~~~~~~~~~~~
 
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_1.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_1.png
    :align: center
-   :scale: 40 %
+   :width: 1644 px
+   :height: 755 px
+   :scale: 35 %
 
-   The peak fitting GUI.
+   Peak fitting GUI and manual selection of peaks.
 
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_2.png
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_2.png
    :align: center
-   :scale: 40 %
+   :width: 1737 px
+   :height: 628 px
+   :scale: 35 %
 
-   Manual selection of peaks is enabled using matplotlib.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_3.png
-   :align: center
-   :scale: 40 %
-
-   The initial fit and best fit after peak fitting.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_gui_4.png
-   :align: center
-   :scale: 40 %
-
-   Individual peaks from the best fit.
+   Fit results with best fit and individual peaks.
 
 
 Plotting
 ~~~~~~~~
 
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.PNG
+.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.png
    :align: center
+   :width: 1692 px
+   :height: 870 px
    :scale: 40 %
 
    The plotting GUI.
-

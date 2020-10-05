@@ -11,8 +11,8 @@ from mcetl import CalculationFunction, SeparationFunction, DataSource, launch_ma
 import numpy as np
 
 
-def offset_data(df, target_indices, calc_indices, excel_columns=None,
-                start_row=0, offset=None):
+def offset_data(df, target_indices, calc_indices, excel_columns,
+                start_row, offset=None):
     """Example CalculationFunction with named kwargs"""
 
     for i, sample in enumerate(calc_indices):
@@ -21,7 +21,7 @@ def offset_data(df, target_indices, calc_indices, excel_columns=None,
                 y = df[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[0][i][j]]
                 calc = [
-                    f'= {y_col}{k + 3 + start_row} + {offset * i}' for k in range(len(y))
+                    f'= {y_col}{k + start_row} + {offset * i}' for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
@@ -33,8 +33,8 @@ def offset_data(df, target_indices, calc_indices, excel_columns=None,
     return df
 
 
-def offset_normalized_data(df, target_indices, calc_indices, excel_columns=None,
-                           start_row=0, offset=None):
+def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
+                           start_row, offset=None):
     """Adds an offset to normalized data"""
 
     for i, sample in enumerate(calc_indices):
@@ -49,7 +49,7 @@ def offset_normalized_data(df, target_indices, calc_indices, excel_columns=None,
     return df
 
 
-def normalize(df, target_indices, calc_indices, excel_columns=None, start_row=0, **kwargs):
+def normalize(df, target_indices, calc_indices, excel_columns, start, **kwargs):
     """Performs a min-max normalization to bound values between 0 and 1."""
 
     for i, sample in enumerate(calc_indices):
@@ -57,7 +57,6 @@ def normalize(df, target_indices, calc_indices, excel_columns=None, start_row=0,
             if excel_columns is not None:
                 y = df[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[0][i][j]]
-                start = 3 + start_row
                 end = y.count() + 2
                 calc = [
                     f'=({y_col}{k + start} - MIN({y_col}$3:{y_col}${end})) / (MAX({y_col}$3:{y_col}${end}) - MIN({y_col}$3:{y_col}${end}))' for k in range(len(y))
@@ -89,7 +88,7 @@ def split(df, target_indices, **kwargs):
 
 
 
-def derivative(df, target_indices, calc_indices, excel_columns=None, start_row=0, **kwargs):
+def derivative(df, target_indices, calc_indices, excel_columns, start, **kwargs):
     """Calculates the derivative."""
 
     for i, sample in enumerate(calc_indices):
@@ -98,7 +97,6 @@ def derivative(df, target_indices, calc_indices, excel_columns=None, start_row=0
                 y = df[target_indices[1][i][j]]
                 x_col = excel_columns[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[1][i][j]]
-                start = 3 + start_row
                 calc = [
                     f'= ({y_col}{k + start} - {y_col}{k + start - 1}) / ({x_col}{k + start} - {x_col}{k + start - 1})' for k in range(len(y))
                 ]

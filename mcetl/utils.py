@@ -5,7 +5,7 @@ Useful functions are put here in order to prevent circular importing
 within the other files.
 
 @author: Donald Erb
-Created on Wed Jul 15 14:26:59 2020
+Created on Jul 15, 2020
 
 Attributes
 ----------
@@ -236,7 +236,7 @@ def validate_inputs(window_values, integers=None, floats=None,
         ['peak_width', 'peak width', float], # ensures each entry is a float
         ['peak_width_2', 'peak width 2', int, False, ';'], # uses ';' as the separator
         ['peak_width_3', 'peak width 3', function, False, None], # no separator, verify with function
-        ['peak_width_3', 'peak width 3', function, True, None] # allows empty input
+        ['peak_width_4', 'peak width 4', function, True, None] # allows empty input
     ]
 
     The display text will be the text that is shown to the user if the value
@@ -269,25 +269,22 @@ def validate_inputs(window_values, integers=None, floats=None,
 
     if strings is not None:
         for entry in strings:
-            try:
-                if not window_values[entry[0]]:
-                    raise ValueError
-            except:
+            if not window_values[entry[0]]:
                 sg.popup(f'Need to enter information in "{entry[1]}".\n',
                          title='Error')
                 return False
 
     if user_inputs is not None:
         for entry in user_inputs:
-            allow_empty_input = False
-            separator = ','
-
             if len(entry) > 4:
                 allow_empty_input = entry[3]
                 separator = entry[4]
-
             elif len(entry) > 3:
                 allow_empty_input = entry[3]
+                separator = ','
+            else:
+                allow_empty_input = False
+                separator = ','
 
             try:
                 inputs = [
@@ -632,7 +629,7 @@ def select_file_gui(data_source=None, file=None):
             disable_excel = False
 
             dataframes = pd.read_excel(file, None, None, convert_float=False)
-            sheet_names = [*dataframes.keys()]
+            sheet_names = list(dataframes.keys())
             sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
             default_inputs.update({
@@ -744,7 +741,7 @@ def select_file_gui(data_source=None, file=None):
             elif values['file'].endswith('xlsx'):
                 dataframes = pd.read_excel(values['file'], None, None,
                                            convert_float=False)
-                sheet_names = [*dataframes.keys()]
+                sheet_names = list(dataframes.keys())
                 sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
                 window['sheet'].update(values=sheet_names, value=sheet_names[0],
@@ -770,7 +767,7 @@ def select_file_gui(data_source=None, file=None):
 
                 if data_source is not None:
                     _assign_indices(
-                        window, [num for num in range(sheet_0_len)],
+                        window, list(range(sheet_0_len)),
                         default_inputs['variable_indices']
                     )
 
@@ -981,8 +978,7 @@ def get_dpi_correction(dpi):
     Returns
     -------
     dpi_correction : float
-        The scaling factor needed to create a figure with the desired
-        dpi.
+        The scaling factor needed to create a figure with the desired dpi.
 
     Notes
     -----
@@ -997,8 +993,8 @@ def get_dpi_correction(dpi):
     """
 
     with plt.rc_context({'interactive': False}):
-        dpi_correction = dpi / plt.figure('dpi_corr', dpi=dpi).get_dpi()
-        plt.close('dpi_corr')
+        dpi_correction = dpi / plt.figure('dpi_corrrection', dpi=dpi).get_dpi()
+        plt.close('dpi_corrrection')
 
     return dpi_correction
 

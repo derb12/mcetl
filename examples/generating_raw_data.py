@@ -8,6 +8,11 @@ Created on Sat Aug 22 13:49:50 2020
 
 """
 
+import matplotlib.pyplot as plt
 from mcetl import raw_data
 
 raw_data.generate_raw_data()
+
+# Ensures program will not end until all plots are closed
+if plt.get_fignums():
+    plt.show(block=True)

@@ -1,0 +1,335 @@
+{
+  "FIGURE KEYWORD ARGUMENTS": {
+    "fig_width": "1200",
+    "fig_height": "900",
+    "dpi": "300",
+    "scatter": false,
+    "line": false,
+    "line_scatter": true,
+    "num_rows": 1,
+    "num_cols": 1,
+    "share_x": false,
+    "share_y": false,
+    "Single Plot": true,
+    "Multiple Plots": false,
+    "width_0": "1",
+    "height_0": "1",
+    "gridspec_0_0": "a",
+    "twin_x_0_0": false,
+    "twin_y_0_0": false
+  },
+  "GUI VALUES": {
+    "menu": "Save Theme",
+    "plot_boolean_0_0_0": true,
+    "x_col_0_0_0": 0,
+    "y_col_0_0_0": 1,
+    "offset_0_0_0": "0",
+    "label_0_0_0": "Data 1",
+    "markerface_color_0_0_0": "Black",
+    "markerface_chooser_0_0_0": "",
+    "markeredge_color_0_0_0": "Black",
+    "markeredge_chooser_0_0_0": "",
+    "marker_style_0_0_0": " None",
+    "marker_edgewidth_0_0_0": "1",
+    "marker_size_0_0_0": "5.0",
+    "line_color_0_0_0": "Black",
+    "line_chooser_0_0_0": "",
+    "line_style_0_0_0": "Solid",
+    "line_size_0_0_0": "2.0",
+    "plot_boolean_0_0_1": true,
+    "x_col_0_0_1": 0,
+    "y_col_0_0_1": 1,
+    "offset_0_0_1": "5",
+    "label_0_0_1": "Data 2",
+    "markerface_color_0_0_1": "Blue",
+    "markerface_chooser_0_0_1": "",
+    "markeredge_color_0_0_1": "Blue",
+    "markeredge_chooser_0_0_1": "",
+    "marker_style_0_0_1": " None",
+    "marker_edgewidth_0_0_1": "1",
+    "marker_size_0_0_1": "5.0",
+    "line_color_0_0_1": "Blue",
+    "line_chooser_0_0_1": "",
+    "line_style_0_0_1": "Dashed",
+    "line_size_0_0_1": "2.0",
+    "plot_boolean_0_0_2": true,
+    "x_col_0_0_2": 0,
+    "y_col_0_0_2": 1,
+    "offset_0_0_2": "10",
+    "label_0_0_2": "Data 3",
+    "markerface_color_0_0_2": "Red",
+    "markerface_chooser_0_0_2": "",
+    "markeredge_color_0_0_2": "Red",
+    "markeredge_chooser_0_0_2": "",
+    "marker_style_0_0_2": " None",
+    "marker_edgewidth_0_0_2": "1",
+    "marker_size_0_0_2": "5.0",
+    "line_color_0_0_2": "Red",
+    "line_chooser_0_0_2": "",
+    "line_style_0_0_2": "Dash-Dot",
+    "line_size_0_0_2": "2.0",
+    "show_legend_0_0": false,
+    "legend_cols_0_0": 1,
+    "legend_auto_0_0": true,
+    "legend_auto_loc_0_0": "best",
+    "legend_manual_0_0": false,
+    "legend_manual_x_0_0": "",
+    "legend_manual_y_0_0": "",
+    "x_major_grid_0_0": false,
+    "x_minor_grid_0_0": false,
+    "y_major_grid_0_0": false,
+    "y_minor_grid_0_0": false,
+    "show_x_label_0_0": true,
+    "x_label_0_0": "Raman Shift (cm $^{-1}$)",
+    "x_label_offset_0_0": "4.0",
+    "show_y_label_0_0": true,
+    "y_label_0_0": "Intensity (a.u.)",
+    "y_label_offset_0_0": "4.0",
+    "x_axis_min_0_0": "50.0",
+    "x_axis_max_0_0": "2750.0",
+    "y_axis_min_0_0": "-1.0",
+    "y_axis_max_0_0": "37.0",
+    "auto_ticks_0_0": true,
+    "x_major_ticks_0_0": 8,
+    "x_minor_ticks_0_0": 2,
+    "y_major_ticks_0_0": 5,
+    "y_minor_ticks_0_0": 2,
+    "secondary_x_0_0": false,
+    "secondary_x_label_0_0": "",
+    "secondary_x_label_offset_0_0": "4.0",
+    "secondary_x_expr_0_0": "",
+    "secondary_y_0_0": false,
+    "secondary_y_label_0_0": "",
+    "secondary_y_label_offset_0_0": "4.0",
+    "secondary_y_expr_0_0": "",
+    "auto_ticks_secondary_0_0": true,
+    "secondary_x_major_ticks_0_0": 5,
+    "secondary_x_minor_ticks_0_0": 2,
+    "secondary_y_major_ticks_0_0": 5,
+    "secondary_y_minor_ticks_0_0": 2,
+    "label_tabgroup_0": "label_tab_0_0",
+    "axes_tabgroup": "tab_0",
+    "controls_canvas": null,
+    "fig_canvas": null
+  },
+  "MATPLOTLIB RCPARAM CHANGES": {
+    "font.serif": "Times New Roman",
+    "font.family": "serif",
+    "font.size": 12,
+    "mathtext.default": "regular",
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+    "xtick.minor.visible": true,
+    "ytick.minor.visible": true,
+    "xtick.major.size": 5,
+    "xtick.major.width": 0.6,
+    "xtick.minor.size": 2.5,
+    "xtick.minor.width": 0.6,
+    "ytick.major.size": 5,
+    "ytick.major.width": 0.6,
+    "ytick.minor.size": 2.5,
+    "ytick.minor.width": 0.6,
+    "lines.linewidth": 2,
+    "lines.markersize": 5,
+    "axes.linewidth": 0.6,
+    "legend.frameon": false,
+    "interactive": false,
+    "figure.constrained_layout.use": false
+  },
+  "ANNOTATIONS": {
+    "Row 1, Col 1": [
+      {
+        "text": "Sample 1",
+        "xy": [
+          300.0,
+          1.0
+        ],
+        "xytext": [
+          300.0,
+          1.1
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "Sample 2",
+        "xy": [
+          300.0,
+          6.0
+        ],
+        "xytext": [
+          300.0,
+          6.1
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "Sample 3",
+        "xy": [
+          300.0,
+          11.0
+        ],
+        "xytext": [
+          300.0,
+          11.1
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "D",
+        "xy": [
+          1510.0,
+          35.0
+        ],
+        "xytext": [
+          1540.0,
+          34.8
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "G",
+        "xy": [
+          1310.0,
+          35.0
+        ],
+        "xytext": [
+          1310.0,
+          34.8
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "arrow",
+        "xy": [
+          800.0,
+          23.0
+        ],
+        "xytext": [
+          600.0,
+          23.0
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "Black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": null,
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "",
+        "xy": [
+          1350.0,
+          -1.0
+        ],
+        "xytext": [
+          1350.0,
+          34.0
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": {
+          "linewidth": 1.5,
+          "mutation_scale": 10.0,
+          "arrowstyle": "-",
+          "color": "Black",
+          "linestyle": "--"
+        },
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "",
+        "xy": [
+          1595.0,
+          -1.0
+        ],
+        "xytext": [
+          1595.0,
+          34.0
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": {
+          "linewidth": 1.5,
+          "mutation_scale": 10.0,
+          "arrowstyle": "-",
+          "color": "Black",
+          "linestyle": "--"
+        },
+        "annotation_clip": false,
+        "in_layout": false
+      },
+      {
+        "text": "",
+        "xy": [
+          1150.0,
+          13.5
+        ],
+        "xytext": [
+          800.0,
+          22.0
+        ],
+        "fontsize": 12.0,
+        "rotation": 0.0,
+        "color": "black",
+        "horizontalalignment": "left",
+        "verticalalignment": "baseline",
+        "arrowprops": {
+          "linewidth": 1.5,
+          "mutation_scale": 7.0,
+          "arrowstyle": "-|>",
+          "color": "Black",
+          "linestyle": "-"
+        },
+        "annotation_clip": false,
+        "in_layout": false
+      }
+    ]
+  },
+  "PEAKS": {
+    "Row 1, Col 1": []
+  }
+}

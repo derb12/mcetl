@@ -23,7 +23,7 @@ def f(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
             if excel_columns is not None:
                 cols = [excel_columns[col] for col in target_indices[0][i]]
                 df[calc_col] = [
-                    f'= SUM({f"{index + 3 + start_row}, ".join(cols) + str(index + 3 + start_row)})' for index in range(len(df))
+                    f'= SUM({f"{index + start_row}, ".join(cols) + str(index + start_row)})' for index in range(len(df))
                 ]
 
             else:
@@ -45,7 +45,7 @@ def f2(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
         if excel_columns is not None:
             cols = [excel_columns[col] for col in targets]
             df[calc_col] = [
-                f'= SUM({f"{index + 3 + start_row}, ".join(cols) + str(index + 3 + start_row)})' for index in range(len(df))
+                f'= SUM({f"{index + start_row}, ".join(cols) + str(index + start_row)})' for index in range(len(df))
             ]
 
         else:
@@ -77,7 +77,7 @@ def func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offs
                 x_col = excel_columns[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[1][i][j]]
                 calc = [
-                    f'= {x_col}{k+3+start_row} + {y_col}{k+3+start_row} + {offset}' for k in range(len(x))
+                    f'= {x_col}{k + start_row} + {y_col}{k + start_row} + {offset}' for k in range(len(x))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(x), calc, '')
@@ -102,7 +102,7 @@ def func2(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs)
 
             if excel_columns is not None:
                 df[df.columns[calc_col]] = np.where(
-                    x, x + f' + {kwargs["offset"]}', pd.NA
+                    x, x + f' + {kwargs["offset"]}', None
                 )
             else:
                 df[df.columns[calc_col]] = x + kwargs['offset']
@@ -123,7 +123,7 @@ sum3 = SummaryFunction('sum3', 'x', f2, sample_summary=False)
 xrd = DataSource(
     'xrd', functions=[calculation, calculation2, separator, sum1, sum3],
     unique_variables=['x', 'y'], sample_separation=3, entry_separation=1,
-    excel_row_offset=-1, excel_column_offset=1
+    excel_row_offset=1, excel_column_offset=1
 )
 data_source = xrd
 

@@ -2,7 +2,7 @@
 """Functions for creating and fitting a model with peaks and a background and plotting the results
 
 @author: Donald Erb
-Created on Sat Sep 14 16:07:15 2019
+Created on Sep 14, 2019
 
 """
 
@@ -194,8 +194,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     """
 
     model_list = model_list if model_list is not None else []
-    peak_list = iter(model_list + [default_model]*(len(peak_centers)-len(model_list)))
-    peak_widths = peak_width if isinstance(peak_width, (list, tuple)) else [peak_width]*len(peak_centers)
+    peak_list = iter(model_list + [default_model] * (len(peak_centers)-len(model_list)))
+    peak_widths = peak_width if isinstance(peak_width, (list, tuple)) else [peak_width] * len(peak_centers)
 
     y = y - background_y
 
@@ -203,7 +203,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         window = int(len(x) / 20) if int(len(x) / 20) % 2 == 1 else int(len(x) / 20) + 1
         y2 = signal.savgol_filter(y, window, 2, deriv=0)
         y2[y2 < 0] = 0
-        y = y2 + (0-np.min(y))
+        y = y2 + (0 - np.min(y))
         use_middles = False
         j = len(params_dict)
 
@@ -274,9 +274,9 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 #directly estimates the parameters for lognormal model
                 #since lmfit's guess is not accurate for lognormal
                 xm2 = peak_center**2 # xm2 denotes x_mode squared
-                sigma = 0.85 * np.log((peak_width + peak_center* np.sqrt((4*xm2 + peak_width**2)/(xm2))) / (2 * peak_center))
+                sigma = 0.85 * np.log((peak_width + peak_center * np.sqrt((4*xm2 + peak_width**2) / (xm2))) / (2 * peak_center))
                 mean = np.log(peak_center) + sigma**2
-                amplitude = (peak_height * sigma * np.sqrt(2*np.pi)) / (np.exp(((sigma**2)/2) - mean))
+                amplitude = (peak_height * sigma * np.sqrt(2*np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
                 #cannot easily set bounds for center for lognormal since it depends on sigma
                 peak_model.set_param_hint('center', value=mean)
@@ -526,13 +526,13 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     residuals = - fit_result.residual
     y = fit_result.best_fit + residuals
     # window has to be odd for scipy's Savitzky-Golay function
-    window = int(len(x)/20) if int(len(x)/20)%2==1 else int(len(x)/20)+1
+    window = int(len(x) / 20) if int(len(x) / 20) % 2 == 1 else int(len(x) / 20) + 1
     poly = 2
     # interpolate residuals to smooth them a bit and improve signal to noise ratio
-    resid_interp = signal.savgol_filter(residuals, window, poly, deriv=0)
+    resid_interp = signal.savgol_filter(residuals, window, poly)
 
     resid_interp[resid_interp < 0] = 0
-    prominence = min_resid*(np.max(y)-np.min(y))
+    prominence = min_resid * (np.max(y)-np.min(y))
 
     residual_peaks = find_peak_centers(x, y=resid_interp, prominence=prominence)
     residual_peaks_found, residual_peak_centers = residual_peaks
@@ -564,7 +564,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
         fig, ax = plt.subplots()
         ax.plot(x,residuals, label='residuals')
         ax.plot(x, resid_interp, label='interpolated residuals')
-        ax.plot(x, np.array([prominence]*len(x)),
+        ax.plot(x, np.array([prominence] * len(x)),
                 label='minimum height to be a peak')
         if residual_peak_centers:
             for peak in residual_peak_centers:
@@ -582,7 +582,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
                            linestyle=styles[i], transform=ax.transAxes)
 
         ax.legend()
-        fig.title('residuals')
+        ax.set_title('residuals')
 
     return residual_peaks_found, residual_peaks_accepted
 
@@ -1085,7 +1085,7 @@ def background_selector(x_input, y_input, click_list=None):
 
         """
 
-        coords = [*axis.picked_object.get_center()]
+        coords = list(axis.picked_object.get_center())
         for i, value in enumerate(click_list):
             if all(np.isclose(value, coords)):
                 del click_list[i]
@@ -1346,7 +1346,7 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
 
         """
 
-        center, height = [*axis.picked_object.get_center()]
+        center, height = list(axis.picked_object.get_center())
         bkrd_height = initial_bkrd[np.argmin(np.abs(center-x))]
         for i, value in enumerate(click_list):
             if all(np.isclose(value[1][:2], [center, height - bkrd_height])):
@@ -1412,8 +1412,6 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                 center = peak[1][0]
                 height = peak[1][1]
                 width = peak[1][2]
-                x_peak = x[(x >= middles[i]) & (x <= middles[i + 1])]
-                bkrd_peak = initial_bkrd[(x >= middles[i]) & (x <= middles[i + 1])]
                 prefix = f'peak_{i + 1}'
 
                 peak_model = getattr(lmfit.models, peak[0][0])(prefix=prefix)
@@ -1427,9 +1425,9 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                                               value=peak[0][1][0](height, width))
                 else:
                     xm2 = center**2 # xm2 denotes x_mode squared
-                    sigma = 0.85 * np.log((width + center* np.sqrt((4*xm2 + width**2)/(xm2))) / (2 * center))
+                    sigma = 0.85 * np.log((width + center * np.sqrt((4 * xm2 + width**2) / (xm2))) / (2 * center))
                     mean = np.log(center) + sigma**2
-                    amplitude = (height * sigma * np.sqrt(2*np.pi)) / (np.exp(((sigma**2)/2) - mean))
+                    amplitude = (height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
                     peak_model.set_param_hint('center', value=mean, min=1.e-19)
                     peak_model.set_param_hint('sigma', value=sigma)
@@ -1440,7 +1438,6 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                                               value=peak[0][1][0](height, width))
 
                 peak_params = peak_model.make_params()
-                plot_peak = peak_model.eval(peak_params, x=x_peak)
                 peak = peak_model.eval(peak_params, x=x)
                 axis.plot(x, peak + initial_bkrd, ':',
                           lw=2, label=f'peak {i + 1}')
@@ -1473,9 +1470,8 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
 
         if event.inaxes == ax:
 
-            if event.dblclick: #is a double click
-                if (event.button == 1) and (text_box.text): #left click
-
+            if event.dblclick: # double click
+                if (event.button == 1) and (text_box.text): # left click
                     for key in models_dict:
                         if radio.value_selected == models_dict[key][0]:
                             model = [key, models_dict[key][1]]
@@ -1492,13 +1488,13 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                     plot_total_peaks(x, ax)
                     ax.figure.canvas.draw_idle()
 
-                elif event.button == 3: #right click
+                elif event.button == 3: # right click
                     if ax.picked_object is not None:
                         remove_circle(ax)
                         plot_total_peaks(x, ax)
                         ax.figure.canvas.draw_idle()
 
-            elif event.button in [1, 3]: #left or right click
+            elif event.button in (1, 3): # left or right click
                 if ax.picked_object is not None and not ax.picked_object.contains(event)[0]:
                     ax.picked_object.set_facecolor('green')
                     ax.picked_object = None
@@ -1844,13 +1840,12 @@ def plot_individual_peaks(x, y, individual_peaks, fit_result, background_subtrac
 if __name__ == '__main__':
 
     import time
-    from lmfit import lineshapes
 
     #data
     x_array = np.linspace(0, 60, 100)
     background = 0.1 * x_array
     noise = 0.1 * np.random.randn(len(x_array))
-    peaks = lineshapes.gaussian(x_array, 30, 15, 5) + lineshapes.gaussian(x_array, 50, 35, 3)
+    peaks = lmfit.lineshapes.gaussian(x_array, 30, 15, 5) + lmfit.lineshapes.gaussian(x_array, 50, 35, 3)
     y_array = background + noise + peaks
 
     #inputs for plugNchug_fit function

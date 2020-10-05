@@ -41,6 +41,6 @@ changes = {
 
 fit_results, gui_values, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
 
-while plt.get_fignums():
-    plt.pause(5) # ensures the program continues while the plots are open
-    #TODO use some other waiting method, because it is quite buggy using plt.pause
+# Ensures program will not end until all plots are closed
+if plt.get_fignums():
+    plt.show(block=True)

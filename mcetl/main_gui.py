@@ -2,7 +2,7 @@
 """Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel
 
 @author: Donald Erb
-Created on Tue May 5 17:08:53 2020
+Created on May 5, 2020
 
 """
 
@@ -10,6 +10,7 @@ Created on Tue May 5 17:08:53 2020
 import itertools
 import json
 from pathlib import Path
+import sys
 import traceback
 
 from openpyxl.styles import NamedStyle
@@ -21,6 +22,33 @@ from .datasource import DataSource
 from .file_organizer import file_finder, file_mover
 from .peak_fitting_gui import launch_peak_fitting_gui
 from .plotting_gui import launch_plotting_gui
+
+
+def _get_save_location():
+    """
+    Gets the correct filepath to save the previous_search.json depending on the operating system.
+
+    Returns
+    -------
+    pathlib.Path
+        The absolute path to where the previous_search.json file will
+        be saved.
+
+    """
+
+    path = None
+    if sys.platform.startswith('win'): # Windows
+        path = Path('~/AppData/Local/mcetl')
+    elif sys.platform.startswith('darwin'): # Mac
+        path = Path('~/Library/Application Support/mcetl')
+    elif sys.platform.startswith('linux'): # Linux
+        path = Path('~/.config/mcetl')
+
+    if path is None or not path.expanduser().parent.exists():
+        # in case the Windows/Mac/Linux places are wrong
+        path = Path('~/.mcetl')
+
+    return path.expanduser()
 
 
 def _write_to_excel(dataframes, data_source, labels,
@@ -100,7 +128,7 @@ def _write_to_excel(dataframes, data_source, labels,
             )
 
         # Subheader values and formatting
-        flattened_lengths = [*itertools.chain(*data_source.lengths[i])]
+        flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
         subheaders = iter(labels[i]['total_labels'])
         for j, entry in enumerate(flattened_lengths):
             if j % 2 == 0:
@@ -238,7 +266,7 @@ def _select_processing_options(data_sources):
 
     """
 
-    if Path(__file__).parent.resolve().joinpath('previous_search.json').exists():
+    if _get_save_location().joinpath('previous_search.json').exists():
         last_search_disabled = False
     else:
         last_search_disabled = True
@@ -373,8 +401,7 @@ def _select_processing_options(data_sources):
 
         elif event == 'save_as' and values['save_as']:
             file_path = Path(values['save_as'])
-            file_extension = file_path.suffix.lower()
-            if not file_extension or file_extension != '.xlsx':
+            if file_path.suffix.lower() != '.xlsx':
                 file_path = Path(file_path.parent, file_path.stem + '.xlsx')
             window['file_name'].update(value=str(file_path))
 
@@ -428,10 +455,11 @@ def _create_column_labels_window(
         max(len(df.columns) for sample in dataset for df in sample)
     )
 
-    if (data_source.x_plot_index >= len((labels[0] + labels[1]))
-            or data_source.y_plot_index >= len((labels[0] + labels[1]))):
+    available_cols = labels[0] + labels[1] if options['process_data'] else labels[0]
+    if (data_source.x_plot_index >= len(available_cols)
+            or data_source.y_plot_index >= len(available_cols)):
         x_plot_index = 0
-        y_plot_index = len((labels[0] + labels[1])) - 1
+        y_plot_index = len(available_cols) - 1
     else:
         x_plot_index = data_source.x_plot_index
         y_plot_index = data_source.y_plot_index
@@ -444,8 +472,8 @@ def _create_column_labels_window(
         'x_max': '',
         'y_min': '',
         'y_max': '',
-        'x_label': (labels[0] + labels[1])[x_plot_index],
-        'y_label': (labels[0] + labels[1])[y_plot_index],
+        'x_label': available_cols[x_plot_index],
+        'y_label': available_cols[y_plot_index],
         'x_log_scale': False,
         'y_log_scale': False,
         'chart_title': ''
@@ -563,7 +591,6 @@ def _create_column_labels_window(
             ['chart_title', 'chart title', utils.string_to_unicode, True, None]
         ])
 
-        available_cols = labels[0] + labels[1] if options['process_data'] else labels[0]
         plot_layout = [
             [sg.Text('Chart title:'),
              sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],
@@ -883,7 +910,7 @@ def _plot_data(datasets, data_source):
 
     plot_datasets = []
     for dataset in datasets: # Flattens the dataset to a single list per dataset
-        plot_datasets.append([*itertools.chain(*dataset)])
+        plot_datasets.append(list(itertools.chain.from_iterable(dataset)))
 
     return launch_plotting_gui(plot_datasets, data_source.figure_rcParams)
 
@@ -1035,18 +1062,18 @@ def launch_main_gui(data_sources):
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
-                with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'r') as last_search:
-                    files = json.load(last_search)
+                with _get_save_location().joinpath('previous_search.json').open('r') as f:
+                    files = json.load(f)
             else:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
                 )
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
-                with open(Path(__file__).parent.resolve().joinpath(
-                        'previous_search.json'), 'w') as last_search:
-                    json.dump(files, last_search)
+                save_path = _get_save_location()
+                save_path.mkdir(exist_ok=True)
+                with save_path.joinpath('previous_search.json').open('w') as f:
+                    json.dump(files, f, indent=2)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
@@ -1150,7 +1177,7 @@ def launch_main_gui(data_sources):
                 )
                 # Assign reference indices for all relevant columns
                 data_source.set_references(dataframes, import_vals)
-                
+
                 _collect_column_labels(dataframes, data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
