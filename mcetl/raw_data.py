@@ -4,6 +4,7 @@
 Notes
 -----
 All data is made up and does not correspond to the materials listed.
+The data is meant to simply emulate real data and allow for basic analysis.
 
 @author: Donald Erb
 Created on Jun 15, 2020
@@ -22,6 +23,8 @@ from . import utils
 
 
 __all__ = ['generate_raw_data']
+
+_PARAMETER_FILE = 'raw data parameters.txt'
 
 
 def _generate_peaks(x, y, peak_type, params, param_var, **func_kwargs):
@@ -74,8 +77,10 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
@@ -128,7 +133,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     ti_path.mkdir(parents=True, exist_ok=True)
 
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: ', 3: 'Fraction: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n'+'-' * 40 + '\nXRD\n' + '-' * 40)
 
     plt.figure(num='xrd')
@@ -149,7 +154,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
                        header=['2theta', 'Counts'], index_label='Number')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.4*x^2 - 60*x + 2250\n')
             for j, param in enumerate(param_list[i]):
@@ -177,8 +182,10 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
@@ -231,7 +238,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
     file_path = Path(directory, 'FTIR')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nFTIR\n' + '-' * 40)
 
     plt.figure(num='ftir')
@@ -246,7 +253,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
                        header=None, index=False)
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.08 - 0.00004 * x for x <= 2000')
             f.write('\n                    -0.03 + 0.000015 * x for x > 2000\n')
@@ -276,8 +283,10 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
@@ -325,7 +334,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'Raman')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nRaman\n' + '-' * 40)
 
     plt.figure(num='raman')
@@ -340,7 +349,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
                        header=None, index=False, sep="\t")
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.000001 * x\n')
             for j, param in enumerate(param_list[i]):
@@ -369,8 +378,10 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
@@ -426,7 +437,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'TGA')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nTGA\n' + '-' * 40)
 
     plt.figure(num='tga')
@@ -446,7 +457,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x\n')
             for j, param in enumerate(param_list[i]):
@@ -474,13 +485,15 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
-    Background function is 0.
-    Mass losses centered at 200, 400 and 700 degrees C using step functions.
+    Background function is 0 during heating, 5 during cooling.
+    Peak centered at 150 during heating and 100 during cooling; using step function.
 
     Simulates a DSC scan for a polymer; on heating, the polymer melts, and then
     it recrystallizes during cooling. No glass transition is shown because
@@ -544,7 +557,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     file_path = Path(directory, 'DSC')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
 
     plt.figure(num='dsc')
@@ -564,7 +577,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x for heating')
             f.write('\n                     5 + 0 * x for cooling\n')
@@ -585,7 +598,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
         plt.close('dsc')
 
 
-def _generate_poresize_data(directory, num_data=6, show_plots=True):
+def _generate_pore_size_data(directory, num_data=6, show_plots=True):
     """
     Generates the folders and files containing example pore size meansurements.
 
@@ -593,8 +606,10 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     ----------
     directory : Path
         The file path to the Raw Data folder.
-    num_data : int
+    num_data : int, optional
         The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
 
     Notes
     -----
@@ -609,12 +624,6 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     --------
     Shows how to use a SummarizingCalculation to perform a calculation on a
     group of files.
-
-    Shows how to split data by first importing all of the data and saving
-    to an Excel file, and then reimporting that data and only choosing
-    rows that correspond to either the heating or cooling curves in
-    order to do peak fitting. Alternatively, the heating and cooling segments
-    can be separated using the 'segment' column.
 
     """
 
@@ -658,22 +667,19 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
     data_df = pd.DataFrame(data)
     data_df['seg'] = segment
 
-    file_path = Path(directory, 'DSC')
+    file_path = Path(directory, 'Pore Size Analysis')
     file_path.mkdir(parents=True, exist_ok=True)
     data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
-        f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nPore Size Analysis\n' + '-' * 40)
 
-    plt.figure(num='dsc')
-    filler = 'Text to fill up space\n' + 'filler...\n' * 32
+    plt.figure(num='pores')
     for i in range(num_data):
         if i < num_data / 2:
             sample_name = f'PET-{i}Ti'
         else:
             sample_name = f'PET-{i-int(num_data/2)}Fe'
 
-        with open(Path(file_path, f'{sample_name}.txt'), 'w') as f:
-            f.write(filler)
         data_df.to_csv(Path(file_path, f'{sample_name}.txt'),
                        columns=['x', 't', f'y_{i+1}', 'seg'], float_format='%.2f',
                        header=['Temperature/degreesC', 'Time/minutes',
@@ -681,25 +687,55 @@ def _generate_poresize_data(directory, num_data=6, show_plots=True):
                        index=False, sep=";", mode='a')
         plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
 
-        with open(directory.joinpath('raw data parameters.txt'), 'a') as f:
+        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x for heating')
             f.write('\n                     5 + 0 * x for cooling\n')
             for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: gaussian\n')
+                f.write(f'\nPeak {j+1}:\nPeak type: lognormal\n')
                 for k, value in enumerate(param):
                     f.write(f'{data_keys[k]}')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('DSC')
+    plt.title('Pore Size Analysis')
     plt.legend(ncol=2)
-    plt.xlabel(r'Temperature ($\degree$C)')
-    plt.ylabel('Heat Flow (mW/mg), exotherm up')
+    plt.xlabel(r'Pore Size ($\mu$m)')
+    plt.ylabel('Count')
 
     if show_plots:
         plt.show(block=False)
     else:
-        plt.close('dsc')
+        plt.close('pores')
+
+
+def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
+    """
+    Generates the folder and files containing example stress-strain measurements.
+
+    Parameters
+    ----------
+    directory : Path
+        The file path to the Raw Data folder.
+    num_data : int, optional
+        The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
+
+    Notes
+    -----
+    Background function is 0.
+    Peaks centered at 20 and 80 microns using lognormal functions.
+
+    Simulates pore size measurements that would be generated using the
+    program ImageJ to analyze scanning electron microscope images of
+    macroporous materials.
+
+    Purposes
+    --------
+    Shows how to use a SummarizingCalculation to perform a calculation on a
+    group of files.
+
+    """
 
 
 def generate_raw_data(directory=None, num_files=None, show_plots=None):
@@ -726,14 +762,14 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
 
     """
 
-    # Set the random seed so that data is repeatable
-    np.random.seed(1)
-    data_path = None
-
-    defaults = {
-        'folder': directory if directory is not None else '',
-        'num_files': num_files if num_files is not None else 6,
-        'show_plots': show_plots if show_plots is not None else True
+    function_mapping = {
+        'XRD': _generate_XRD_data,
+        'FTIR': _generate_FTIR_data,
+        'Raman': _generate_Raman_data,
+        'TGA': _generate_TGA_data,
+        'DSC': _generate_DSC_data,
+        #'Pore Size Analysis': _generate_pore_size_data,
+        #'Uniaxial Tensile Test': _generate_uniaxial_tensile_data
     }
 
     validations = {
@@ -741,17 +777,23 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         'integers' : [['num_files', 'number of files']]
     }
 
-    # layout for window to select where to put the raw data folder
     layout = [
         [sg.Text('Select destination for Raw Data folder')],
-        [sg.Input(defaults['folder'], key='folder', size=(35, 1),
-                  disabled=True, text_color='black'),
+        [sg.Input(directory if directory is not None else '', key='folder',
+                  size=(35, 1), disabled=True, text_color='black'),
          sg.FolderBrowse(key='browse', target='folder')],
         [sg.Text('Number of files per characterization technique:'),
-         sg.Input(defaults['num_files'], key='num_files', size=(5, 1))],
+         sg.Input(num_files if num_files is not None else 6,
+                  key='num_files', size=(5, 1))],
+        [sg.Text('')],
+        [sg.Text('Choose the techniques to generate data for:')],
+        [sg.Listbox(list(function_mapping), select_mode='multiple',
+                    key='selected_functions', size=(25, 5)),
+         sg.Button('Select\nAll', key='all_techniques', size=(10, 4))],
         [sg.Text('')],
         [sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR),
-         sg.Check('Show Plots', defaults['show_plots'], key='show_plots')]
+         sg.Check('Show Plots', show_plots if show_plots is not None else True,
+                  key='show_plots')]
     ]
 
     try:
@@ -761,9 +803,18 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
 
+            elif event == 'all_techniques':
+                window['selected_functions'].update(
+                    set_to_index=list(range(len(function_mapping)))
+                )
+
             elif event == 'Submit':
                 if utils.validate_inputs(values, **validations):
-                    break
+                    if values['selected_functions']:
+                        break
+                    else:
+                        sg.popup('Please select a characterization technique.\n',
+                                 title='Error')
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
@@ -773,18 +824,16 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         del window
 
         data_path = Path(values['folder'], 'Raw Data')
-        num_data = int(values['num_files'])
-        show = values['show_plots']
-
         data_path.mkdir(parents=True, exist_ok=True)
 
-        with open(data_path.joinpath('raw data parameters.txt'), 'w') as f:
-            f.write('Parameters for all of the data in the Raw Data folder.')
+        if not data_path.joinpath(_PARAMETER_FILE).exists():
+            with open(data_path.joinpath(_PARAMETER_FILE), 'w') as f:
+                f.write('Parameters for all of the data in the Raw Data folder.')
 
+        np.random.seed(1) # Set the random seed so that data is repeatable
         # Ensures that plots are not shown until plt.show() is called.
         with plt.rc_context({'interactive': False}):
-            _generate_XRD_data(data_path, num_data, show)
-            _generate_FTIR_data(data_path, num_data, show)
-            _generate_Raman_data(data_path, num_data, show)
-            _generate_TGA_data(data_path, num_data, show)
-            _generate_DSC_data(data_path, num_data, show)
+            for function in values['selected_functions']:
+                function_mapping[function](
+                    data_path, int(values['num_files']), values['show_plots']
+                )
