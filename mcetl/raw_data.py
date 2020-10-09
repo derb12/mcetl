@@ -559,6 +559,8 @@ def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
     of ~70 GPa, yield stress of ~500 MPa, ultimate strength of ~550 MPa, and
     elongation at failure of ~15 %.
 
+    Creates three measurements for each sample.
+
     The curve is simulated using stress = strain * elastic modulus for
     stress < yield stress, and stress = ultimate strength - mult * (strain - ultimate strain)^2,
     where mult is just a multiplicative factor used to get a good looking curvature
@@ -581,59 +583,67 @@ def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
     param_dict = {}
     for i in range(num_data if not num_data % 2 else num_data + 1):
         if i < num_data / 2:
-            sample_name = f'Al-{i}Ti'
+            sample = f'Al-{i}Ti'
         else:
-            sample_name = f'Al-{i - int(np.ceil(num_data / 2))}Fe'
+            sample = f'Al-{i - int(np.ceil(num_data / 2))}Fe'
 
-        fracture_strain = float(0.15 + np.random.randn(1) * 0.01)
-        modulus = (70 + np.random.randn(1) * 5) * 1e9
-        yield_stress = (500 + np.random.randn(1) * 10) * 1e6
-        yield_strain = yield_stress / modulus
-        ultimate_strength = (550 + np.random.randn(1) * 10) * 1e6
-        # calculate strain at ultimate strength such that the two curves meet perfectly at the yield stress and strain
-        # ie: E * strain = sigma_u - mult * (strain - strain_u)^2 when strain = yield strain
-        ultimate_strain = ((mult * yield_strain) + np.sqrt(-mult * yield_strain * modulus + (mult * ultimate_strength))) / mult
+        # Generate three measurements per sample
+        sample_path = file_path.joinpath(sample)
+        sample_path.mkdir(parents=True, exist_ok=True)
+        for j in range(1, 4):
+            sample_name = sample + f'_test-{j}'
 
-        # measure every 0.2 seconds
-        strain = np.hstack((
-            np.linspace(0, 0.02, num=5 * int(0.02 / strain_rate_1)),
-            np.linspace(0.02, fracture_strain + 0.005, num=5 * int((fracture_strain + 0.005) / strain_rate_2))[1:]
-        ))
-        # empirical approximation for the curve during hardening and necking
-        second_func = ultimate_strength - (mult * (strain - ultimate_strain)**2)
+            fracture_strain = float(0.15 + np.random.randn(1) * 0.01)
+            modulus = (70 + np.random.randn(1) * 5) * 1e9
+            yield_stress = (500 + np.random.randn(1) * 10) * 1e6
+            yield_strain = yield_stress / modulus
+            ultimate_strength = (550 + np.random.randn(1) * 10) * 1e6
+            # calculate strain at ultimate strength such that the two curves meet perfectly at the yield stress and strain
+            # ie: E * strain = sigma_u - mult * (strain - strain_u)^2 when strain = yield strain
+            ultimate_strain = ((mult * yield_strain) + np.sqrt(-mult * yield_strain * modulus + (mult * ultimate_strength))) / mult
 
-        stress = modulus * strain
-        stress[strain < 0.001] = stress[strain < 0.001] / 4 # slippage during experiment start
-        stress[stress > yield_stress] = second_func[stress > yield_stress] # after yield
-        stress[strain > fracture_strain] = 0 # failure
-        stress += 0.5e6 * np.random.randn(stress.size) # measurement error
+            # measure every 0.2 seconds
+            strain = np.hstack((
+                np.linspace(0, 0.02, num=5 * int(0.02 / strain_rate_1)),
+                np.linspace(0.02, fracture_strain + 0.005, num=5 * int((fracture_strain + 0.005) / strain_rate_2))[1:]
+            ))
+            # empirical approximation for the curve during hardening and necking
+            second_func = ultimate_strength - (mult * (strain - ultimate_strain)**2)
 
-        data = {
-            'time': np.linspace(0, 0.2 * (strain.size - 1), strain.size),
-            'extension': strain * 80, # initial length = 80 mm
-            'load': np.pi * (4.5/1000)**2 * stress / 1000, # diameter = 9 mm, load in kN
-            'stress': stress / 1e6,
-            'strain': strain * 100
-        }
-        param_dict[sample_name] = [modulus, yield_stress, ultimate_strength, fracture_strain]
+            stress = modulus * strain
+            stress[strain < 0.001] = stress[strain < 0.001] / 4 # slippage during experiment start
+            stress[stress > yield_stress] = second_func[stress > yield_stress] # after yield
+            stress[strain > fracture_strain] = 0 # failure
+            stress += 0.5e6 * np.random.randn(stress.size) # measurement error
 
-        with open(Path(file_path, f'{sample_name}.txt'), 'w') as f: # filler text
-            f.write('""\n')
-            f.write('"Test Method", "uniaxial test.msm"\n')
-            f.write(f'"Sample I.D.", "{sample_name}"\n')
-            f.write('"Initial Dimensions", "Diameter (mm)", "9", "Gauge Length (mm)", "80"\n\n')
-            f.write('"Time (s)", "Extension (mm)", "Load (kN)", "Stress (MPa)", "Strain (%)"\n\n')
+            data = {
+                'time': np.linspace(0, 0.2 * (strain.size - 1), strain.size),
+                'extension': strain * 80, # initial length = 80 mm
+                'load': np.pi * (4.5 / 1000)**2 * stress / 1000, # diameter = 9 mm, load in kN
+                'stress': stress / 1e6,
+                'strain': strain * 100
+            }
+            param_dict[sample_name] = (
+                modulus / 1e9, yield_stress / 1e6, ultimate_strength / 1e6, fracture_strain
+            )
 
-        pd.DataFrame(data).to_csv(
-            Path(file_path, f'{sample_name}.txt'),
-            columns=['time', 'extension', 'load', 'stress', 'strain'],
-            float_format='%.3f', index=False, sep=",", mode='a', header=None
-        )
-        plt.plot(100 * strain, stress / 1e6, label=sample_name)
+            with open(Path(sample_path, f'{sample_name}.txt'), 'w') as f: # filler text
+                f.write('""\n')
+                f.write('"Test Method", "uniaxial test.msm"\n')
+                f.write(f'"Sample I.D.", "{sample_name}"\n')
+                f.write('"Initial Dimensions", "Diameter (mm)", "9", "Gauge Length (mm)", "80"\n\n')
+                f.write('"Time (s)", "Extension (mm)", "Load (kN)", "Stress (MPa)", "Strain (%)"\n\n')
+
+            pd.DataFrame(data).to_csv(
+                Path(sample_path, f'{sample_name}.txt'),
+                columns=['time', 'extension', 'load', 'stress', 'strain'],
+                float_format='%.3f', index=False, sep=",", mode='a', header=None
+            )
+            plt.plot(100 * strain, stress / 1e6, label=sample_name)
 
     data_keys = {
-        0: 'Elastic Modulus (Pa): ', 1: 'Yield Stress (Pa): ',
-        2: 'Ultimate Strength (Pa): ', 3: 'Fracture Strain (mm/mm): '
+        0: 'Elastic Modulus (GPa): ', 1: 'Yield Stress (MPa): ',
+        2: 'Ultimate Strength (MPa): ', 3: 'Fracture Strain (mm/mm): '
     }
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nTensile Test\n' + '-' * 40)
@@ -650,6 +660,99 @@ def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
         plt.legend(ncol=2)
         plt.xlabel('Strain (%)')
         plt.ylabel('Stress (MPa)')
+        plt.show(block=False)
+
+
+def _generate_rheometry_data(directory, num_data=6, show_plots=True):
+    """
+    Generates the folder and files containing example rheometry data.
+
+    Parameters
+    ----------
+    directory : Path
+        The file path to the Raw Data folder.
+    num_data : int, optional
+        The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
+
+    Notes
+    -----
+    Simulates the viscosity measurements for a shear-thinning polymer melt
+    which obeys the Carreau-Yasuda model, in which the measured viscosity, mu, follows:
+        mu = mu_inf + (mu_0 - mu_inf) * (1 + (lambda * shear_rate)**a)**((n - 1) / a)
+    where mu_inf is the viscosity at infinite shear rate, mu_0 is the viscosity
+    at zero shear rate, lambda is the relaxation time, n is the power law index
+    (n - 1 is the slope of the line in the region between mu_0 and mu_inf),
+    and a is a dimensionless parameter (will be equal to 2 for this data).
+
+    """
+
+    file_path = Path(directory, 'Rheometry')
+    file_path.mkdir(parents=True, exist_ok=True)
+
+    shear_rate = np.logspace(-1, 3, num=30) # from 0.1 to 1000 1/s, evenly spaced on log scale
+
+    plt.figure(num='rheometry')
+    param_dict = {}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample_name = f'PDMS-{i}Ti'
+        else:
+            sample_name = f'PDMS-{i - int(np.ceil(num_data / 2))}Fe'
+
+        mu_0 = 0.5 + np.random.randn(1) * 0.2
+        mu_inf = 0.01 + np.random.randn(1) * 0.005
+        lambda_ = 1 + np.random.randn(1) * 0.2
+        n = 0.1 + np.random.randn(1) * 0.01
+
+        viscosity = mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
+        viscosity +=  np.random.randn(viscosity.size) * viscosity / 20 # measurement error
+
+        data = {
+            'shear stress': shear_rate * viscosity,
+            'shear rate': shear_rate,
+            'viscosity': viscosity,
+            'time': np.linspace(20, 20 * shear_rate.size, shear_rate.size) + np.random.randn(shear_rate.size),
+            'temperature': np.full(shear_rate.size, 25),
+            'normal stress': -250 + np.random.randn(shear_rate.size)
+        }
+        param_dict[sample_name] = [mu_0, mu_inf, lambda_, n, 2]
+
+        with open(Path(file_path, f'{sample_name}.txt'), 'w') as f: # filler text
+            f.write('Text to fill up space, data starts on line 166\n' + 'filler...\n' * 164)
+            f.write('shear stress\tshear rate\tviscosity\ttime\ttemperature\tnormal stress\n')
+            f.write('Pa\t1/s\tPa.s\ts\t\u00b0C\tPa\n\n')
+
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.txt'),
+            float_format='%.3f', index=False, sep="\t", mode='a', header=None
+        )
+        plt.plot(shear_rate, viscosity, 'o-', label=sample_name)
+
+    data_keys = {
+        0: 'mu_0 (Pa*s): ', 1: 'mu_infinity (Pa*s): ',
+        2: 'lambda (s): ', 3: 'power law index, n (unitless): ',
+        4: 'a, dimensionless-parameter: '
+    }
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nRheometry\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
+            f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
+            f.write(f'\nModel: Carreau-Yasuda model\n')
+            for k, value in enumerate(param_values):
+                f.write(f'\n{data_keys[k]}')
+                f.write(f'{float(value):.4f}')
+
+    if not show_plots:
+        plt.close('rheometry')
+    else:
+        plt.title('Rheometry')
+        plt.legend(ncol=2)
+        plt.xlabel('Shear Rate (1/s)')
+        plt.ylabel(r'Dynamic Viscosity (Pa$\cdot$s)')
+        plt.gca().set_xscale('log')
+        plt.gca().set_yscale('log')
         plt.show(block=False)
 
 
@@ -673,7 +776,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     Notes
     -----
     Currently supported characterization techniques include:
-        XRD, FTIR, Raman, TGA, DSC
+        XRD, FTIR, Raman, TGA, DSC, Rheometry, Uniaxial tensile test
 
     """
 
@@ -683,8 +786,9 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         'Raman': _generate_Raman_data,
         'TGA': _generate_TGA_data,
         'DSC': _generate_DSC_data,
-        #'Pore Size Analysis': _generate_pore_size_data,
-        'Uniaxial Tensile Test': _generate_uniaxial_tensile_data
+        'Rheometry': _generate_rheometry_data,
+        'Uniaxial Tensile Test': _generate_uniaxial_tensile_data,
+        #'Pore Size Analysis': _generate_pore_size_data
     }
 
     validations = {
