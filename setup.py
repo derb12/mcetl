@@ -11,8 +11,8 @@ with open('README.rst') as readme_file:
 requirements = [
     'lmfit',
     'matplotlib>=3.1',
-    'numpy',
-    'openpyxl',
+    'numpy>=1.8',
+    'openpyxl>=2.4',
     'pandas',
     'pysimplegui>=4.19',
     'scipy',
