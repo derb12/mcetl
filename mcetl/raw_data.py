@@ -138,7 +138,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
                        header=['2theta', 'Counts'], index_label='Number')
         plt.plot(data['x'], data['y'], label=sample_name)
 
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: ', 3: 'Fraction: '}
+    param_keys = ('Area', 'Center', 'Sigma', 'Fraction')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n'+'-' * 40 + '\nXRD\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
@@ -147,7 +147,7 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
             for j, param in enumerate(param_values):
                 f.write(f'\nPeak {j + 1}:\nPeak type: pseudovoigt\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
     if not show_plots:
@@ -223,7 +223,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
         )
         plt.plot(data['x'], data['y'], label=sample_name)
 
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
+    param_keys = ('Area', 'Center', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nFTIR\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
@@ -233,7 +233,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
             for j, param in enumerate(param_values):
                 f.write(f'\nPeak {j + 1}:\nPeak type: gaussian\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
     if not show_plots:
@@ -304,7 +304,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
         )
         plt.plot(data['x'], data['y'], label=sample_name)
 
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
+    param_keys = ('Area', 'Center', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nRaman\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
@@ -314,7 +314,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
                 peak_type = 'gaussian' if j % 2 == 0 else 'lorentzian'
                 f.write(f'\nPeak {j + 1}:\nPeak type: {peak_type}\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
     if not show_plots:
@@ -389,7 +389,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
         )
         plt.plot(data['x'], data['y'], label=sample_name)
 
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
+    param_keys = ('Area', 'Center', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nTGA\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
@@ -398,7 +398,7 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
             for j, param in enumerate(param_values):
                 f.write(f'\nPeak {j + 1}:\nPeak type: step\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
     if not show_plots:
@@ -482,7 +482,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
         )
         plt.plot(data['x'], data['y'], label=sample_name)
 
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
+    param_keys = ('Area', 'Center', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
@@ -492,7 +492,7 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
             for j, param in enumerate(param_values):
                 f.write(f'\nPeak {j + 1}:\nPeak type: gaussian\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
     if not show_plots:
@@ -520,8 +520,7 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
 
     Notes
     -----
-    Background function is 0.
-    Peaks centered at 20 and 60 microns using lognormal functions.
+    Peaks centered at 20 and 60 microns using randomly sampled lognormal functions.
 
     Simulates pore size measurements that would be generated using the
     program ImageJ to analyze scanning electron microscope images of
@@ -529,10 +528,68 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
 
     """
 
+    file_path = Path(directory, 'Pore Size Analysis')
+    file_path.mkdir(parents=True, exist_ok=True)
+
+    plt.figure(num='pores')
+    param_dict = {}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample = f'Fe-{i}Ti-700C'
+        else:
+            sample = f'Fe-{i - int(np.ceil(num_data / 2))}Co-700C'
+
+        # Generate three measurements per sample
+        sample_path = file_path.joinpath(sample)
+        sample_path.mkdir(parents=True, exist_ok=True)
+        for j in range(1, 4):
+            sample_name = sample + f'_region-{j}'
+
+            mean_1 = 20 + np.random.randn(1) * 5
+            sigma_1 = 0.3 + np.random.randn(1) * 0.01
+            mean_2 = 60 + np.random.randn(1) * 5
+            sigma_2 = 0.2 + np.random.randn(1) * 0.01
+            ratio = abs(3 + np.random.randn(1) * 0.5)
+
+            diameters = np.hstack((
+                np.random.lognormal(np.log(mean_1), sigma_1, int(100 * ratio)),
+                np.random.lognormal(np.log(mean_2), sigma_2, 100)
+            ))
+
+            data = {
+                'number': np.arange(1, diameters.size + 1, 1),
+                'diameters': diameters,
+                'area': (np.pi / 4) * diameters**2,
+            }
+            param_dict[sample_name] = (
+                (int(100 * ratio), mean_1, np.log(mean_1), sigma_1),
+                (100, mean_2, np.log(mean_2), sigma_2),
+            )
+
+            pd.DataFrame(data).to_csv(
+                Path(sample_path, f'{sample_name}.csv'),
+                float_format='%.3f', index=False, sep=",",
+                header=['Number', 'Diameter (microns)', 'Area (microns^2)']
+            )
+
+            counts, bins = np.histogram(diameters, np.arange(0, 125, 5))
+            plt.plot(0.5 * (bins[:-1] + bins[1:]), counts, 'o-', label=sample_name)
+
+    param_keys = ('Total Count', 'Center', 'log(Center)', 'Sigma')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nPore Size Analysis\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
+            f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: lognormal\n')
+                for k, value in enumerate(param):
+                    f.write(f'{param_keys[k]}: ')
+                    f.write(f'{float(value):.4f}\n')
+
     plt.title('Pore Size Analysis')
     plt.legend(ncol=2)
     plt.xlabel(r'Pore Size ($\mu$m)')
-    plt.ylabel('Count')
+    plt.ylabel('Count (#)')
 
     if show_plots:
         plt.show(block=False)
@@ -641,16 +698,14 @@ def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
             )
             plt.plot(100 * strain, stress / 1e6, label=sample_name)
 
-    data_keys = {
-        0: 'Elastic Modulus (GPa): ', 1: 'Yield Stress (MPa): ',
-        2: 'Ultimate Strength (MPa): ', 3: 'Fracture Strain (mm/mm): '
-    }
+    param_keys = ('Elastic Modulus (GPa)', 'Yield Stress (MPa)',
+                  'Ultimate Strength (MPa)', 'Fracture Strain (mm/mm)')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nTensile Test\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             for k, value in enumerate(param_values):
-                f.write(f'\n{data_keys[k]}')
+                f.write(f'\n{param_keys[k]}: ')
                 f.write(f'{float(value):.4f}')
 
     if not show_plots:
@@ -701,10 +756,10 @@ def _generate_rheometry_data(directory, num_data=6, show_plots=True):
         else:
             sample_name = f'PDMS-{i - int(np.ceil(num_data / 2))}Fe'
 
-        mu_0 = 0.5 + np.random.randn(1) * 0.2
-        mu_inf = 0.01 + np.random.randn(1) * 0.005
-        lambda_ = 1 + np.random.randn(1) * 0.2
-        n = 0.1 + np.random.randn(1) * 0.01
+        mu_0 = 0.9 + np.random.randn(1) * 0.2
+        mu_inf = 0.1 + np.random.randn(1) * 0.01
+        lambda_ = abs(1 + np.random.randn(1) * 0.1)
+        n = abs(0.3 + np.random.randn(1) * 0.1)
 
         viscosity = mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
         viscosity +=  np.random.randn(viscosity.size) * viscosity / 20 # measurement error
@@ -713,7 +768,7 @@ def _generate_rheometry_data(directory, num_data=6, show_plots=True):
             'shear stress': shear_rate * viscosity,
             'shear rate': shear_rate,
             'viscosity': viscosity,
-            'time': np.linspace(20, 20 * shear_rate.size, shear_rate.size) + np.random.randn(shear_rate.size),
+            'time': np.linspace(40, 40 * shear_rate.size, shear_rate.size) + np.random.randn(shear_rate.size),
             'temperature': np.full(shear_rate.size, 25),
             'normal stress': -250 + np.random.randn(shear_rate.size)
         }
@@ -730,18 +785,17 @@ def _generate_rheometry_data(directory, num_data=6, show_plots=True):
         )
         plt.plot(shear_rate, viscosity, 'o-', label=sample_name)
 
-    data_keys = {
-        0: 'mu_0 (Pa*s): ', 1: 'mu_infinity (Pa*s): ',
-        2: 'lambda (s): ', 3: 'power law index, n (unitless): ',
-        4: 'a, dimensionless-parameter: '
-    }
+    param_keys = (
+        'mu_0 (Pa*s)', 'mu_infinity (Pa*s)', 'lambda (s)',
+        'power law index, n (unitless)', 'a, dimensionless-parameter (unitless)'
+    )
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nRheometry\n' + '-' * 40)
         for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write(f'\nModel: Carreau-Yasuda model\n')
             for k, value in enumerate(param_values):
-                f.write(f'\n{data_keys[k]}')
+                f.write(f'\n{param_keys[k]}: ')
                 f.write(f'{float(value):.4f}')
 
     if not show_plots:
@@ -776,7 +830,8 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     Notes
     -----
     Currently supported characterization techniques include:
-        XRD, FTIR, Raman, TGA, DSC, Rheometry, Uniaxial tensile test
+        XRD, FTIR, Raman, TGA, DSC, Rheometry, Uniaxial tensile test,
+        Pore Size Analysis
 
     """
 
@@ -788,7 +843,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         'DSC': _generate_DSC_data,
         'Rheometry': _generate_rheometry_data,
         'Uniaxial Tensile Test': _generate_uniaxial_tensile_data,
-        #'Pore Size Analysis': _generate_pore_size_data
+        'Pore Size Analysis': _generate_pore_size_data
     }
 
     validations = {
