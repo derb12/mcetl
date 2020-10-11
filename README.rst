@@ -213,6 +213,9 @@ Data produced by the generate_raw_data function covers the following characteriz
 * Raman spectroscopy
 * Thermogravimetric analysis (TGA)
 * Differential scanning calorimetry (DSC)
+* Rheometry
+* Uniaxial tensile tests
+* Pore size measurements
 
 
 Example Programs
