@@ -1004,7 +1004,7 @@ def plugNchug_fit(
                 [output['individual_peaks'][-1]['background_'],] * len(y)
             )
 
-        #Gets the parameters for each model and their standard deviations, if available
+        #Gets the parameters for each model and their standard errors, if available
         if None not in {fit_result.params[var].stderr for var in fit_result.var_names}:
             output['best_values'].append([
                 [var, fit_result.params[var].value,
