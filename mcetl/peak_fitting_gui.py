@@ -792,7 +792,7 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     # Creation of dataframe for best values of all peak parameters
     vals = defaultdict(dict)
-    st_dev = defaultdict(dict)
+    std_err = defaultdict(dict)
     for term in best_values[-1]:
         if 'peak' in term[0]:
             key = f'{term[0].split("_")[0]} {int(term[0].split("_")[1])+1}'
@@ -801,14 +801,14 @@ def fit_dataframe(dataframe, user_inputs=None):
             key = term[0].split('_')[0]
             param_key = term[0].split('_')[-1]
         vals[key][param_key] = term[1]
-        st_dev[key][param_key] = term[2]
+        std_err[key][param_key] = term[2]
     vals_df = pd.DataFrame(vals).transpose()
-    st_dev_df = pd.DataFrame(st_dev).transpose()
+    std_err_df = pd.DataFrame(std_err).transpose()
 
     df_1 = pd.DataFrame()
     for name in vals_df.columns:
         df_1[f'{name}_val'] = vals_df[name]
-        df_1[f'{name}_sterr'] = st_dev_df[name]
+        df_1[f'{name}_sterr'] = std_err_df[name]
     df_1 = df_1.fillna('-')
 
     model_names = [component._name for component in fit_result[-1].components]
