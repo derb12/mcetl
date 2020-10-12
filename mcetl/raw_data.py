@@ -522,6 +522,9 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
     -----
     Peaks centered at 20 and 60 microns using randomly sampled lognormal functions.
 
+    The area and perimeter are not directly computed by the diameter because the
+    shapes are not perfect circles.
+
     Simulates pore size measurements that would be generated using the
     program ImageJ to analyze scanning electron microscope images of
     macroporous materials.
@@ -555,11 +558,17 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
                 np.random.lognormal(np.log(mean_1), sigma_1, int(100 * ratio)),
                 np.random.lognormal(np.log(mean_2), sigma_2, 100)
             ))
+            # area and perimeter are not directly related to diameters because pores are not perfect circles
+            # image area is always less than the area from the feret diameter
+            areas = (np.pi / 4) * (diameters * (1 - np.abs((np.random.randn(diameters.size) / 5))))**2
+            perimeters = np.pi * (diameters * (1 + (np.random.randn(diameters.size) / 10)))
 
             data = {
                 'number': np.arange(1, diameters.size + 1, 1),
+                'area': areas,
+                'perimeter': perimeters,
+                'circularity': np.minimum(1, 4 * np.pi * (areas / (perimeters**2))),
                 'diameters': diameters,
-                'area': (np.pi / 4) * diameters**2,
             }
             param_dict[sample_name] = (
                 (int(100 * ratio), mean_1, np.log(mean_1), sigma_1),
@@ -569,7 +578,8 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
             pd.DataFrame(data).to_csv(
                 Path(sample_path, f'{sample_name}.csv'),
                 float_format='%.3f', index=False, sep=",",
-                header=['Number', 'Diameter (microns)', 'Area (microns^2)']
+                header=['Number', 'Area (microns^2)', 'Perimeter (microns)',
+                        'Circularity', 'Feret Diameter (microns)']
             )
 
             counts, bins = np.histogram(diameters, np.arange(0, 125, 5))
