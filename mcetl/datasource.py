@@ -631,7 +631,7 @@ class DataSource:
             for function in functions:
                 dataset = function.do_function(
                     dataset, self.references[i], index,
-                    self.excel_column_offset, self.excel_row_offset + 3
+                    self.excel_column_offset + 1, self.excel_row_offset + 3
                 )
 
             # Optimizes memory usage after calculations
