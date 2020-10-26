@@ -18,6 +18,7 @@ PROCEED_COLOR : tuple(str, str)
 """
 
 
+import operator
 from pathlib import Path
 
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -138,7 +139,7 @@ def safely_close_window(window):
 
 def string_to_unicode(input_list):
     r"""
-    Converts strings to unicode by replacing '\\u' with '\u'.
+    Converts strings to unicode by replacing '\\' with '\'.
 
     Necessary because the user input from PySimpleGui's InputText element
     will convert any '\' input by the user to '\\', which will not
@@ -186,9 +187,9 @@ def string_to_unicode(input_list):
 
 
 def validate_inputs(window_values, integers=None, floats=None,
-                    strings=None, user_inputs=None):
+                    strings=None, user_inputs=None, constraints=None):
     """
-    Validates entries from a PySimpleGUI window.
+    Validates entries from a PySimpleGUI window and converts to the desired type.
 
     Parameters
     ----------
@@ -197,21 +198,25 @@ def validate_inputs(window_values, integers=None, floats=None,
         window.read().
     integers : list, optional
         A list of lists (see Notes below), with each key corresponding
-        to a key in the window_values dictionary, whose values should
+        to a key in the window_values dictionary and whose values should
         be integers.
     floats : list, optional
         A list of lists (see Notes below), with each key corresponding
-        to a key in the window_values dictionary, whose values should
+        to a key in the window_values dictionary and whose values should
         be floats.
     strings : list, optional
         A list of lists (see Notes below), with each key corresponding
-        to a key in the window_values dictionary, whose values should
+        to a key in the window_values dictionary and whose values should
         be non-empty strings.
     user_inputs : list, optional
         A list of lists (see Notes below), with each key corresponding
-        to a key in the window_values dictionary, whose values should
+        to a key in the window_values dictionary and whose values should
         be a certain data type; the values are first determined by
         separating each value using ',' (default) or the last index.
+    constraints : list, optional
+        A list of lists (see Notes below), with each key corresponding
+        to a key in the window_values dictionary and whose values should
+        be ints or floats constrained between upper and lower bounds.
 
     Returns
     -------
@@ -239,33 +244,37 @@ def validate_inputs(window_values, integers=None, floats=None,
         ['peak_width_4', 'peak width 4', function, True, None] # allows empty input
     ]
 
+    Inputs for constraints are
+        [[key, display text, lower bound, upper bound (optional)],],
+    where lower and upper bounds are strings with the operator and bound, such
+    as "> 10". If lower bound or upper bound is None, then the operator and
+    bound is assumed to be >=, -np.inf and <=, np.inf, respectively.
+    For example: [
+        ['peak_width', 'peak width', '> 10', '< 20'], # 10 < peak_width < 20
+        ['peak_width_2', 'peak width 2', None, '<= 5'] # -inf <= peak_width_2 <= 5
+        ['peak_width_3', 'peak width 3', '> 1'] # 1 < peak_width_2 <= inf
+    ]
+
     The display text will be the text that is shown to the user if the value
     of window_values[key] fails the validation.
 
-    #TODO maybe use this function to also convert the inputs to the desired type
     """
 
     if integers is not None:
         for entry in integers:
             try:
-                int(window_values[entry[0]])
+                window_values[entry[0]] = int(window_values[entry[0]])
             except:
                 sg.popup(f'Need to enter integer in "{entry[1]}".\n', title='Error')
                 return False
 
     if floats is not None:
         for entry in floats:
-            if entry == 'inf':
-                continue
-            elif entry == '-inf':
-                continue
-            else:
-                try:
-                    float(window_values[entry[0]])
-                except:
-                    sg.popup(f'Need to enter number in "{entry[1]}".\n',
-                             title='Error')
-                    return False
+            try:
+                window_values[entry[0]] = float(window_values[entry[0]])
+            except:
+                sg.popup(f'Need to enter number in "{entry[1]}".\n', title='Error')
+                return False
 
     if strings is not None:
         for entry in strings:
@@ -286,19 +295,51 @@ def validate_inputs(window_values, integers=None, floats=None,
                 allow_empty_input = False
                 separator = ','
 
+            if separator is None:
+                inputs = [window_values[entry[0]]] if window_values[entry[0]] else []
+            else:
+                inputs = [val.strip() for val in window_values[entry[0]].split(separator) if val]
+
             try:
-                inputs = [
-                    ent.strip() for ent in window_values[entry[0]].split(separator) if ent
-                ]
                 if inputs:
-                    [entry[2](inpt) for inpt in inputs]
-                elif not allow_empty_input:
+                    values = [entry[2](inpt) for inpt in inputs]
+                    window_values[entry[0]] = values if separator is not None else values[0]
+                elif allow_empty_input:
+                    window_values[entry[0]] = [] if separator is not None else ''
+                else:
                     raise ValueError('Entry must not be empty.')
 
             except Exception as e:
                 sg.popup(
                     f'Need to correct entry for "{entry[1]}".\n\nError:\n    {repr(e)}\n',
                     title='Error')
+                return False
+
+    if constraints is not None:
+        operators = {'>': operator.gt, '>=': operator.ge,
+                     '<': operator.lt, '<=': operator.le}
+        for entry in constraints:
+            if entry[2] is not None:
+                lower_key, lower_bound = entry[2].split(' ')
+                lower_bound = float(lower_bound) if '.' in lower_bound else int(lower_bound)
+            else:
+                lower_key = '>='
+                lower_bound = float('-inf')
+
+            if len(entry) > 3 and entry[3] is not None:
+                upper_key, upper_bound = entry[3].split(' ')
+                upper_bound = float(upper_bound) if '.' in upper_bound else int(upper_bound)
+            else:
+                upper_key = '<='
+                upper_bound = float('inf')
+
+            if not (operators[lower_key](window_values[entry[0]], lower_bound)
+                    and operators[upper_key](window_values[entry[0]], upper_bound)):
+                sg.popup(
+                    (f'"{entry[1]}" must be {lower_key} {lower_bound} and '
+                     f'{upper_key} {upper_bound}.\n'),
+                    title='Error'
+                )
                 return False
 
     return True
@@ -326,7 +367,6 @@ def show_dataframes(dataframes, title='Raw Data'):
     """
 
     try:
-
         if isinstance(dataframes, pd.DataFrame):
             single_file = True
             dataframes = [[dataframes]]
@@ -439,7 +479,7 @@ def optimize_memory(dataframe, convert_objects=False):
 
     optimized_df = dataframe.copy()
 
-    if int(pd.__version__.split('.')[0]) > 0 and convert_objects:
+    if convert_objects and int(pd.__version__.split('.')[0]) > 0:
         # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:
@@ -472,7 +512,7 @@ def raw_data_import(window_values, file, show_popup=True):
     ----------
     window_values : dict
         A dictionary with keys 'row_start', 'row_end', columns', 'separator',
-        and optionally 'sheet'
+        and optionally 'sheet'.
     file : str:
         A string containing the path to the file to be imported.
     show_popup : bool
@@ -491,12 +531,13 @@ def raw_data_import(window_values, file, show_popup=True):
     """
 
     try:
-        row_start = int(window_values['row_start'])
-        row_end = int(window_values['row_end'])
-        separator = window_values['separator'] if window_values['separator'].lower() not in ('', 'none') else None
-        column_numbers = [
-            int(num) for num in window_values['columns'].replace(' ', '').split(',') if num
-        ]
+        row_start = window_values['row_start']
+        row_end = window_values['row_end']
+        column_numbers = window_values['columns']
+        if window_values['separator'].lower() not in ('', 'none'):
+            separator = window_values['separator']
+        else:
+            separator = None
 
         #if separator is not None: #TODO check whether this is needed since tkinter gives a raw string from the input; regex should work automatically
         #    separator = string_to_unicode(separator)
@@ -504,8 +545,8 @@ def raw_data_import(window_values, file, show_popup=True):
         if file.endswith('.xlsx'):
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1
-            columns = [num for num in range(first_col, last_col)]
-            repeat_unit = int(window_values['repeat_unit'])
+            columns = list(range(first_col, last_col))
+            repeat_unit = window_values['repeat_unit']
 
             total_dataframe = pd.read_excel(
                 file, window_values['sheet'], None, skiprows=row_start,
@@ -528,7 +569,7 @@ def raw_data_import(window_values, file, show_popup=True):
 
         if not show_popup:
             for i, dataframe in enumerate(dataframes):
-                dataframe.columns = [*range(len(dataframe.columns))]
+                dataframe.columns = list(range(len(dataframe.columns)))
                 dataframes[i] = optimize_memory(dataframe)
 
         else:
@@ -614,6 +655,8 @@ def select_file_gui(data_source=None, file=None):
     validations = {
         'integers': [['row_start', 'start row'], ['row_end', 'end row']],
         'user_inputs': [['columns', 'data columns', int]],
+        'constraints': [['row_start', 'start row', '>= 0'],
+                        ['row_end', 'end row', '>= 0']]
     }
 
     disable_excel = True
@@ -643,11 +686,14 @@ def select_file_gui(data_source=None, file=None):
                 'columns': ', '.join(str(num) for num in range(sheet_0_len)),
                 'row_start': 0,
                 'row_end': 0,
-                'total_indices': [*range(sheet_0_len)],
+                'total_indices': list(range(sheet_0_len)),
             })
 
             validations['integers'].append(
                 ['repeat_unit', 'number of columns per dataset']
+            )
+            validations['constraints'].append(
+                ['repeat_unit', 'number of columns per dataset', '> 0']
             )
 
         default_inputs.update({
@@ -764,6 +810,9 @@ def select_file_gui(data_source=None, file=None):
                     validations['integers'].append(
                         ['repeat_unit', 'number of columns per dataset']
                     )
+                    validations['constraints'].append(
+                        ['repeat_unit', 'number of columns per dataset', '> 0']
+                    )
 
                 if data_source is not None:
                     _assign_indices(
@@ -788,6 +837,10 @@ def select_file_gui(data_source=None, file=None):
                 for i, entry in enumerate(validations['integers']):
                     if 'repeat_unit' in entry:
                         del validations['integers'][i]
+                        break
+                for i, entry in enumerate(validations['constraints']):
+                    if 'repeat_unit' in entry:
+                        del validations['constraints'][i]
                         break
 
                 if data_source is not None:
@@ -869,14 +922,11 @@ def select_file_gui(data_source=None, file=None):
     del window
 
     if data_source is not None: # converts column numbers back to indices
-        column_numbers = [
-            int(num) for num in values['columns'].replace(' ', '').split(',') if num
-        ]
-
-        for key in [key for key in values if key.startswith('index_')]:
-            for col_num in column_numbers:
+        for key in (key for key in values if key.startswith('index_')):
+            for i, col_num in enumerate(values['columns']):
                 if int(values[key]) == col_num:
-                    values[key] = column_numbers.index(col_num)
+                    values[key] = i
+                    break
 
     return values
 
@@ -934,6 +984,11 @@ def open_multiple_files():
         [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]
     ]
 
+    validations = {
+        'integers': [['num_files', 'number of files']],
+        'constraints': [['num_files', 'number of files', '> 0']]
+    }
+
     window = sg.Window('Get Files', layout)
     while True:
         event, values = window.read()
@@ -942,8 +997,8 @@ def open_multiple_files():
             num_files = False
             safely_close_window(window)
         else:
-            if validate_inputs(values, integers=[['num_files', 'number of files']]):
-                num_files = int(values['num_files'])
+            if validate_inputs(values, **validations):
+                num_files = values['num_files']
                 break
 
     window.close()
