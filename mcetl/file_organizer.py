@@ -150,6 +150,11 @@ def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
             ['num_datasets', 'number of datasets'],
             ['min_files', 'mininum number of files per search term'],
             ['max_files', 'maximum number of files per search term']
+        ],
+        'constraints' : [
+            ['num_datasets', 'number of datasets', '> 0'],
+            ['min_files', 'mininum files', '> 0'],
+            ['max_files', 'maximum files', '> 0']
         ]
     }
 
@@ -168,12 +173,7 @@ def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
 
         elif event == 'Next':
             if validate_inputs(values, **validations):
-                if int(values['num_datasets']) <= 0:
-                    sg.popup('Number of datasets must be > 0.\n', title='Error')
-                elif int(values['min_files']) <= 0 or int(values['max_files']) <= 0:
-                    sg.popup('Number of files per search term must be > 0.\n',
-                             title='Error')
-                elif int(values['min_files']) > int(values['max_files']):
+                if values['min_files'] > values['max_files']:
                     sg.popup(
                         'Minimum files must be less than or equal to maximum files.\n',
                         title='Error'
@@ -269,7 +269,7 @@ def _get_keywords(num_keyword_values):
 
     location = (None, None)
     old_text = ''
-    window = _generate_keyword_window(int(num_keyword_values['num_datasets']))
+    window = _generate_keyword_window(num_keyword_values['num_datasets'])
     while True:
         event, values = window.read()
 
@@ -303,7 +303,7 @@ def _get_keywords(num_keyword_values):
                 previous_inputs=num_keyword_values, location=location
             )
             window = _generate_keyword_window(
-                int(num_keyword_values['num_datasets']), values, location
+                num_keyword_values['num_datasets'], values, location
             )
 
         elif 'unique_keyword' in event:
@@ -327,7 +327,7 @@ def _get_keywords(num_keyword_values):
 
     shared_keywords = []
     unique_keywords = []
-    for i in range(int(num_keyword_values['num_datasets'])):
+    for i in range(num_keyword_values['num_datasets']):
         # deletes repeated entries to reduce the permutations and search time
         shared_keywords.append(
             set(entry.strip() for entry in values[f'shared_keyword_{i}'].split(',') if entry)
@@ -340,8 +340,8 @@ def _get_keywords(num_keyword_values):
 
     file_directory = Path(num_keyword_values['folder'])
     file_type = num_keyword_values['file_type'].replace('.', '')
-    min_files = int(num_keyword_values['min_files'])
-    max_files = int(num_keyword_values['max_files'])
+    min_files = num_keyword_values['min_files']
+    max_files = num_keyword_values['max_files']
 
     return file_directory, shared_keywords, unique_keywords, file_type, min_files, max_files
 
@@ -378,7 +378,6 @@ def file_finder(file_directory=None, file_type=None, num_files=None):
 
     window_location = (None, None)
     found_files = [[[] for j in range(len(unique_keywords[i]))] for i in range(len(shared_keywords))]
-
     for i, keyword1 in enumerate(shared_keywords):
         for j, keyword2 in enumerate(unique_keywords[i]):
             # Tries each variation of (keyword1, keyword2) and collects all files that fit

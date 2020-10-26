@@ -858,7 +858,8 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
 
     validations = {
         'strings': [['folder', 'Raw Data folder']],
-        'integers' : [['num_files', 'number of files']]
+        'integers' : [['num_files', 'number of files']],
+        'constraints': [['num_files', 'number of files', '> 0']]
     }
 
     layout = [
@@ -919,5 +920,5 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         with plt.rc_context({'interactive': False}):
             for function in values['selected_functions']:
                 function_mapping[function](
-                    data_path, int(values['num_files']), values['show_plots']
+                    data_path, values['num_files'], values['show_plots']
                 )
