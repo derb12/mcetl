@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-mcetl - A simple Extract-Transform-Load framework focused on materials characterization
+mcetl - An Extract-Transform-Load framework focused on materials characterization
 =======================================================================================
 
 mcetl provides user interfaces for processing data, performing peak fitting, and

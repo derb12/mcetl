@@ -18,7 +18,7 @@ mcetl
 
 
 
-mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
+mcetl is an Extract-Transform-Load framework focused on materials characterization.
 
 * For python 3.7+
 * Open Source: BSD 3-clause license
