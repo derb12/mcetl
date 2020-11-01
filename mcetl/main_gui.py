@@ -738,14 +738,16 @@ def _collect_column_labels(dataframes, data_source, labels, options):
         labels[i]['total_labels'] = []
 
         for j in range(len(labels[i]['sample_names'])):
-            for entry_num in range(1, len(dataset[j]) + 1):
+            index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
+
+            for entry_num in range(1, len(dataset[j]) + 1 + index_modifier):
                 for label in labels[i]['column_labels']:
-                    if data_source.label_entries and len(dataset[j]) > 1:
+                    if data_source.label_entries and len(dataset[j]) > 1 and label:
                         labels[i]['total_labels'].append(f'{label} {entry_num}')
                     else:
                         labels[i]['total_labels'].append(label)
 
-                if options['process_data'] and entry_num != len(dataset[j]):
+                if options['process_data'] and entry_num != len(dataset[j]) + index_modifier:
                     labels[i]['total_labels'].extend([
                         '' for _ in range(data_source.entry_separation)
                     ])
@@ -754,7 +756,7 @@ def _collect_column_labels(dataframes, data_source, labels, options):
                 if labels[i]['sample_summary_labels']:
                     labels[i]['total_labels'].extend([
                         *['' for _ in range(data_source.entry_separation)],
-                        *[label for label in labels[i]['sample_summary_labels']]
+                        *labels[i]['sample_summary_labels']
                     ])
 
                 labels[i]['total_labels'].extend([
@@ -763,7 +765,7 @@ def _collect_column_labels(dataframes, data_source, labels, options):
 
         if options['process_data'] and labels[i]['dataset_summary_labels']:
             labels[i]['total_labels'].extend([
-                *[label for label in labels[i]['dataset_summary_labels']],
+                *labels[i]['dataset_summary_labels'],
                 *['' for _ in range(data_source.sample_separation)]
             ])
 
