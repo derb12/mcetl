@@ -56,6 +56,13 @@ def _generate_peaks(x, y, peak_type, params, param_var, **func_kwargs):
     new_params : list
         The actual parameter values after applying the given variability.
 
+    Notes
+    -----
+    Uses np.random.rand to only use random values in the range [0, 1). This
+    was a mistake, and np.random.randn was supposed to be used, but the parameter
+    values and variability are already optimized for use with np.random.rand, so
+    there is no reason to change anything since it works.
+
     """
 
     # to prevent overwriting the input collection objects
@@ -200,7 +207,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
         [0.75, 3000, 5],
         [15, 3600, 150]
     ]
-    param_var = [.200, 0.5, 10]
+    param_var = [0.2, 0.5, 10]
 
     plt.figure(num='ftir')
     param_dict = {}
@@ -552,7 +559,7 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
             sigma_1 = 0.3 + np.random.randn(1) * 0.01
             mean_2 = 60 + np.random.randn(1) * 5
             sigma_2 = 0.2 + np.random.randn(1) * 0.01
-            ratio = abs(3 + np.random.randn(1) * 0.5)
+            ratio = abs(3 + np.random.randn(1) * 1)
 
             diameters = np.hstack((
                 np.random.lognormal(np.log(mean_1), sigma_1, int(100 * ratio)),
@@ -582,8 +589,8 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
                         'Circularity', 'Feret Diameter (microns)']
             )
 
-            counts, bins = np.histogram(diameters, np.arange(0, 125, 5))
-            plt.plot(0.5 * (bins[:-1] + bins[1:]), counts, 'o-', label=sample_name)
+            counts, bins = np.histogram(diameters, np.arange(-5, 125, 5))
+            plt.plot(bins[1:], counts, 'o-', label=sample_name)
 
     param_keys = ('Total Count', 'Center', 'log(Center)', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
