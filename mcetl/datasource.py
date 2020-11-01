@@ -619,7 +619,8 @@ class DataSource:
         Notes
         -----
         The start row is set to self.excel_row_offset + 3 since openpyxl is 1-based
-        and there are two header rows.
+        and there are two header rows. The start column is set to
+        self.excel_column_offset + 1 since openpyxl is 1-based.
 
         """
 
