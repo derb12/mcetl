@@ -7,8 +7,12 @@ Created on Sat Aug 22 13:01:37 2020
 """
 
 
-from mcetl import CalculationFunction, SeparationFunction, DataSource, launch_main_gui
+import itertools
+
+import mcetl
 import numpy as np
+import pandas as pd
+from scipy import optimize
 
 
 def offset_data(df, target_indices, calc_indices, excel_columns,
@@ -40,7 +44,7 @@ def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             y_col = df[df.columns[target_indices[0][i][j]]]
-            
+
             if excel_columns is not None:
                 df[calc_col] = y_col + f' + {offset * i}'
             else:
@@ -63,14 +67,14 @@ def normalize(df, target_indices, calc_indices, excel_columns, start, **kwargs):
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
-    
+
             else:
                 y_col = df.columns[target_indices[0][i][j]]
                 min_y = df[y_col].min()
                 max_y = df[y_col].max()
 
                 df[calc_col] = (df[y_col] - min_y) / (max_y - min_y)
-    
+
     return df
 
 
@@ -85,7 +89,6 @@ def split(df, target_indices, **kwargs):
         mask = np.array([mask[0], *mask[np.where(mask[1:] - mask[:-1] != 1)[0] + 1]]) # in case x[i] - x[i+1] = 0
 
     return np.array_split(df, mask)
-
 
 
 def derivative(df, target_indices, calc_indices, excel_columns, start, **kwargs):
@@ -108,26 +111,215 @@ def derivative(df, target_indices, calc_indices, excel_columns, start, **kwargs)
                 x = df[target_indices[0][i][j]].to_numpy()
                 y = df[target_indices[1][i][j]].to_numpy()
 
-                derivative = np.zeros(len(x))
+                derivative = np.zeros(x.size)
                 derivative[1:] = (y[1:] - y[0:-1]) / (x[1:] - x[0:-1])
                 df[calc_col] = derivative
 
     return df
 
 
+def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Creates a histogram of pore sizes weighted by the pore area for each entry.
+
+    Also computes the average pore diameter and the standard deviation of pore size.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    max_pore_size = df[itertools.chain.from_iterable(target_indices[0])].max(numeric_only=True).max()
+    pore_bins = np.arange(-kwargs['bin_size'][0], max_pore_size + kwargs['bin_size'][0],
+                          kwargs['bin_size'][0])
+    # in case the number of measured pores is less than the number of bins
+    if pore_bins[1:].size > len(df):
+        df = pd.concat((df, pd.DataFrame({'temp': pore_bins})), axis=1).drop('temp', axis=1)
+
+    for i, sample in enumerate(calc_indices):
+        for j in range(len(sample) // 10): # 10 calc columns per entry in each sample
+
+            # d designates diameters, a designates areas
+            d_index = target_indices[0][i][j]
+            a_index = target_indices[1][i][j]
+
+            nan_mask = (~np.isnan(df[d_index])) & (~np.isnan(df[a_index]))
+            avg_pore_size = np.average(df[d_index][nan_mask], weights=df[a_index][nan_mask])
+            area_histogram = np.histogram(df[d_index], pore_bins, weights=df[a_index])[0]
+            norm_area_histogram = np.histogram(df[d_index], pore_bins,
+                                               weights=df[a_index], density=True)[0] * kwargs['bin_size'][0]
+
+            df[sample[1 + (j * 10)]] = pd.Series(pore_bins[1:])
+            df[sample[2 + (j * 10)]] = pd.Series(np.histogram(df[d_index], pore_bins)[0])
+            df[sample[3 + (j * 10)]] = pd.Series(area_histogram)
+            df[sample[4 + (j * 10)]] = pd.Series(np.cumsum(area_histogram))
+            df[sample[5 + (j * 10)]] = df[sample[3 + (j * 10)]] / kwargs['bin_size'][0]
+            df[sample[6 + (j * 10)]] = pd.Series(np.cumsum(norm_area_histogram))
+            df[sample[7 + (j * 10)]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
+            df[sample[8 + (j * 10)]] = pd.Series(avg_pore_size)
+            df[sample[9 + (j * 10)]] = pd.Series(np.sqrt(
+                np.average((df[d_index][nan_mask] - avg_pore_size)**2,
+                           weights=df[a_index][nan_mask])
+            ))
+
+            if excel_columns is not None or not kwargs['processed'][0]:
+                # sort the values by the measured diameter
+                df[[d_index, a_index]] = df[[d_index, a_index]].sort_values(d_index, ignore_index=True)
+                # switches measured area and diameter columns so that diameter is first
+                df[[d_index, a_index]] = df[[a_index, d_index]]
+                # prevents reswitching the diameter and area columns if doing
+                # the python functions after performing the excel functions
+                kwargs['processed'][0] = True if excel_columns is not None else False
+
+    return df
+
+
+def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Creates a histogram of pore sizes weighted by the pore area for each sample.
+
+    Also computes the average pore diameter and the standard deviation of pore size.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    # diameter is index 1 and area is index 0 since their indices were switched in pore_analysis
+    max_pore_size = df[itertools.chain.from_iterable(target_indices[1])].max(numeric_only=True).max()
+    pore_bins = np.arange(-kwargs['bin_size'][0], max_pore_size + kwargs['bin_size'][0],
+                          kwargs['bin_size'][0])
+
+    for i, sample in enumerate(calc_indices):
+        if not sample: # skip empty lists
+            continue
+
+        diameters = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[1][i]])
+        areas = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[0][i]])
+
+        avg_pore_size = np.average(diameters, weights=areas)
+        area_histogram = np.histogram(diameters, pore_bins, weights=areas)[0]
+        norm_area_histogram = np.histogram(diameters, pore_bins,
+                                           weights=areas, density=True)[0] * kwargs['bin_size'][0]
+
+        df[sample[0]] = pd.Series(pore_bins[1:])
+        df[sample[1]] = pd.Series(np.histogram(diameters, pore_bins)[0])
+        df[sample[2]] = pd.Series(area_histogram)
+        df[sample[3]] = pd.Series(np.cumsum(area_histogram))
+        df[sample[4]] = df[sample[3]] / kwargs['bin_size'][0]
+        df[sample[5]] = pd.Series(np.cumsum(norm_area_histogram))
+        df[sample[6]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
+        df[sample[7]] = pd.Series(avg_pore_size)
+        df[sample[8]] = pd.Series(np.sqrt(np.average((diameters - avg_pore_size)**2,
+                                                     weights=areas)))
+
+    return df
+
+
+def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Summarizes the average pore size for each sample and its standard deviation.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    # calc index is -1 since only the last dataframe is the dataset summary dataframe
+    df[calc_indices[-1][0]] = pd.Series((f'Sample {num + 1}' for num in range(len(calc_indices[:-1]))))
+    df[calc_indices[-1][1]] = pd.Series((df[indices[-2]][0] for indices in target_indices[0][:-1]))
+    df[calc_indices[-1][2]] = pd.Series((df[indices[-1]][0] for indices in target_indices[0][:-1]))
+
+    return df
+
+
+def stress_model(strain, modulus):
+    """
+    Returns the linear estimate of the stress-strain curve using the strain and estimated modulus.
+
+    Used for fitting data with scipy.
+
+    Parameters
+    ----------
+    strain : array-like
+        The array of experimental strain values, unitless (or with cancelled
+        units, such as mm/mm).
+    modulus : float
+        The estimated elastic modulus for the data, with units
+        of GPa (Pa * 10^9).
+
+    Returns
+    -------
+    array-like
+        The estimated stress data following the linear model.
+
+    """
+
+    return strain * modulus * 1e9
+
+
+def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
+    """
+    Estimates the Carreau model for viscosity.
+
+    Used for fitting data using scipy.
+
+    Parameters
+    ----------
+    shear_rate : array-like
+        The experimental shear rate data, with units of 1/s.
+    mu_0 : float
+        The estimated viscosity at a shear rate of 0 1/s.
+    mu_inf : float
+        The estimated viscosity at infinite shear rate.
+    lambda_ : float
+        The reciprocal of the shear rate at which the material begins
+        to flow in a non-Newtonian way.
+    n : float
+        The power law index for the material (1-n defines the slope of the
+        curve of the non-Newtonian section of the log(viscosity) vs log(shear rate)
+        curve).
+
+    Returns
+    -------
+    array-like
+        The estimated viscosity following the Carreau model, with units of Pa*s.
+
+    """
+
+    return mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
+
+
 if __name__ == '__main__':
 
+    # the kwargs for the pore functions; make a variable so it can be shared between Function objects
+    # uses lists as the values so that they can be permanently alterred
+    pore_kwargs = {'bin_size': [5], 'processed': [False]}
+
     # Definitions for the Function objects
-    offset = CalculationFunction('offset', 'y', offset_data, 1, {'offset': 1000})
-    normalize = CalculationFunction('normalize', 'y', normalize, 1)
-    offset_normalized = CalculationFunction(
+    offset = mcetl.CalculationFunction(
+        name='offset', target_columns='y', functions=offset_data,
+        added_columns=1, function_kwargs={'offset': 1000}
+    )
+    normalize = mcetl.CalculationFunction('normalize', 'y', normalize, 1)
+    offset_normalized = mcetl.CalculationFunction(
         'offset_normalized', 'normalize', offset_normalized_data, 'normalize', {'offset': 1}
     )
-    delta_x_separator = SeparationFunction('delta_x_sep', 'temperature', split, None)
-    derivative_calc = CalculationFunction('derivative', ['time', 'mass'], derivative, 1)
+    delta_x_separator = mcetl.SeparationFunction('delta_x_sep', 'temperature', split, None)
+    derivative_calc = mcetl.CalculationFunction('derivative', ['time', 'mass'], derivative, 1)
+    pore_histogram = mcetl.CalculationFunction(
+        'pore_hist', ['diameter', 'area'], pore_analysis, 10, pore_kwargs
+    )
+    pore_sample_summation = mcetl.SummaryFunction(
+        'pore_sample_sum', ['diameter', 'area'], pore_sample_summary, 9, pore_kwargs
+    )
+    pore_dataset_summation = mcetl.SummaryFunction(
+        'pore_dataset_sum', ['pore_sample_sum'], pore_dataset_summary, 3,
+        pore_kwargs, False
+    )
 
     # Definitions for each data source
-    xrd = DataSource(
+    xrd = mcetl.DataSource(
         name='XRD',
         column_labels=['2\u03B8 (\u00B0)', 'Intensity (Counts)', 'Offset Intensity (a.u.)'],
         functions=[offset],
@@ -140,10 +332,10 @@ if __name__ == '__main__':
         num_files=1,
         unique_variables=['x', 'y'],
         entry_separation=1,
-        sample_separation=2
+        sample_separation=2,
     )
 
-    ftir = DataSource(
+    ftir = mcetl.DataSource(
         name='FTIR',
         column_labels=['Wavenumber (1/cm)', 'Absorbance (a.u.)', 'Normalized Absorbance (a.u.)'],
         functions=[normalize, offset_normalized],
@@ -159,7 +351,7 @@ if __name__ == '__main__':
         sample_separation=2
     )
 
-    raman = DataSource(
+    raman = mcetl.DataSource(
         name='Raman',
         column_labels=['Raman Shift (1/cm)', 'Intensity (a.u.)', 'Normalized Intensity (a.u.)'],
         functions=[normalize, offset_normalized],
@@ -175,7 +367,7 @@ if __name__ == '__main__':
         sample_separation=2
     )
 
-    tga = DataSource(
+    tga = mcetl.DataSource(
         name='TGA',
         column_labels=['Temperature (\u00B0C)', 'Time (min)',
                        'Mass (%)', 'Mass Loss Rate (%/min)'],
@@ -193,7 +385,7 @@ if __name__ == '__main__':
         sample_separation=2
     )
 
-    dsc = DataSource(
+    dsc = mcetl.DataSource(
         name='DSC',
         column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
         functions=[delta_x_separator],
@@ -208,11 +400,83 @@ if __name__ == '__main__':
         entry_separation=1,
         sample_separation=2
     )
+    """
+    rheometry = mcetl.DataSource(
+        name='Rheometry',
+        column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
+        functions=[delta_x_separator],
+        column_numbers=[0, 1, 2, 3, 4],
+        start_row=166,
+        end_row=0,
+        separator='\t',
+        xy_plot_indices=[0, 2],
+        file_type='txt',
+        num_files=1,
+        unique_variables=['shear rate', 'viscosity'],
+        unique_variable_indices=[1, 2],
+        entry_separation=1,
+        sample_separation=2
+    )
 
-    other = DataSource('Other') # For use in case you need to open arbitrary files without processing
+    tensile = mcetl.DataSource(
+        name='Tensile Test',
+        column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
+        functions=[delta_x_separator],
+        column_numbers=[0, 1, 2, 3, 4],
+        start_row=7,
+        end_row=0,
+        separator=',',
+        xy_plot_indices=[0, 2],
+        file_type='txt',
+        num_files=3,
+        unique_variables=['stress', 'strain'],
+        unique_variable_indices=[3, 4],
+        entry_separation=2,
+        sample_separation=3
+    )
+    """
+
+    pore_size = mcetl.DataSource(
+        name='Pore Size Analysis',
+        column_labels=['Measured Feret Diameters (\u03bcm)', 'Measured Areas (\u03bcm\u00b2)',
+                       '', 'Histogram Diameter, D (\u03bcm)',
+                       'Pore Count (#)', 'Area (\u03bcm\u00b2)',
+                       'Cumulative Area, A (\u03bcm\u00b2)',
+                       'Pore Size Distribution, dA/dD (\u03bcm\u00b2/\u03bcm)',
+                       'Normalized Cumulative Area (\u03bcm\u00b2)',
+                       'Normalized PSD, dA/dD (\u03bcm\u00b2/\u03bcm)',
+                       'Average Diameter (\u03bcm)', 'Diameter Standard Deviation (\u03bcm)',
+                       'Summarized Histogram Diameter, D (\u03bcm)',
+                       'Summarized Pore Count (#)',
+                       'Summarized Area (\u03bcm\u00b2)',
+                       'Summarized Cumulative Area, A (\u03bcm\u00b2)',
+                       'Summarized Pore Size Distribution, dA/dD (\u03bcm\u00b2/\u03bcm)',
+                       'Summarized Normalized Cumulative Area (\u03bcm\u00b2)',
+                       'Summarized Normalized PSD, dA/dD (\u03bcm\u00b2/\u03bcm)',
+                       'Summarized Average Diameter (\u03bcm)',
+                       'Summarized Diameter Standard Deviation (\u03bcm)',
+                       'Sample', 'Average Diameter (\u03bcm)',
+                       'Diameter Standard Deviation (\u03bcm)',],
+        functions=[pore_histogram, pore_sample_summation, pore_dataset_summation],
+        column_numbers=[1, 4],
+        start_row=1,
+        end_row=0,
+        separator=',',
+        xy_plot_indices=[3, 7],
+        file_type='csv',
+        num_files=3,
+        unique_variables=['diameter', 'area'],
+        unique_variable_indices=[1, 0],
+        entry_separation=1,
+        sample_separation=2
+    )
+
+    # For use in case you need to open arbitrary files without processing
+    other = mcetl.DataSource('Other')
 
     # Put all DataSource objects in this tuple in order to use them
-    data_sources = (xrd, ftir, raman, tga, dsc, other)
+    data_sources = (xrd, ftir, raman, tga, dsc, #rheometry, tensile,
+                    pore_size, other)
 
     # Call the main function with data_sources as the input
-    dataframes, fit_results, plot_results = launch_main_gui(data_sources)
+    dataframes, fit_results, plot_results = mcetl.launch_main_gui(data_sources)
