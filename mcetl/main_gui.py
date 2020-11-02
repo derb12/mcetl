@@ -517,7 +517,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
     for i in range(len(dataset)):
         labels_layout.append(
             [sg.Text(f'    Sample {i + 1}'),
-             sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
+             sg.Input(default_inputs[f'sample_name_{i}'], size=(20, 1),
                       key=f'sample_name_{i}')]
         )
 
