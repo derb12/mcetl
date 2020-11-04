@@ -2257,8 +2257,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
         current_data.append(data_list[index][dataset_index].copy())
 
     elif remove_dataset:
-        for selected_dataset in sorted(values['data_list'], reverse=True):
-            dataset_index = int(selected_dataset.split(' ')[-1]) - 1
+        indices = [int(value.split(' ')[-1]) - 1 for value in values['data_list']]
+        for dataset_index in sorted(indices, reverse=True):
             del current_data[dataset_index]
             properties = (
                 'plot_boolean', 'x_col', 'y_col', 'label', 'offset', 'markerface_color',
@@ -3053,10 +3053,9 @@ def _add_remove_peaks(axis, add_peak):
 
     elif remove_peak:
         for entry in values['peak_listbox']:
-            key = labels[entry]
-            for line in peaks[key]['peaks']:
+            for line in peaks[labels[entry]]['peaks']:
                 line.remove()
-            for annotation in peaks[key]['annotations']:
+            for annotation in peaks[labels[entry]]['annotations']:
                 annotation.remove()
 
 
