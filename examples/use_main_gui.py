@@ -156,10 +156,14 @@ def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwar
             df[sample[5 + (j * 10)]] = df[sample[3 + (j * 10)]] / kwargs['bin_size'][0]
             df[sample[6 + (j * 10)]] = pd.Series(np.cumsum(norm_area_histogram))
             df[sample[7 + (j * 10)]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
-            df[sample[8 + (j * 10)]] = pd.Series(avg_pore_size)
-            df[sample[9 + (j * 10)]] = pd.Series(np.sqrt(
-                np.average((df[d_index][nan_mask] - avg_pore_size)**2,
-                           weights=df[a_index][nan_mask])
+            df[sample[8 + (j * 10)]] = pd.Series((
+                'non-weighted', np.average(df[d_index][nan_mask]),
+                'Area-weighted', avg_pore_size
+            ))
+            df[sample[9 + (j * 10)]] = pd.Series((
+                '', np.std(df[d_index][nan_mask]),
+                '', np.sqrt(np.average((df[d_index][nan_mask] - avg_pore_size)**2,
+                                       weights=df[a_index][nan_mask]))
             ))
 
             if excel_columns is not None or not kwargs['processed'][0]:
@@ -167,9 +171,10 @@ def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwar
                 df[[d_index, a_index]] = df[[d_index, a_index]].sort_values(d_index, ignore_index=True)
                 # switches measured area and diameter columns so that diameter is first
                 df[[d_index, a_index]] = df[[a_index, d_index]]
-                # prevents reswitching the diameter and area columns if doing
-                # the python functions after performing the excel functions
-                kwargs['processed'][0] = True if excel_columns is not None else False
+
+    # prevents reswitching the diameter and area columns if doing
+    # the python functions after performing the excel functions
+    kwargs['processed'][0] = True if excel_columns is not None else False
 
     return df
 
@@ -209,9 +214,14 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
         df[sample[4]] = df[sample[3]] / kwargs['bin_size'][0]
         df[sample[5]] = pd.Series(np.cumsum(norm_area_histogram))
         df[sample[6]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
-        df[sample[7]] = pd.Series(avg_pore_size)
-        df[sample[8]] = pd.Series(np.sqrt(np.average((diameters - avg_pore_size)**2,
-                                                     weights=areas)))
+        df[sample[7]] = pd.Series((
+            'non-weighted', np.average(diameters),
+            'Area-weighted', avg_pore_size
+        ))
+        df[sample[8]] = pd.Series((
+            '', np.std(diameters),
+            '', np.sqrt(np.average((diameters - avg_pore_size)**2, weights=areas))
+        ))
 
     return df
 
@@ -227,8 +237,10 @@ def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, start,
 
     # calc index is -1 since only the last dataframe is the dataset summary dataframe
     df[calc_indices[-1][0]] = pd.Series((f'Sample {num + 1}' for num in range(len(calc_indices[:-1]))))
-    df[calc_indices[-1][1]] = pd.Series((df[indices[-2]][0] for indices in target_indices[0][:-1]))
-    df[calc_indices[-1][2]] = pd.Series((df[indices[-1]][0] for indices in target_indices[0][:-1]))
+    df[calc_indices[-1][1]] = pd.Series((df[indices[-2]][1] for indices in target_indices[0][:-1]))
+    df[calc_indices[-1][2]] = pd.Series((df[indices[-1]][1] for indices in target_indices[0][:-1]))
+    df[calc_indices[-1][3]] = pd.Series((df[indices[-2]][3] for indices in target_indices[0][:-1]))
+    df[calc_indices[-1][4]] = pd.Series((df[indices[-1]][3] for indices in target_indices[0][:-1]))
 
     return df
 
@@ -245,17 +257,132 @@ def stress_model(strain, modulus):
         The array of experimental strain values, unitless (or with cancelled
         units, such as mm/mm).
     modulus : float
-        The estimated elastic modulus for the data, with units
-        of GPa (Pa * 10^9).
+        The estimated elastic modulus for the data, with units of GPa (Pa * 10^9).
 
     Returns
     -------
     array-like
-        The estimated stress data following the linear model.
+        The estimated stress data following the linear model, with units of Pa.
 
     """
 
     return strain * modulus * 1e9
+
+
+def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Calculates the mechanical properties from the stress-strain curve for each entry.
+
+    Calculated properties include elastic modulus, 0.2% offset yield stress,
+    ultimate tensile strength, and fracture strain.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    empty_filler = 'N/A' if excel_columns is not None else None
+    num_columns = 7 # the number of calculation columns per entry
+    for i, sample in enumerate(calc_indices):
+        for j in range(len(sample) // num_columns):
+            strain_index = target_indices[0][i][j]
+            stress_index = target_indices[1][i][j]
+            nan_mask = (~np.isnan(df[strain_index])) & (~np.isnan(df[stress_index]))
+
+            strain = df[strain_index].to_numpy()[nan_mask] / 100 # to convert from % to unitless
+            stress = df[stress_index].to_numpy()[nan_mask] * 1e6 # to convert from MPa to Pa
+
+            line_mask = (strain >= kwargs['lower_limit'][0]) & (strain <= kwargs['upper_limit'][0])
+            modulus, covar = optimize.curve_fit(
+                stress_model, strain[line_mask], stress[line_mask], p0=[80],
+                method='trf', loss='soft_l1'
+            )
+
+            predicted_ultimate = np.nanmax(stress)
+            uts_index = np.abs(stress - predicted_ultimate).argmin() + 1
+
+            offset = stress - ((strain - 0.002) * modulus * 1e9) # 0.2% strain offset
+            predicted_yield = 0.5 * (stress[offset > 0][-1] + stress[offset <= 0][0])
+
+            # predict fracture where stress[i] - stress[i + 1] is > 50 MPa
+            try:
+                predicted_fracture = 100 * strain[np.where(stress[:-1] - stress[1:] > 50e6)[0][0]]
+            except IndexError: # fracture condition never reached
+                predicted_fracture = 'N/A'
+
+            df[sample[0 + (j * num_columns)]] = pd.Series(100 * np.log(1 + strain[:uts_index]))
+            df[sample[1 + (j * num_columns)]] = pd.Series(stress[:uts_index] * (1 + strain[:uts_index]) / 1e6)
+            df[sample[2 + (j * num_columns)]] = pd.Series(('Value', 'Standard Error'))
+            df[sample[3 + (j * num_columns)]] = pd.Series((modulus[0], np.sqrt(np.diag(covar)[0])))
+            df[sample[4 + (j * num_columns)]] = pd.Series((predicted_yield / 1e6, empty_filler))
+            df[sample[5 + (j * num_columns)]] = pd.Series((predicted_ultimate / 1e6, empty_filler))
+            df[sample[6 + (j * num_columns)]] = pd.Series((predicted_fracture, empty_filler))
+
+    # prevents reprocessing the data
+    kwargs['processed'][0] = True if excel_columns is not None else False
+
+    return df
+
+
+def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Summarizes the mechanical properties for each sample.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    num_cols = 7 # the number of calculation columns per entry from stress_strain_analysis
+    for i, sample in enumerate(calc_indices):
+        if not sample: # skip empty lists
+            continue
+
+        entries = [
+            target_indices[0][i][j * num_cols:(j + 1) * num_cols] for j in range(len(target_indices[0][i]) // num_cols)
+        ]
+
+        df[sample[0]] = pd.Series(('Elastic Modulus (GPa)', 'Offset Yield Stress (MPa)',
+                                   'Ultimate Tensile Strength (MPa)', 'Fracture Strain (%)'))
+        df[sample[1]] = pd.Series(
+            [np.mean([df[entry[3 + j]][0] for entry in entries if df[entry[3 + j]][0] != 'N/A']) for j in range(4)]
+        )
+        df[sample[2]] = pd.Series(
+            [np.std([df[entry[3 + j]][0] for entry in entries if df[entry[3 + j]][0] != 'N/A']) for j in range(4)]
+        )
+
+    return df
+
+
+def tensile_dataset_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Summarizes the mechanical properties for each dataset.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    # calc index is -1 since only the last dataframe is the dataset summary dataframe
+    df[calc_indices[-1][0]] = pd.Series([''] + [f'Sample {num + 1}' for num in range(len(calc_indices[:-1]))])
+    df[calc_indices[-1][1]] = pd.Series(['Average'] + [df[indices[1]][0] for indices in target_indices[0][:-1]])
+    df[calc_indices[-1][2]] = pd.Series(
+        ['Standard Deviation'] + [df[indices[2]][0] for indices in target_indices[0][:-1]]
+    )
+    df[calc_indices[-1][3]] = pd.Series(['Average'] + [df[indices[1]][1] for indices in target_indices[0][:-1]])
+    df[calc_indices[-1][4]] = pd.Series(
+        ['Standard Deviation'] + [df[indices[2]][1] for indices in target_indices[0][:-1]]
+    )
+    df[calc_indices[-1][5]] = pd.Series(['Average'] + [df[indices[1]][2] for indices in target_indices[0][:-1]])
+    df[calc_indices[-1][6]] = pd.Series(
+        ['Standard Deviation'] + [df[indices[2]][2] for indices in target_indices[0][:-1]]
+    )
+    df[calc_indices[-1][7]] = pd.Series(['Average'] + [df[indices[1]][3] for indices in target_indices[0][:-1]])
+    df[calc_indices[-1][8]] = pd.Series(
+        ['Standard Deviation'] + [df[indices[2]][3] for indices in target_indices[0][:-1]]
+    )
+
+    return df
 
 
 def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
@@ -292,9 +419,10 @@ def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
 
 if __name__ == '__main__':
 
-    # the kwargs for the pore functions; make a variable so it can be shared between Function objects
+    # the kwargs for some functions; make a variable so it can be shared between Function objects;
     # uses lists as the values so that they can be permanently alterred
     pore_kwargs = {'bin_size': [5], 'processed': [False]}
+    tensile_kwargs = {'lower_limit': [0.0015], 'upper_limit':[0.005], 'processed': [False]}
 
     # Definitions for the Function objects
     offset = mcetl.CalculationFunction(
@@ -314,9 +442,20 @@ if __name__ == '__main__':
         'pore_sample_sum', ['diameter', 'area'], pore_sample_summary, 9, pore_kwargs
     )
     pore_dataset_summation = mcetl.SummaryFunction(
-        'pore_dataset_sum', ['pore_sample_sum'], pore_dataset_summary, 3,
+        'pore_dataset_sum', ['pore_sample_sum'], pore_dataset_summary, 5,
         pore_kwargs, False
     )
+    stress_analysis = mcetl.CalculationFunction(
+        'tensile_test', ['strain', 'stress'], stress_strain_analysis, 7, tensile_kwargs
+    )
+    stress_sample_summary = mcetl.SummaryFunction(
+        'tensile_sample_summary', ['tensile_test'], tensile_sample_summary, 3, tensile_kwargs
+    )
+    stress_dataset_summary = mcetl.SummaryFunction(
+        'tensile_dataset_summary', ['tensile_sample_summary'], tensile_dataset_summary, 9,
+        tensile_kwargs, False
+    )
+
 
     # Definitions for each data source
     xrd = mcetl.DataSource(
@@ -400,11 +539,11 @@ if __name__ == '__main__':
         entry_separation=1,
         sample_separation=2
     )
-    """
+
     rheometry = mcetl.DataSource(
         name='Rheometry',
         column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
-        functions=[delta_x_separator],
+        functions=None,#[delta_x_separator],
         column_numbers=[0, 1, 2, 3, 4],
         start_row=166,
         end_row=0,
@@ -420,13 +559,21 @@ if __name__ == '__main__':
 
     tensile = mcetl.DataSource(
         name='Tensile Test',
-        column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
-        functions=[delta_x_separator],
+        column_labels=['Time (s)', 'Extension (mm)', 'Load (kN)', 'Stress (MPa)', 'Strain (%)',
+                       'True Strain (%)', 'True Stress (MPa)',
+                       '', 'Elastic Modulus (GPa)', 'Offset Yield Stress (MPa)',
+                       'Ultimate Tensile Strength (MPa)', 'Fracture Strain (%)',
+                       'Property', 'Average', 'Standard Deviation',
+                       'Sample', 'Elastic Modulus (GPa)', '',
+                       'Offset Yield Stress (MPa)', '',
+                       'Ultimate Tensile Strength (MPa)', '',
+                       'Fracture Strain (%)', ''],
+        functions=[stress_analysis, stress_sample_summary, stress_dataset_summary],
         column_numbers=[0, 1, 2, 3, 4],
         start_row=7,
         end_row=0,
         separator=',',
-        xy_plot_indices=[0, 2],
+        xy_plot_indices=[4, 3],
         file_type='txt',
         num_files=3,
         unique_variables=['stress', 'strain'],
@@ -434,7 +581,6 @@ if __name__ == '__main__':
         entry_separation=2,
         sample_separation=3
     )
-    """
 
     pore_size = mcetl.DataSource(
         name='Pore Size Analysis',
@@ -455,8 +601,10 @@ if __name__ == '__main__':
                        'Summarized Normalized PSD, dA/dD (\u03bcm\u00b2/\u03bcm)',
                        'Summarized Average Diameter (\u03bcm)',
                        'Summarized Diameter Standard Deviation (\u03bcm)',
-                       'Sample', 'Average Diameter (\u03bcm)',
-                       'Diameter Standard Deviation (\u03bcm)',],
+                       'Sample', 'Average Diameter, non-weighted (\u03bcm)',
+                       'Diameter Standard Deviation, non-weighted (\u03bcm)',
+                       'Average Diameter, area-weighted (\u03bcm)',
+                       'Diameter Standard Deviation, area-weighted (\u03bcm)'],
         functions=[pore_histogram, pore_sample_summation, pore_dataset_summation],
         column_numbers=[1, 4],
         start_row=1,
@@ -475,8 +623,7 @@ if __name__ == '__main__':
     other = mcetl.DataSource('Other')
 
     # Put all DataSource objects in this tuple in order to use them
-    data_sources = (xrd, ftir, raman, tga, dsc, #rheometry, tensile,
-                    pore_size, other)
+    data_sources = (xrd, ftir, raman, tga, dsc, rheometry, tensile, pore_size, other)
 
     # Call the main function with data_sources as the input
     dataframes, fit_results, plot_results = mcetl.launch_main_gui(data_sources)
