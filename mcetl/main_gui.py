@@ -887,7 +887,7 @@ def _plot_data(datasets, data_source):
 
     Parameters
     ----------
-    dataframes : list
+    datasets : list
         A nested list of lists of lists of dataframes.
     data_source : DataSource
         The DataSource object whose figure_rcParams attribute will be used

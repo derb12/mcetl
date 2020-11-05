@@ -302,7 +302,11 @@ def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, star
             uts_index = np.abs(stress - predicted_ultimate).argmin() + 1
 
             offset = stress - ((strain - 0.002) * modulus * 1e9) # 0.2% strain offset
-            predicted_yield = 0.5 * (stress[offset > 0][-1] + stress[offset <= 0][0])
+            # using linear interpolation to get the exact crossing point of the offset and measured curves
+            y0, y1 = (offset[offset > 0][-1], offset[offset <= 0][0])
+            x0, x1 = (strain[offset > 0][-1], strain[offset <= 0][0])
+            x_intercept = x0 - ((y0 * (x1 - x0)) / (y1 - y0))
+            predicted_yield = float((x_intercept - 0.002) * modulus * 1e9)
 
             # predict fracture where stress[i] - stress[i + 1] is > 50 MPa
             try:
