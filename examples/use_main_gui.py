@@ -677,4 +677,4 @@ if __name__ == '__main__':
     data_sources = (xrd, ftir, raman, tga, dsc, rheometry, tensile, pore_size, other)
 
     # Call the main function with data_sources as the input
-    dataframes, fit_results, plot_results = mcetl.launch_main_gui(data_sources)
+    output = mcetl.launch_main_gui(data_sources)
