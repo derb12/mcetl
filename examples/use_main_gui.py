@@ -396,16 +396,16 @@ def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
     shear_rate : array-like
         The experimental shear rate data, with units of 1/s.
     mu_0 : float
-        The estimated viscosity at a shear rate of 0 1/s.
+        The estimated viscosity at a shear rate of 0 1/s; units of Pa*s.
     mu_inf : float
-        The estimated viscosity at infinite shear rate.
+        The estimated viscosity at infinite shear rate; units of Pa*s.
     lambda_ : float
         The reciprocal of the shear rate at which the material begins
-        to flow in a non-Newtonian way.
+        to flow in a non-Newtonian way; units of s.
     n : float
         The power law index for the material (1-n defines the slope of the
         curve of the non-Newtonian section of the log(viscosity) vs log(shear rate)
-        curve).
+        curve); unitless.
 
     Returns
     -------
@@ -415,6 +415,52 @@ def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
     """
 
     return mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
+
+
+def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+    """
+    Fits each data entry to the Carreau model and tabulates the results.
+
+    """
+
+    if excel_columns is None and kwargs['processed'][0]:
+        return df # to prevent processing twice
+
+    num_columns = 5 # the number of calculation columns per entry
+    for i, sample in enumerate(calc_indices):
+        for j in range(len(sample) // num_columns):
+            shear_index = target_indices[0][i][j]
+            viscosity_index = target_indices[1][i][j]
+            nan_mask = (~np.isnan(df[shear_index])) & (~np.isnan(df[viscosity_index]))
+
+            shear_rate = df[shear_index].to_numpy()[nan_mask]
+            viscosity = df[viscosity_index].to_numpy()[nan_mask]
+
+            # mu_0, mu_inf, lambda_, n
+            initial_guess = (viscosity[0], viscosity[-1], 1, 0.2)
+            bounds = ((1e-10, 1e-10, 1e-5, 1e-5), (1e10, 1e10, 1e5, 5))
+            params, covariance = optimize.curve_fit(
+                carreau_model, shear_rate, viscosity, p0=initial_guess,
+                bounds=bounds, method='trf', loss='soft_l1'
+            )
+            # need to catch the following errors: ValueError('x0 is infeasible')
+            predicted_viscosity = carreau_model(shear_rate, *params)
+            r_sq = mcetl.peak_fitting.r_squared(viscosity, predicted_viscosity, 4)[1]
+
+            df[sample[1 + (j * num_columns)]] = pd.Series(predicted_viscosity)
+            df[sample[2 + (j * num_columns)]] = pd.Series(
+                ('\u03bc_0 (Pa*s)', '\u03bc_inf (Pa*s)',
+                 '\u03bb, relaxation time (s)', 'n, power law index (unitless)',
+                 '', 'Fit R\u00b2')
+            )
+            df[sample[3 + (j * num_columns)]] = pd.Series(list(params) + ['', r_sq])
+            df[sample[4 + (j * num_columns)]] = pd.Series(np.sqrt(np.diag(covariance)))
+
+    # prevents reprocessing the data
+    kwargs['processed'][0] = True if excel_columns is not None else False
+
+    return df
+
 
 
 if __name__ == '__main__':
@@ -455,7 +501,9 @@ if __name__ == '__main__':
         'tensile_dataset_summary', ['tensile_sample_summary'], tensile_dataset_summary, 9,
         tensile_kwargs, False
     )
-
+    rheometry_calc = mcetl.CalculationFunction(
+        'rheology', ['shear rate', 'viscosity'], rheometry_analysis, 5, {'processed': [False]}
+    )
 
     # Definitions for each data source
     xrd = mcetl.DataSource(
@@ -542,13 +590,16 @@ if __name__ == '__main__':
 
     rheometry = mcetl.DataSource(
         name='Rheometry',
-        column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
-        functions=None,#[delta_x_separator],
+        column_labels=['Shear Stress (Pa)', 'Shear Rate (1/s)', 'Viscosity (Pa*s)',
+                       'Time (s)', 'Temperature (\u00B0C)', '',
+                       'Carreau Model Viscosity (Pa*s)', 'Carreau Model Variable',
+                       'Value', 'Standard Error'],
+        functions=[rheometry_calc],
         column_numbers=[0, 1, 2, 3, 4],
-        start_row=166,
+        start_row=167,
         end_row=0,
         separator='\t',
-        xy_plot_indices=[0, 2],
+        xy_plot_indices=[1, 2],
         file_type='txt',
         num_files=1,
         unique_variables=['shear rate', 'viscosity'],
