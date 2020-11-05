@@ -679,9 +679,10 @@ def _select_column_labels(dataframes, data_source, processing_options):
             elif event == 'Unicode Help':
                 sg.popup(
                     ('"\\u00B2": \u00B2 \n"\\u03B8": \u03B8 \n"'
-                     '\\u00B0": \u00B0\n\nFor example, Acceleration'
-                     ' (m/s\\u00B2) creates Acceleration (m/s\u00B2)\n'),
-                    title='Common Unicode'
+                     '\\u00B0": \u00B0\n"\\u03bc": \u03bc\n"\\u03bb": \u03bb\n'
+                     '\nFor example, Acceleration'
+                     ' (m/s\\u00B2) creates Acceleration (m/s\u00B2).\n'),
+                    title='Example Unicode'
                 )
 
             elif event in ('Back', 'Next', 'Finish'):
@@ -1004,20 +1005,29 @@ def launch_main_gui(data_sources):
 
     Returns
     -------
-    dataframes : list
-        A list of lists of dataframes, with each dataframe containing the data imported from a
-        raw data file; will be None if the function fails before importing data.
-    fit_results : list
-        A nested list of lists of lmfit ModelResult objects, with each ModelResult
-        pertaining to a single fitting, each list of ModelResults containing all of
-        the fits for a single dataset, and east list of lists pertaining the data
-        within one processed dataframe; will be None if fitting is not done,
-        or only partially filled if the fitting process ends early.
-    plot_results : list
-        A list of lists, with one entry per dataset. Each interior list is composed
-        of a matplotlib.Figure object and a dictionary of matplotlib.Axes objects.
-        Will be None if plotting is not done, or only partially filled if the plotting
-        process ends early.
+    output : dict
+        A dictionary containing the following keys and values:
+            dataframes : list or None
+                A list of lists of dataframes, with each dataframe containing the
+                data imported from a raw data file; will be None if the function
+                fails before importing data, or if the only processing step taken
+                was moving files.
+            fit_results : list or None
+                A nested list of lists of lmfit ModelResult objects, with each
+                ModelResult pertaining to a single fitting, each list of
+                ModelResults containing all of the fits for a single dataset,
+                and east list of lists pertaining the data within one processed
+                dataframe; will be None if fitting is not done,  or only
+                partially filled if the fitting process ends early.
+            plot_results : list or None
+                A list of lists, with one entry per dataset. Each interior
+                list is composed of a matplotlib.Figure object and a
+                dictionary of matplotlib.Axes objects. Will be None if
+                plotting is not done, or only partially filled if the plotting
+                process ends early.
+            writer : pd.ExcelWriter or None
+                The pandas ExcelWriter used to create the output Excel file; will
+                be None if the output results were not saved to Excel.
 
     Notes
     -----
@@ -1028,9 +1038,12 @@ def launch_main_gui(data_sources):
 
     """
 
-    dataframes = None
-    fit_results = None
-    plot_results = None
+    output = {
+        'dataframes': None,
+        'fit_results': None,
+        'plot_results': None,
+        'writer': None
+    }
 
     if not isinstance(data_sources, (list, tuple)):
         data_sources = [data_sources]
@@ -1045,9 +1058,6 @@ def launch_main_gui(data_sources):
             if processing_options[f'source_{source.name}']:
                 data_source = source
                 break
-
-        if not processing_options['save_excel']:
-            writer = None # Set so that it exists for peak fitting
 
         # Selection of raw data files
         if processing_options['multiple_files']:
@@ -1071,7 +1081,7 @@ def launch_main_gui(data_sources):
                     processing_options['fit_peaks'],
                     processing_options['plot_python'])):
 
-                dataframes = [[[] for sample in dataset] for dataset in files]
+                output['dataframes'] = [[[] for sample in dataset] for dataset in files]
                 import_vals = [[[] for sample in dataset] for dataset in files]
                 if files[0][0][0].endswith('.xlsx'):
                     for i, dataset in enumerate(files):
@@ -1084,7 +1094,7 @@ def launch_main_gui(data_sources):
                                 added_dataframes = utils.raw_data_import(
                                     import_values, sample, False
                                 )
-                                dataframes[i][j].extend(added_dataframes)
+                                output['dataframes'][i][j].extend(added_dataframes)
                                 import_vals[i][j].extend(
                                     [import_values] * len(added_dataframes)
                                 )
@@ -1094,18 +1104,18 @@ def launch_main_gui(data_sources):
                     for i, dataset in enumerate(files):
                         for j, sample in enumerate(dataset):
                             for entry in sample:
-                                dataframes[i][j].extend(
+                                output['dataframes'][i][j].extend(
                                     utils.raw_data_import(import_values, entry, False)
                                 )
                                 import_vals[i][j].append(import_values)
 
         else:
             import_values = utils.select_file_gui(data_source)
-            dataframes = [[
+            output['dataframes'] = [[
                 utils.raw_data_import(import_values, import_values['file'], False)
             ]]
             files = [[[import_values['file']]]]
-            import_vals = [[[import_values] * len(dataframes[0][0])]]
+            import_vals = [[[import_values] * len(output['dataframes'][0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'],
@@ -1114,10 +1124,10 @@ def launch_main_gui(data_sources):
                 processing_options['plot_python'])):
 
             label_values = _select_column_labels(
-                dataframes, data_source, processing_options
+                output['dataframes'], data_source, processing_options
             )
 
-            labels = [{} for _ in dataframes]
+            labels = [{} for _ in output['dataframes']]
             plot_options = []
             for i, values in enumerate(label_values):
                 labels[i]['sheet_name'] = values['sheet_name']
@@ -1156,23 +1166,24 @@ def launch_main_gui(data_sources):
                     })
 
             if not processing_options['process_data']: # Otherwise, will assign labels after Separation functions
-                _collect_column_labels(dataframes, data_source, labels, processing_options)
+                _collect_column_labels(output['dataframes'], data_source,
+                                       labels, processing_options)
 
         if processing_options['save_excel'] or processing_options['process_data']:
 
             if processing_options['process_data']:
                 # Perform separation functions
-                dataframes, import_vals = data_source.do_separation_functions(
-                    dataframes, import_vals
+                output['dataframes'], import_vals = data_source.do_separation_functions(
+                    output['dataframes'], import_vals
                 )
                 # Assign reference indices for all relevant columns
-                data_source.set_references(dataframes, import_vals)
+                data_source.set_references(output['dataframes'], import_vals)
 
-                _collect_column_labels(dataframes, data_source, labels, processing_options)
+                _collect_column_labels(output['dataframes'], data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
-            merged_dataframes = data_source.merge_datasets(dataframes)
-            dataframes = None # Frees up memory
+            merged_dataframes = data_source.merge_datasets(output['dataframes'])
+            output['dataframes'] = None # Frees up memory
 
             if processing_options['save_excel'] and processing_options['process_data']:
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
@@ -1185,18 +1196,18 @@ def launch_main_gui(data_sources):
                     processing_options['append_file'] = False
                     mode = 'w'
 
-                writer =  pd.ExcelWriter(
+                output['writer'] =  pd.ExcelWriter(
                     processing_options['file_name'], engine='openpyxl', mode=mode
                 )
                 # Formatting styles for the Excel workbook
                 for style, kwargs in data_source.excel_formats.items():
                     try:
-                        writer.book.add_named_style(NamedStyle(style, **kwargs))
+                        output['writer'].book.add_named_style(NamedStyle(style, **kwargs))
                     except ValueError: # Style already exists in the workbook
                         pass
 
                 _write_to_excel(
-                    merged_dataframes, data_source, labels, writer,
+                    merged_dataframes, data_source, labels, output['writer'],
                     processing_options['plot_data_excel'], plot_options
                 )
 
@@ -1204,7 +1215,7 @@ def launch_main_gui(data_sources):
                 merged_dataframes = data_source.do_python_functions(merged_dataframes)
 
             # Split data back into individual dataframes
-            dataframes = data_source.split_into_entries(merged_dataframes)
+            output['dataframes'] = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
         # Assigns column names to the dataframes
@@ -1233,13 +1244,13 @@ def launch_main_gui(data_sources):
 
         # Handles peak fitting
         if processing_options['fit_peaks']:
-            fit_results = _fit_data(
-                dataframes, data_source, labels, writer, processing_options
+            output['fit_results'] = _fit_data(
+                output['dataframes'], data_source, labels, output['writer'], processing_options
             )
 
         # Handles saving the Excel file
         if processing_options['save_excel']:
-            utils.save_excel_file(writer)
+            utils.save_excel_file(output['writer'])
 
         # Handles moving files
         if processing_options['move_files']:
@@ -1247,11 +1258,11 @@ def launch_main_gui(data_sources):
 
         # Handles plotting in python
         if processing_options['plot_python']:
-            plot_results = _plot_data(dataframes, data_source) #TODO later pass labels
+            output['plot_results'] = _plot_data(output['dataframes'], data_source) #TODO later pass labels
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
     except Exception:
         print(traceback.format_exc())
 
-    return dataframes, fit_results, plot_results
+    return output
