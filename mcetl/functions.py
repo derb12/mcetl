@@ -16,7 +16,8 @@ Created on Jul 31, 2020
 
 
 import itertools
-import string
+
+from openpyxl.utils.cell import get_column_letter as _get_column_letter
 
 
 class FunctionBase:
@@ -217,7 +218,8 @@ class CalculationFunction(FunctionBase):
         index : int
             Either 0 or 1. If 0, do Excel formulas; if 1, do python formulas.
         first_column : int
-            The index of the first Excel column to use, ie. 0 denotes 'A'.
+            The first Excel column to use; corresponds to the actual column
+            number in Excel (ie is 1-based rather than 0-based), so 1 denotes 'A'.
         first_row : int
             The first Excel row to use; corresponds to the actual row number
             in Excel (ie is 1-based rather than 0-based), so 1 denotes the
@@ -233,15 +235,9 @@ class CalculationFunction(FunctionBase):
         if index == 1:
             excel_columns = None
         else:
-            # Generator that goes from 'A' to 'ZZ' following Excel's naming format.
-            excel_generator = itertools.chain(
-                string.ascii_uppercase,
-                (''.join(pair) for pair in itertools.product(string.ascii_uppercase,
-                                                             repeat=2))
-            )
             excel_columns = [
-                next(excel_generator) for _ in range(len(dataset.columns) + first_column)
-            ][first_column:]
+                _get_column_letter(num) for num in range(first_column, len(dataset.columns) + first_column)
+            ]
 
         target_columns = [reference[target] for target in self.target_columns]
         added_columns = reference[self.name]

@@ -53,16 +53,23 @@ def _generate_peaks(x, y, peak_type, params, param_var, **func_kwargs):
     -------
     y : array-like
         The y data with the peaks added.
+    new_params : list
+        The actual parameter values after applying the given variability.
+
+    Notes
+    -----
+    Uses np.random.rand to only use random values in the range [0, 1). This
+    was a mistake, and np.random.randn was supposed to be used, but the parameter
+    values and variability are already optimized for use with np.random.rand, so
+    there is no reason to change anything since it works.
 
     """
 
     # to prevent overwriting the input collection objects
     new_params = [param.copy() for param in params]
-
     for param in new_params:
         for i, value in enumerate(param):
-            value = value + param_var[i] * np.random.rand(1)
-            param[i] = value
+            param[i] = value + param_var[i] * np.random.rand(1)
 
         y += peak_type(x, *param, **func_kwargs)
 
@@ -90,14 +97,13 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     The background is a second order polynomial.
     Peaks are all pseudovoigt.
 
-    Purposes
-    --------
-    Shows general peak fitting with both peaks and background.
-
     """
 
-    if num_data % 2 == 1:
-        num_data += 1
+    fe_path = Path(directory, 'XRD/Fe')
+    ti_path = Path(directory, 'XRD/Ti')
+    fe_path.mkdir(parents=True, exist_ok=True)
+    ti_path.mkdir(parents=True, exist_ok=True)
+
     x = np.linspace(10, 90, 500)
     background =  0.4 * ((75 - x)**2) # equivalent to 0.4*x^2 - 60*x + 2250
     # [amplitude, center, sigma, fraction]
@@ -111,67 +117,54 @@ def _generate_XRD_data(directory, num_data=6, show_plots=True):
     ]
     param_var = [1000, 1, 1, 0.1]
 
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 10 * np.random.randn(len(x))
-        y = background + noise
-        data_dict[f'y_{i+1}'], new_params = _generate_peaks(
-            x, y, lineshapes.pvoigt, params, param_var
-        )
-        param_list.append(new_params)
-
-    data = {'x': x}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
-
-    fe_path = Path(directory, 'XRD/Fe')
-    ti_path = Path(directory, 'XRD/Ti')
-
-    fe_path.mkdir(parents=True, exist_ok=True)
-    ti_path.mkdir(parents=True, exist_ok=True)
-
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: ', 3: 'Fraction: '}
-    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
-        f.write('\n\n'+'-' * 40 + '\nXRD\n' + '-' * 40)
-
     plt.figure(num='xrd')
-    for i in range(num_data):
+    param_dict = {}
+    data = {'x': x}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
         if i < num_data / 2:
             sample_name = f'Ti-{i}W-700'
             sample_name_2 = f'Fe-{i}W-700'
         else:
-            sample_name = f'Ti-{(i-int(num_data / 2))}W-800'
-            sample_name_2 = f'Fe-{(i-int(num_data / 2))}W-800'
+            sample_name = f'Ti-{(i - int(np.ceil(num_data / 2)))}W-800'
+            sample_name_2 = f'Fe-{(i - int(np.ceil(num_data / 2)))}W-800'
 
+        noise = 10 * np.random.randn(x.size)
+        data['y'], new_params  = _generate_peaks(
+            x, background + noise, lineshapes.pvoigt, params, param_var
+        )
+        param_dict[sample_name] = new_params
+        param_dict[sample_name_2] = new_params
+
+        data_df = pd.DataFrame(data)
         data_df.to_csv(Path(ti_path, f'{sample_name}.csv'),
-                       columns=['x', f'y_{i+1}'], float_format='%.2f',
+                       columns=['x', 'y'], float_format='%.2f',
                        header=['2theta', 'Counts'], index_label='Number')
-         # Same data as as for Ti, just included to make more files
+        # Same data as as for Ti, just included to make more files
         data_df.to_csv(Path(fe_path, f'{sample_name_2}.csv'),
-                       columns=['x', f'y_{i+1}'], float_format='%.2f',
+                       columns=['x', 'y'], float_format='%.2f',
                        header=['2theta', 'Counts'], index_label='Number')
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
+        plt.plot(data['x'], data['y'], label=sample_name)
 
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+    param_keys = ('Area', 'Center', 'Sigma', 'Fraction')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n'+'-' * 40 + '\nXRD\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.4*x^2 - 60*x + 2250\n')
-            for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: pseudovoigt\n')
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: pseudovoigt\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('XRD')
-    plt.legend(ncol=2)
-    plt.xlabel(r'$2\theta$ $(\degree)$')
-    plt.ylabel('Intensity (a.u.)')
-
-    if show_plots:
-        plt.show(block=False)
-    else:
+    if not show_plots:
         plt.close('xrd')
+    else:
+        plt.title('XRD')
+        plt.legend(ncol=2)
+        plt.xlabel(r'$2\theta$ $(\degree)$')
+        plt.ylabel('Intensity (a.u.)')
+        plt.show(block=False)
 
 
 def _generate_FTIR_data(directory, num_data=12, show_plots=True):
@@ -192,14 +185,10 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
     The background is a first order polynomial.
     Peaks are all gaussian.
 
-    Purposes
-    --------
-    Shows how to manually select points to fit the background.
-
     """
 
-    if num_data % 2 == 1:
-        num_data += 1
+    file_path = Path(directory, 'FTIR')
+    file_path.mkdir(parents=True, exist_ok=True)
 
     x = np.linspace(500, 4000, 2000)
     background = (- 0.06 / 1500) * x + 0.08 # equivalent to 0.08 - 0.00004*x
@@ -218,61 +207,51 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
         [0.75, 3000, 5],
         [15, 3600, 150]
     ]
-    param_var = [.200, 0.5, 10]
-
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 0.002 * np.random.randn(len(x))
-        y = background + noise
-        data_dict[f'y_{i+1}'], new_params = _generate_peaks(
-            x, y, lineshapes.gaussian, params, param_var
-        )
-        param_list.append(new_params)
-
-    data = {'x': x}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
-
-    file_path = Path(directory, 'FTIR')
-    file_path.mkdir(parents=True, exist_ok=True)
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
-        f.write('\n\n' + '-' * 40 + '\nFTIR\n' + '-' * 40)
+    param_var = [0.2, 0.5, 10]
 
     plt.figure(num='ftir')
-    for i in range(num_data):
+    param_dict = {}
+    data = {'x': x}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
         if i < num_data / 2:
-            sample_name = f'PE-{i*10}Ti-Ar'
+            sample_name = f'PE-{i * 10}Ti-Ar'
         else:
-            sample_name = f'PE-{(i-int(num_data/2))*10}Ti-Air'
+            sample_name = f'PE-{(i - int(np.ceil(num_data / 2))) * 10}Ti-Air'
 
-        data_df.to_csv(Path(file_path, f'{sample_name}.csv'),
-                       columns=['x', f'y_{i+1}'], float_format='%.2f',
-                       header=None, index=False)
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
+        noise = 0.002 * np.random.randn(x.size)
+        data['y'], param_dict[sample_name]  = _generate_peaks(
+            x, background + noise, lineshapes.gaussian, params, param_var
+        )
 
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.csv'),
+            columns=['x', 'y'], float_format='%.2f',
+            header=None, index=False
+        )
+        plt.plot(data['x'], data['y'], label=sample_name)
+
+    param_keys = ('Area', 'Center', 'Sigma')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nFTIR\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.08 - 0.00004 * x for x <= 2000')
             f.write('\n                    -0.03 + 0.000015 * x for x > 2000\n')
-            for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: gaussian\n')
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: gaussian\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('FTIR')
-    plt.legend(ncol=2)
-    plt.gca().invert_xaxis()
-    plt.xlabel('Wavenumber (1/cm)')
-    plt.ylabel('Absorbance (a.u.)')
-
-    if show_plots:
-        plt.show(block=False)
-    else:
+    if not show_plots:
         plt.close('ftir')
+    else:
+        plt.title('FTIR')
+        plt.legend(ncol=2)
+        plt.gca().invert_xaxis()
+        plt.xlabel('Wavenumber (1/cm)')
+        plt.ylabel('Absorbance (a.u.)')
+        plt.show(block=False)
 
 
 def _generate_Raman_data(directory, num_data=6, show_plots=True):
@@ -293,81 +272,66 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
     The background is a first order polynomial.
     Two peaks are lorentzian, and two peaks are gaussian.
 
-    Purposes
-    --------
-    Shows how to fit residual peaks that are not immediately visible.
-    Shows how to use Bayesian information criteria to select the optimum
-        number of peaks and the optimum peak type.
-
     """
 
-    if num_data % 2 == 1:
-        num_data += 1
+    file_path = Path(directory, 'Raman')
+    file_path.mkdir(parents=True, exist_ok=True)
 
     x = np.linspace(200, 2600, 1000)
     background = 0.000001 * x
 
     # [amplitude, center, sigma]
     params = [[300, 1180, 90], [500, 1500, 80]]
-    params2 = [[3000, 1350, 50], [2000, 1590, 40]]
+    params_2 = [[3000, 1350, 50], [2000, 1590, 40]]
     param_var = [400, 10, 20]
 
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 0.1 * np.random.randn(len(x))
-        y = background + noise
-        temp_y, gaussian_params = _generate_peaks(
-            x, y, lineshapes.gaussian, params, param_var
-        )
-        data_dict[f'y_{i+1}'], lorentz_params = _generate_peaks(
-            x, temp_y, lineshapes.lorentzian, params2, param_var
-        )
-        param_list.append(sorted([*gaussian_params, *lorentz_params],
-                                 key=lambda x: x[1]))
-
+    plt.figure(num='raman')
+    param_dict = {}
     data = {'x': x}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample_name = f'graphite-{(i + 6) * 100}C-Ar'
+        else:
+            sample_name = f'graphite-{(i + 6 - int(np.ceil(num_data / 2))) * 100}C-Air'
 
-    file_path = Path(directory, 'Raman')
-    file_path.mkdir(parents=True, exist_ok=True)
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
+        noise = 0.1 * np.random.randn(x.size)
+        temp_y, gaussian_params = _generate_peaks(
+            x, background + noise, lineshapes.gaussian, params, param_var
+        )
+        data['y'], lorentz_params = _generate_peaks(
+            x, temp_y, lineshapes.lorentzian, params_2, param_var
+        )
+        param_dict[sample_name] = sorted([*gaussian_params, *lorentz_params],
+                                         key=lambda x: x[1])
+
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.csv'),
+            columns=['x', 'y'], float_format='%.2f',
+            header=None, index=False, sep="\t"
+        )
+        plt.plot(data['x'], data['y'], label=sample_name)
+
+    param_keys = ('Area', 'Center', 'Sigma')
     with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
         f.write('\n\n' + '-' * 40 + '\nRaman\n' + '-' * 40)
-
-    plt.figure(num='raman')
-    for i in range(num_data):
-        if i < num_data / 2:
-            sample_name = f'graphite-{(i+6)*100}C-Ar'
-        else:
-            sample_name = f'graphite-{(i+6-int(num_data/2))*100}C-Air'
-
-        data_df.to_csv(Path(file_path, f'{sample_name}.txt'),
-                       columns=['x', f'y_{i+1}'], float_format='%.2f',
-                       header=None, index=False, sep="\t")
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
-
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0.000001 * x\n')
-            for j, param in enumerate(param_list[i]):
+            for j, param in enumerate(param_values):
                 peak_type = 'gaussian' if j % 2 == 0 else 'lorentzian'
-                f.write(f'\nPeak {j+1}:\nPeak type: {peak_type}\n')
+                f.write(f'\nPeak {j + 1}:\nPeak type: {peak_type}\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('Raman')
-    plt.legend(ncol=2)
-    plt.xlabel('Raman Shift (1/cm)')
-    plt.ylabel('Intensity (a.u.)')
-
-    if show_plots:
-        plt.show(block=False)
-    else:
+    if not show_plots:
         plt.close('raman')
+    else:
+        plt.title('Raman')
+        plt.legend(ncol=2)
+        plt.xlabel('Raman Shift (1/cm)')
+        plt.ylabel('Intensity (a.u.)')
+        plt.show(block=False)
 
 
 def _generate_TGA_data(directory, num_data=6, show_plots=True):
@@ -391,90 +355,67 @@ def _generate_TGA_data(directory, num_data=6, show_plots=True):
     Simulates a mass loss experiment, going up to a maximum temperature
     and then decreasing.
 
-    Purposes
-    --------
-    Meant to show how to use the 'max_x' function of a CharacterizationTechnique
-    object in excel_gui since only the first set of data where the
-    temperature is increasing is wanted for analysis. Alternatively, the heating
-    and cooling segments can be separated using the 'segment' column.
-
     """
 
-    if num_data % 2 == 1:
-        num_data += 1
+    file_path = Path(directory, 'TGA')
+    file_path.mkdir(parents=True, exist_ok=True)
 
-    data_points = 100
-    x = np.linspace(20, 1000, data_points)
+    x = np.linspace(20, 1000, 100)
     background = 0 * x
+    x_full = np.hstack((x, x[::-1])) # adds in the cooling section
+    time = x_full / 5 # heating rate of 5 degrees C / minute
+    segments = np.hstack((np.full(x.size, 1), np.full(x.size, 2)))
 
     # [amplitude, center, sigma]
     params = [[1, 200, 60], [10, 400, 20], [5, 700, 30]]
     param_var = [10, 20, 10]
 
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 0.005 * np.random.randn(len(x))
-        y = background + noise
-        mass_loss, new_params = _generate_peaks(
-            x, y, lineshapes.step, params, param_var, **{'form': 'logistic'}
+    plt.figure(num='tga')
+    param_dict = {}
+    data = {'x': x_full, 't': time, 'seg': segments}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample_name = f'graphite-{(i + 6) * 100}C-Ar'
+        else:
+            sample_name = f'graphite-{(i + 6 - int(np.ceil(num_data / 2))) * 100}C-Air'
+
+        noise = 0.005 * np.random.randn(x.size)
+        mass_loss, param_dict[sample_name] = _generate_peaks(
+            x, background + noise, lineshapes.step, params, param_var, **{'form': 'logistic'}
         )
         cooling = noise + mass_loss[-1]
-        data_dict[f'y_{i+1}'] = 100 - np.array([*mass_loss, *cooling])
-        param_list.append(new_params)
-
-    # adds in the cooling section
-    x = np.array([*x, *np.linspace(1000, 20, data_points)])
-    time = x / 5
-    segment = np.array([*[1] * data_points, *[2] * data_points])
-
-    data = {'x': x, 't': time}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
-    data_df['seg'] = segment
-
-    file_path = Path(directory, 'TGA')
-    file_path.mkdir(parents=True, exist_ok=True)
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
-        f.write('\n\n' + '-' * 40 + '\nTGA\n' + '-' * 40)
-
-    plt.figure(num='tga')
-    filler = 'Text to fill up space\n' + 'filler...\n' * 32
-    for i in range(num_data):
-        if i < num_data / 2:
-            sample_name = f'graphite-{(i+6)*100}C-Ar'
-        else:
-            sample_name = f'graphite-{(i+6-int(num_data/2))*100}C-Air'
+        data['y'] = 100 - np.hstack((mass_loss, cooling))
 
         with open(Path(file_path, f'{sample_name}.txt'), 'w') as f:
-            f.write(filler)
-        data_df.to_csv(Path(file_path, f'{sample_name}.txt'),
-                       columns=['x', 't', f'y_{i+1}', 'seg'], float_format='%.2f',
-                       header=['Temperature/degreesC', 'Time/minutes', 'Mass/%',
-                               'Segment/#'],
-                       index=False, sep=";", mode='a')
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
+            f.write('Text to fill up space\n' + 'filler...\n' * 32) # filler text
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.txt'),
+            columns=['x', 't', 'y', 'seg'], float_format='%.2f',
+            header=['Temperature/degreesC', 'Time/minutes', 'Mass/%', 'Segment/#'],
+            index=False, sep=";", mode='a'
+        )
+        plt.plot(data['x'], data['y'], label=sample_name)
 
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+    param_keys = ('Area', 'Center', 'Sigma')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nTGA\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x\n')
-            for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: step\n')
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: step\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('TGA')
-    plt.legend(ncol=2)
-    plt.xlabel(r'Temperature ($\degree$C)')
-    plt.ylabel('Mass (%)')
-
-    if show_plots:
-        plt.show(block=False)
-    else:
+    if not show_plots:
         plt.close('tga')
+    else:
+        plt.title('TGA')
+        plt.legend(ncol=2)
+        plt.xlabel(r'Temperature ($\degree$C)')
+        plt.ylabel('Mass (%)')
+        plt.show(block=False)
 
 
 def _generate_DSC_data(directory, num_data=6, show_plots=True):
@@ -499,38 +440,33 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
     it recrystallizes during cooling. No glass transition is shown because
     I am lazy.
 
-    Purposes
-    --------
-    Shows when 'max_x' is not desirable for a CharacterizationTechnique object
-    since both the heating and cooling curves have relavent data.
-
-    Shows that both negative and positive peaks can be fit.
-
-    Shows how to split data by first importing all of the data and saving
-    to an Excel file, and then reimporting that data and only choosing
-    rows that correspond to either the heating or cooling curves in
-    order to do peak fitting. Alternatively, the heating and cooling segments
-    can be separated using the 'segment' column.
-
     """
 
-    if num_data % 2 == 1:
-        num_data += 1
+    file_path = Path(directory, 'DSC')
+    file_path.mkdir(parents=True, exist_ok=True)
 
-    data_points = 100
-    x_heating = np.linspace(50, 200, data_points)
-    x_cooling = np.linspace(200, 50, data_points)
+    x_heating = np.linspace(50, 200, 100)
+    x_cooling = x_heating[::-1]
     background = 0 * x_heating
+    x_full = np.hstack((x_heating, x_cooling))
+    time = x_full / 10 # heating rate of 10 degrees C / minute
+    segments = np.hstack((np.full(x_heating.size, 1), np.full(x_cooling.size, 2)))
 
     # [amplitude, center, sigma]
     params_heating = [[-100, 150, 5]]
     params_cooling = [[100, 100, 5]]
     param_var = [50, 10, 3]
 
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 0.005 * np.random.randn(len(x_heating))
+    plt.figure(num='dsc')
+    param_dict = {}
+    data = {'x': x_full, 't': time, 'seg': segments}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample_name = f'PET-{i}Ti'
+        else:
+            sample_name = f'PET-{i - int(np.ceil(num_data / 2))}Fe'
+
+        noise = 0.005 * np.random.randn(x_heating.size)
         heating, new_params_heating = _generate_peaks(
             x_heating, background + noise, lineshapes.gaussian,
             params_heating, param_var
@@ -539,63 +475,41 @@ def _generate_DSC_data(directory, num_data=6, show_plots=True):
             x_cooling, background + noise + 5, lineshapes.gaussian,
             params_cooling, param_var
         )
-
-        data_dict[f'y_{i+1}'] = np.array([*heating, *cooling])
-        param_list.append([*new_params_heating, *new_params_cooling])
-
-    # adds in the cooling section
-    x = np.array([*x_heating, *x_cooling])
-    time = x / 10
-    segment = np.array([*[1] * data_points, *[2] * data_points])
-
-    data = {'x': x, 't': time}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
-    data_df['seg'] = segment
-
-    file_path = Path(directory, 'DSC')
-    file_path.mkdir(parents=True, exist_ok=True)
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
-        f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
-
-    plt.figure(num='dsc')
-    filler = 'Text to fill up space\n' + 'filler...\n' * 32
-    for i in range(num_data):
-        if i < num_data / 2:
-            sample_name = f'PET-{i}Ti'
-        else:
-            sample_name = f'PET-{i-int(num_data/2)}Fe'
+        data['y'] = np.hstack((heating, cooling))
+        param_dict[sample_name] = [*new_params_heating, *new_params_cooling]
 
         with open(Path(file_path, f'{sample_name}.txt'), 'w') as f:
-            f.write(filler)
-        data_df.to_csv(Path(file_path, f'{sample_name}.txt'),
-                       columns=['x', 't', f'y_{i+1}', 'seg'], float_format='%.2f',
-                       header=['Temperature/degreesC', 'Time/minutes',
-                               'Heat_Flow_exo_up/(mW/mg)', 'Segment/#'],
-                       index=False, sep=";", mode='a')
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
+            f.write('Text to fill up space\n' + 'filler...\n' * 32) # filler text
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.txt'),
+            columns=['x', 't', 'y', 'seg'], float_format='%.2f',
+            header=['Temperature/degreesC', 'Time/minutes',
+                    'Heat_Flow_exo_up/(mW/mg)', 'Segment/#'],
+            index=False, sep=";", mode='a'
+        )
+        plt.plot(data['x'], data['y'], label=sample_name)
 
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+    param_keys = ('Area', 'Center', 'Sigma')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nDSC\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
             f.write('\nBackground function: 0 * x for heating')
             f.write('\n                     5 + 0 * x for cooling\n')
-            for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: gaussian\n')
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: gaussian\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
+                    f.write(f'{param_keys[k]}: ')
                     f.write(f'{value[0]:.4f}\n')
 
-    plt.title('DSC')
-    plt.legend(ncol=2)
-    plt.xlabel(r'Temperature ($\degree$C)')
-    plt.ylabel('Heat Flow (mW/mg), exotherm up')
-
-    if show_plots:
-        plt.show(block=False)
-    else:
+    if not show_plots:
         plt.close('dsc')
+    else:
+        plt.title('DSC')
+        plt.legend(ncol=2)
+        plt.xlabel(r'Temperature ($\degree$C)')
+        plt.ylabel('Heat Flow (mW/mg), exotherm up')
+        plt.show(block=False)
 
 
 def _generate_pore_size_data(directory, num_data=6, show_plots=True):
@@ -613,94 +527,86 @@ def _generate_pore_size_data(directory, num_data=6, show_plots=True):
 
     Notes
     -----
-    Background function is 0.
-    Peaks centered at 20 and 80 microns using lognormal functions.
+    Peaks centered at 20 and 60 microns using randomly sampled lognormal functions.
+
+    The area and perimeter are not directly computed by the diameter because the
+    shapes are not perfect circles.
 
     Simulates pore size measurements that would be generated using the
     program ImageJ to analyze scanning electron microscope images of
     macroporous materials.
 
-    Purposes
-    --------
-    Shows how to use a SummarizingCalculation to perform a calculation on a
-    group of files.
-
     """
-
-    if num_data % 2 == 1:
-        num_data += 1
-
-    data_points = 100
-    x_heating = np.linspace(50, 200, data_points)
-    x_cooling = np.linspace(200, 50, data_points)
-    background = 0 * x_heating
-
-    # [amplitude, center, sigma]
-    params_heating = [[-100, 150, 5]]
-    params_cooling = [[100, 100, 5]]
-    param_var = [50, 10, 3]
-
-    data_dict = {}
-    param_list = []
-    for i in range(num_data):
-        noise = 0.005 * np.random.randn(len(x_heating))
-        heating, new_params_heating = _generate_peaks(
-            x_heating, background + noise, lineshapes.gaussian,
-            params_heating, param_var
-        )
-        cooling, new_params_cooling = _generate_peaks(
-            x_cooling, background + noise + 5, lineshapes.gaussian,
-            params_cooling, param_var
-        )
-
-        data_dict[f'y_{i+1}'] = np.array([*heating, *cooling])
-        param_list.append([*new_params_heating, *new_params_cooling])
-
-    # adds in the cooling section
-    x = np.array([*x_heating, *x_cooling])
-    time = x / 10
-    segment = np.array([*[1] * data_points, *[2] * data_points])
-
-    data = {'x': x, 't': time}
-    for key in data_dict:
-        data[key] = data_dict[key]
-    data_df = pd.DataFrame(data)
-    data_df['seg'] = segment
 
     file_path = Path(directory, 'Pore Size Analysis')
     file_path.mkdir(parents=True, exist_ok=True)
-    data_keys = {0: 'Area: ', 1: 'Center: ', 2: 'Sigma: '}
-    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
-        f.write('\n\n' + '-' * 40 + '\nPore Size Analysis\n' + '-' * 40)
 
     plt.figure(num='pores')
-    for i in range(num_data):
+    param_dict = {}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
         if i < num_data / 2:
-            sample_name = f'PET-{i}Ti'
+            sample = f'Fe-{i}Ti-700C'
         else:
-            sample_name = f'PET-{i-int(num_data/2)}Fe'
+            sample = f'Fe-{i - int(np.ceil(num_data / 2))}Co-700C'
 
-        data_df.to_csv(Path(file_path, f'{sample_name}.txt'),
-                       columns=['x', 't', f'y_{i+1}', 'seg'], float_format='%.2f',
-                       header=['Temperature/degreesC', 'Time/minutes',
-                               'Heat_Flow_exo_up/(mW/mg)', 'Segment/#'],
-                       index=False, sep=";", mode='a')
-        plt.plot(x, data_dict[f'y_{i+1}'], label=sample_name)
+        # Generate three measurements per sample
+        sample_path = file_path.joinpath(sample)
+        sample_path.mkdir(parents=True, exist_ok=True)
+        for j in range(1, 4):
+            sample_name = sample + f'_region-{j}'
 
-        with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+            mean_1 = 20 + np.random.randn(1) * 5
+            sigma_1 = 0.3 + np.random.randn(1) * 0.01
+            mean_2 = 60 + np.random.randn(1) * 5
+            sigma_2 = 0.2 + np.random.randn(1) * 0.01
+            ratio = abs(3 + np.random.randn(1) * 1)
+
+            diameters = np.hstack((
+                np.random.lognormal(np.log(mean_1), sigma_1, int(100 * ratio)),
+                np.random.lognormal(np.log(mean_2), sigma_2, 100)
+            ))
+            # area and perimeter are not directly related to diameters because pores are not perfect circles
+            # image area is always less than the area from the feret diameter
+            areas = (np.pi / 4) * (diameters * (1 - np.abs((np.random.randn(diameters.size) / 5))))**2
+            perimeters = np.pi * (diameters * (1 + (np.random.randn(diameters.size) / 10)))
+
+            data = {
+                'number': np.arange(1, diameters.size + 1, 1),
+                'area': areas,
+                'perimeter': perimeters,
+                'circularity': np.minimum(1, 4 * np.pi * (areas / (perimeters**2))),
+                'diameters': diameters,
+            }
+            param_dict[sample_name] = (
+                (int(100 * ratio), mean_1, np.log(mean_1), sigma_1),
+                (100, mean_2, np.log(mean_2), sigma_2),
+            )
+
+            pd.DataFrame(data).to_csv(
+                Path(sample_path, f'{sample_name}.csv'),
+                float_format='%.3f', index=False, sep=",",
+                header=['Number', 'Area (microns^2)', 'Perimeter (microns)',
+                        'Circularity', 'Feret Diameter (microns)']
+            )
+
+            counts, bins = np.histogram(diameters, np.arange(-5, 125, 5))
+            plt.plot(bins[1:], counts, 'o-', label=sample_name)
+
+    param_keys = ('Total Count', 'Center', 'log(Center)', 'Sigma')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nPore Size Analysis\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
             f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
-            f.write('\nBackground function: 0 * x for heating')
-            f.write('\n                     5 + 0 * x for cooling\n')
-            for j, param in enumerate(param_list[i]):
-                f.write(f'\nPeak {j+1}:\nPeak type: lognormal\n')
+            for j, param in enumerate(param_values):
+                f.write(f'\nPeak {j + 1}:\nPeak type: lognormal\n')
                 for k, value in enumerate(param):
-                    f.write(f'{data_keys[k]}')
-                    f.write(f'{value[0]:.4f}\n')
+                    f.write(f'{param_keys[k]}: ')
+                    f.write(f'{float(value):.4f}\n')
 
     plt.title('Pore Size Analysis')
     plt.legend(ncol=2)
     plt.xlabel(r'Pore Size ($\mu$m)')
-    plt.ylabel('Count')
+    plt.ylabel('Count (#)')
 
     if show_plots:
         plt.show(block=False)
@@ -723,19 +629,202 @@ def _generate_uniaxial_tensile_data(directory, num_data=6, show_plots=True):
 
     Notes
     -----
-    Background function is 0.
-    Peaks centered at 20 and 80 microns using lognormal functions.
+    Simulates a stress-strain curve for a material with a elastic modulus
+    of ~70 GPa, yield stress of ~500 MPa, ultimate strength of ~550 MPa, and
+    elongation at failure of ~15 %.
 
-    Simulates pore size measurements that would be generated using the
-    program ImageJ to analyze scanning electron microscope images of
-    macroporous materials.
+    Creates three measurements for each sample.
 
-    Purposes
-    --------
-    Shows how to use a SummarizingCalculation to perform a calculation on a
-    group of files.
+    The curve is simulated using stress = strain * elastic modulus for
+    stress < yield stress, and stress = ultimate strength - mult * (strain - ultimate strain)^2,
+    where mult is just a multiplicative factor used to get a good looking curvature
+    for the data. The second equation is just an estimate for the strengthening and necking
+    section of the stress-strain curve.
+
+    A more accurate empirical function would be a power law, but the used function
+    is good enough.
 
     """
+
+    file_path = Path(directory, 'Tensile Test')
+    file_path.mkdir(parents=True, exist_ok=True)
+
+    strain_rate_1 = 0.00025 # 1/s, for 0 < strain <= 2% strain
+    strain_rate_2 = 0.0067 # 1/s, for 2% < strain <= fracture
+    mult = 8e9 # affects the curvature of the strengthening/necking region
+
+    plt.figure(num='tensile')
+    param_dict = {}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample = f'Al-{i}Ti'
+        else:
+            sample = f'Al-{i - int(np.ceil(num_data / 2))}Fe'
+
+        # Generate three measurements per sample
+        sample_path = file_path.joinpath(sample)
+        sample_path.mkdir(parents=True, exist_ok=True)
+        for j in range(1, 4):
+            sample_name = sample + f'_test-{j}'
+
+            fracture_strain = float(0.15 + np.random.randn(1) * 0.01)
+            modulus = (70 + np.random.randn(1) * 5) * 1e9
+            yield_stress = (500 + np.random.randn(1) * 10) * 1e6
+            yield_strain = yield_stress / modulus
+            ultimate_strength = (550 + np.random.randn(1) * 10) * 1e6
+            # calculate strain at ultimate strength such that the two curves meet perfectly at the yield stress and strain
+            # ie: E * strain = sigma_u - mult * (strain - strain_u)^2 when strain = yield strain
+            ultimate_strain = ((mult * yield_strain) + np.sqrt(-mult * yield_strain * modulus + (mult * ultimate_strength))) / mult
+
+            # measure every 0.2 seconds
+            strain = np.hstack((
+                np.linspace(0, 0.02, num=5 * int(0.02 / strain_rate_1)),
+                np.linspace(0.02, fracture_strain + 0.005, num=5 * int((fracture_strain + 0.005) / strain_rate_2))[1:]
+            ))
+            # empirical approximation for the curve during hardening and necking
+            second_func = ultimate_strength - (mult * (strain - ultimate_strain)**2)
+
+            stress = modulus * strain
+            stress[strain < 0.001] = stress[strain < 0.001] / 4 # slippage during experiment start
+            stress[stress > yield_stress] = second_func[stress > yield_stress] # after yield
+            stress[strain > fracture_strain] = 0 # failure
+            stress += 0.5e6 * np.random.randn(stress.size) # measurement error
+
+            data = {
+                'time': np.linspace(0, 0.2 * (strain.size - 1), strain.size),
+                'extension': strain * 80, # initial length = 80 mm
+                'load': np.pi * (4.5 / 1000)**2 * stress / 1000, # diameter = 9 mm, load in kN
+                'stress': stress / 1e6,
+                'strain': strain * 100
+            }
+            param_dict[sample_name] = (
+                modulus / 1e9, yield_stress / 1e6, ultimate_strength / 1e6, fracture_strain
+            )
+
+            with open(Path(sample_path, f'{sample_name}.txt'), 'w') as f: # filler text
+                f.write('""\n')
+                f.write('"Test Method", "uniaxial test.msm"\n')
+                f.write(f'"Sample I.D.", "{sample_name}"\n')
+                f.write('"Initial Dimensions", "Diameter (mm)", "9", "Gauge Length (mm)", "80"\n\n')
+                f.write('"Time (s)", "Extension (mm)", "Load (kN)", "Stress (MPa)", "Strain (%)"\n\n')
+
+            pd.DataFrame(data).to_csv(
+                Path(sample_path, f'{sample_name}.txt'),
+                columns=['time', 'extension', 'load', 'stress', 'strain'],
+                float_format='%.3f', index=False, sep=",", mode='a', header=None
+            )
+            plt.plot(100 * strain, stress / 1e6, label=sample_name)
+
+    param_keys = ('Elastic Modulus (GPa)', 'Yield Stress (MPa)',
+                  'Ultimate Strength (MPa)', 'Fracture Strain (mm/mm)')
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nTensile Test\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
+            f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
+            for k, value in enumerate(param_values):
+                f.write(f'\n{param_keys[k]}: ')
+                f.write(f'{float(value):.4f}')
+
+    if not show_plots:
+        plt.close('tensile')
+    else:
+        plt.title('Tensile Test')
+        plt.legend(ncol=2)
+        plt.xlabel('Strain (%)')
+        plt.ylabel('Stress (MPa)')
+        plt.show(block=False)
+
+
+def _generate_rheometry_data(directory, num_data=6, show_plots=True):
+    """
+    Generates the folder and files containing example rheometry data.
+
+    Parameters
+    ----------
+    directory : Path
+        The file path to the Raw Data folder.
+    num_data : int, optional
+        The number of files to create.
+    show_plots : bool, optional
+        If True, will show a plot of the data.
+
+    Notes
+    -----
+    Simulates the viscosity measurements for a shear-thinning polymer melt
+    which obeys the Carreau-Yasuda model, in which the measured viscosity, mu, follows:
+        mu = mu_inf + (mu_0 - mu_inf) * (1 + (lambda * shear_rate)**a)**((n - 1) / a)
+    where mu_inf is the viscosity at infinite shear rate, mu_0 is the viscosity
+    at zero shear rate, lambda is the relaxation time, n is the power law index
+    (n - 1 is the slope of the line in the region between mu_0 and mu_inf),
+    and a is a dimensionless parameter (will be equal to 2 for this data).
+
+    """
+
+    file_path = Path(directory, 'Rheometry')
+    file_path.mkdir(parents=True, exist_ok=True)
+
+    shear_rate = np.logspace(-1, 3, num=30) # from 0.1 to 1000 1/s, evenly spaced on log scale
+
+    plt.figure(num='rheometry')
+    param_dict = {}
+    for i in range(num_data if not num_data % 2 else num_data + 1):
+        if i < num_data / 2:
+            sample_name = f'PDMS-{i}Ti'
+        else:
+            sample_name = f'PDMS-{i - int(np.ceil(num_data / 2))}Fe'
+
+        mu_0 = 0.9 + np.random.randn(1) * 0.2
+        mu_inf = 0.1 + np.random.randn(1) * 0.01
+        lambda_ = abs(1 + np.random.randn(1) * 0.1)
+        n = abs(0.3 + np.random.randn(1) * 0.1)
+
+        viscosity = mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
+        viscosity +=  np.random.randn(viscosity.size) * viscosity / 20 # measurement error
+
+        data = {
+            'shear stress': shear_rate * viscosity,
+            'shear rate': shear_rate,
+            'viscosity': viscosity,
+            'time': np.linspace(40, 40 * shear_rate.size, shear_rate.size) + np.random.randn(shear_rate.size),
+            'temperature': np.full(shear_rate.size, 25),
+            'normal stress': -250 + np.random.randn(shear_rate.size)
+        }
+        param_dict[sample_name] = [mu_0, mu_inf, lambda_, n, 2]
+
+        with open(Path(file_path, f'{sample_name}.txt'), 'w') as f: # filler text
+            f.write('Text to fill up space, data starts on line 166\n' + 'filler...\n' * 164)
+            f.write('shear stress\tshear rate\tviscosity\ttime\ttemperature\tnormal stress\n')
+            f.write('Pa\t1/s\tPa.s\ts\t\u00b0C\tPa\n\n')
+
+        pd.DataFrame(data).to_csv(
+            Path(file_path, f'{sample_name}.txt'),
+            float_format='%.3f', index=False, sep="\t", mode='a', header=None
+        )
+        plt.plot(shear_rate, viscosity, 'o-', label=sample_name)
+
+    param_keys = (
+        'mu_0 (Pa*s)', 'mu_infinity (Pa*s)', 'lambda (s)',
+        'power law index, n (unitless)', 'a, dimensionless-parameter (unitless)'
+    )
+    with open(directory.joinpath(_PARAMETER_FILE), 'a') as f:
+        f.write('\n\n' + '-' * 40 + '\nRheometry\n' + '-' * 40)
+        for sample_name, param_values in param_dict.items():
+            f.write(f'\n\nData for {sample_name}\n' + '-' * 20)
+            f.write(f'\nModel: Carreau-Yasuda model\n')
+            for k, value in enumerate(param_values):
+                f.write(f'\n{param_keys[k]}: ')
+                f.write(f'{float(value):.4f}')
+
+    if not show_plots:
+        plt.close('rheometry')
+    else:
+        plt.title('Rheometry')
+        plt.legend(ncol=2)
+        plt.xlabel('Shear Rate (1/s)')
+        plt.ylabel(r'Dynamic Viscosity (Pa$\cdot$s)')
+        plt.gca().set_xscale('log')
+        plt.gca().set_yscale('log')
+        plt.show(block=False)
 
 
 def generate_raw_data(directory=None, num_files=None, show_plots=None):
@@ -758,7 +847,8 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     Notes
     -----
     Currently supported characterization techniques include:
-        XRD, FTIR, Raman, TGA, DSC
+        XRD, FTIR, Raman, TGA, DSC, Rheometry, Uniaxial tensile test,
+        Pore Size Analysis
 
     """
 
@@ -768,13 +858,15 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         'Raman': _generate_Raman_data,
         'TGA': _generate_TGA_data,
         'DSC': _generate_DSC_data,
-        #'Pore Size Analysis': _generate_pore_size_data,
-        #'Uniaxial Tensile Test': _generate_uniaxial_tensile_data
+        'Rheometry': _generate_rheometry_data,
+        'Uniaxial Tensile Test': _generate_uniaxial_tensile_data,
+        'Pore Size Analysis': _generate_pore_size_data
     }
 
     validations = {
         'strings': [['folder', 'Raw Data folder']],
-        'integers' : [['num_files', 'number of files']]
+        'integers' : [['num_files', 'number of files']],
+        'constraints': [['num_files', 'number of files', '> 0']]
     }
 
     layout = [
@@ -835,5 +927,5 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
         with plt.rc_context({'interactive': False}):
             for function in values['selected_functions']:
                 function_mapping[function](
-                    data_path, int(values['num_files']), values['show_plots']
+                    data_path, values['num_files'], values['show_plots']
                 )

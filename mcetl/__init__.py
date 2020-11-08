@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-mcetl - A simple Extract-Transform-Load framework focused on materials characterization
+mcetl - An Extract-Transform-Load framework focused on materials characterization
 =======================================================================================
 
 mcetl provides user interfaces for processing data, performing peak fitting, and
@@ -24,7 +24,7 @@ Created on Jul 15, 2020
 
 
 __author__ = """Donald Erb"""
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 
 from .datasource import DataSource

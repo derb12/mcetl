@@ -428,33 +428,28 @@ def find_peak_centers(x, y, additional_peaks=None, height=None,
     """
 
     additional_peaks = np.array(additional_peaks) if additional_peaks is not None else np.empty(0)
-
     if additional_peaks.size > 0:
-        additional_peaks = additional_peaks[(additional_peaks>np.min(x))
-                                            & (additional_peaks<np.max(x))]
+        additional_peaks = additional_peaks[(additional_peaks > np.nanmin(x))
+                                            & (additional_peaks < np.nanmax(x))]
 
     peaks_located = signal.find_peaks(y, height=height, prominence=prominence)[0]
-
     peaks = [*peaks_located, *additional_peaks]
-    peaks_found = []
-    peaks_accepted = []
-    peak_centers = []
 
+    peak_centers = []
     for peak in peaks:
         if peak in peaks_located:
             peak_centers.append(x[peak])
         else:
             peak_centers.append(peak)
 
-    for x_peak in np.sort(peak_centers):
-        if (x_peak > x_min) and (x_peak < x_max):
-            peaks_accepted.append(x_peak)
+    peaks_found = []
+    peaks_accepted = []
+    for x_peak in sorted(peak_centers):
         peaks_found.append(x_peak)
+        if x_peak >= x_min and x_peak <= x_max:
+            peaks_accepted.append(x_peak)
 
-    peaks_found = sorted(peaks_found)
-    peaks_accepted = sorted(peaks_accepted)
-
-    return peaks_found, peaks_accepted
+    return sorted(peaks_found), sorted(peaks_accepted)
 
 
 def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
@@ -532,7 +527,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     resid_interp = signal.savgol_filter(residuals, window, poly)
 
     resid_interp[resid_interp < 0] = 0
-    prominence = min_resid * (np.max(y)-np.min(y))
+    prominence = min_resid * (np.max(y) - np.min(y))
 
     residual_peaks = find_peak_centers(x, y=resid_interp, prominence=prominence)
     residual_peaks_found, residual_peak_centers = residual_peaks
@@ -648,13 +643,13 @@ def _re_sort_prefixes(params_dict):
     return new_params_dict
 
 
-def plugNchug_fit(
+def peak_fitting(
         x, y, height=None, prominence=np.inf, center_offset=1.0,
         peak_width=1.0, default_model='PseudoVoigtModel', subtract_background=False,
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
         min_method='least_squares', x_min=-np.inf, x_max=np.inf,
         additional_peaks=None, model_list=None, background_type='PolynomialModel',
-        poly_n=4, fit_kws=None, vary_Voigt=False, fit_residuals=False,
+        poly_n=0, fit_kws=None, vary_Voigt=False, fit_residuals=False,
         num_resid_fits=5, min_resid=0.05, debug=False, peak_heights=None):
     """
     Takes x,y data, finds the peaks, fits the peaks, and returns all relevant information.
@@ -817,22 +812,10 @@ def plugNchug_fit(
     y_array = y_array[nan_mask]
 
     # ensures data limits make sense
-    if x_min == -np.inf:
-        x_min = min(x_array)
-    else:
-        x_min = max(x_min, min(x_array))
-    if x_max == np.inf:
-        x_max = max(x_array)
-    else:
-        x_max = min(x_max, max(x_array))
-    if bkg_min == -np.inf:
-        bkg_min = min(x_array)
-    if bkg_min < x_min:
-        bkg_min = x_min
-    if bkg_max == np.inf:
-        bkg_max = max(x_array)
-    if bkg_max > x_max:
-        bkg_max = x_max
+    x_min = max(x_min, min(x_array))
+    x_max = min(x_max, max(x_array))
+    bkg_min = max(bkg_min, x_min)
+    bkg_max = min(bkg_max, x_max)
 
     output['peaks_found'], output['peaks_accepted']  = find_peak_centers(
         x_array, y_array, additional_peaks=additional_peaks, height=height,
@@ -1004,7 +987,7 @@ def plugNchug_fit(
                 [output['individual_peaks'][-1]['background_'],] * len(y)
             )
 
-        #Gets the parameters for each model and their standard deviations, if available
+        #Gets the parameters for each model and their standard errors, if available
         if None not in {fit_result.params[var].stderr for var in fit_result.var_names}:
             output['best_values'].append([
                 [var, fit_result.params[var].value,
@@ -1882,7 +1865,7 @@ if __name__ == '__main__':
 
     time0 = time.time()
 
-    fitting_results = plugNchug_fit(
+    fitting_results = peak_fitting(
         x_array, y_array, height=rel_height, prominence=prominence,
         center_offset=center_offset, peak_width=peak_width, model_list=model_list,
         subtract_background=subtract_background, x_min=x_min, x_max=x_max,

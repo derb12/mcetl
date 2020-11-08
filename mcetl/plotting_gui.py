@@ -235,7 +235,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
                 filename = str(Path(filename).with_suffix('.csv'))
                 try:
-                    pd.concat(saved_data, axis=1).to_csv(filename, index=False)
+                    pd.concat(saved_data, axis=1).to_csv(filename, index=False,
+                                                         encoding='raw_unicode_escape')
                 except PermissionError:
                     sg.popup(
                         ('The .csv file is currently open.\n'
@@ -296,7 +297,13 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             axes = None
             gui_values = None
 
-        dataframe = pd.read_csv(filename, header=0, index_col=False)
+        # try standard utf-8 encoding first; will throw an error only if there is
+        # unicode previously saved by this module using 'raw_unicode_escape' encoding.
+        try:
+            dataframe = pd.read_csv(filename, header=0, index_col=False)
+        except UnicodeDecodeError:
+            dataframe = pd.read_csv(filename, header=0, index_col=False,
+                                    encoding='raw_unicode_escape')
 
         # splits data into separate entries
         indices = []
@@ -2257,8 +2264,8 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
         current_data.append(data_list[index][dataset_index].copy())
 
     elif remove_dataset:
-        for selected_dataset in sorted(values['data_list'], reverse=True):
-            dataset_index = int(selected_dataset.split(' ')[-1]) - 1
+        indices = [int(value.split(' ')[-1]) - 1 for value in values['data_list']]
+        for dataset_index in sorted(indices, reverse=True):
             del current_data[dataset_index]
             properties = (
                 'plot_boolean', 'x_col', 'y_col', 'label', 'offset', 'markerface_color',
@@ -3053,10 +3060,9 @@ def _add_remove_peaks(axis, add_peak):
 
     elif remove_peak:
         for entry in values['peak_listbox']:
-            key = labels[entry]
-            for line in peaks[key]['peaks']:
+            for line in peaks[labels[entry]]['peaks']:
                 line.remove()
-            for annotation in peaks[key]['annotations']:
+            for annotation in peaks[labels[entry]]['annotations']:
                 annotation.remove()
 
 

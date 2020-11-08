@@ -82,13 +82,13 @@ def _write_to_excel(dataframes, data_source, labels,
     """
 
     from openpyxl.utils.dataframe import dataframe_to_rows
-
     if plot_excel:
         from openpyxl.chart import Reference, Series, ScatterChart
         from openpyxl.chart.series import SeriesLabel, StrRef
         from openpyxl.utils.cell import get_column_letter
 
-    first_row = data_source.excel_row_offset + 1 # openpyxl uses 1-based indices
+    # openpyxl uses 1-based indices
+    first_row = data_source.excel_row_offset + 1
     first_column = data_source.excel_column_offset + 1
 
     for i, dataset in enumerate(dataframes):
@@ -109,11 +109,7 @@ def _write_to_excel(dataframes, data_source, labels,
 
         # Header values and formatting
         for j, header in enumerate(labels[i]['sample_names'] + labels[i]['summary_name']):
-            if j % 2 == 0:
-                suffix = 'even'
-            else:
-                suffix = 'odd'
-
+            suffix = 'even' if j % 2 == 0 else 'odd'
             cell = worksheet.cell(
                 row=first_row,
                 column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
@@ -131,11 +127,7 @@ def _write_to_excel(dataframes, data_source, labels,
         flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
         subheaders = iter(labels[i]['total_labels'])
         for j, entry in enumerate(flattened_lengths):
-            if j % 2 == 0:
-                suffix = 'even'
-            else:
-                suffix = 'odd'
-
+            suffix = 'even' if j % 2 == 0 else 'odd'
             for col_index in range(entry):
                 cell = worksheet.cell(
                     row=first_row + 1,
@@ -417,9 +409,8 @@ def _select_processing_options(data_sources):
     return values
 
 
-def _create_column_labels_window(
-        dataset, data_source, options, index,
-        gui_inputs, location, last_index):
+def _create_column_labels_window(dataset, data_source, options, index,
+                                 gui_inputs, location, last_index):
     """
     Creates the window to specify the sample and column labels.
 
@@ -482,8 +473,7 @@ def _create_column_labels_window(
     for i in range(len(dataset)):
         default_inputs.update({f'sample_name_{i}': ''})
         validations['user_inputs'].append([
-            f'sample_name_{i}', f'sample name {i + 1}',
-            utils.string_to_unicode, True, None
+            f'sample_name_{i}', f'sample name {i + 1}', utils.string_to_unicode, True, None
         ])
 
     if options['process_data'] and data_source.dataset_summary_functions:
@@ -527,7 +517,7 @@ def _create_column_labels_window(
     for i in range(len(dataset)):
         labels_layout.append(
             [sg.Text(f'    Sample {i + 1}'),
-             sg.Input(default_inputs[f'sample_name_{i}'] ,size=(20, 1),
+             sg.Input(default_inputs[f'sample_name_{i}'], size=(20, 1),
                       key=f'sample_name_{i}')]
         )
 
@@ -546,8 +536,7 @@ def _create_column_labels_window(
 
     for i in range(len(labels[0])):
         validations['user_inputs'].append([
-            f'{keys[0]}_{i}', f'raw data label {i}',
-            utils.string_to_unicode, True, None
+            f'{keys[0]}_{i}', f'raw data label {i}', utils.string_to_unicode, True, None
         ])
         labels_layout.append(
             [sg.Text(f'    Column {i}'),
@@ -581,6 +570,10 @@ def _create_column_labels_window(
     if not options['plot_data_excel']:
         main_section = [sg.Frame('', [labels_column])]
     else:
+        validations['integers'] = [
+            ['x_plot_index', 'x plot index'],
+            ['y_plot_index', 'y plot index']
+        ]
         validations['user_inputs'].extend([
             ['x_min', 'x min', float , True, None],
             ['x_max', 'x max', float , True, None],
@@ -595,11 +588,11 @@ def _create_column_labels_window(
             [sg.Text('Chart title:'),
              sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],
             [sg.Text('Column of x data for plotting:'),
-             sg.Combo([f'{col}' for col in range(len(available_cols))],
+             sg.Combo(list(range(len(available_cols))),
                       key='x_plot_index', readonly=True, size=(3, 1),
                       default_value=default_inputs['x_plot_index'])],
             [sg.Text('Column of y data for plotting:'),
-             sg.Combo([f'{col}' for col in range(len(available_cols))],
+             sg.Combo(list(range(len(available_cols))),
                       key='y_plot_index', readonly=True, size=(3, 1),
                       default_value=default_inputs['y_plot_index'])],
             [sg.Text('X axis label:'),
@@ -669,7 +662,6 @@ def _select_column_labels(dataframes, data_source, processing_options):
 
     label_values = [{} for _ in dataframes]
     location = (None, None)
-
     for i, dataset in enumerate(dataframes):
         j = i
 
@@ -687,9 +679,10 @@ def _select_column_labels(dataframes, data_source, processing_options):
             elif event == 'Unicode Help':
                 sg.popup(
                     ('"\\u00B2": \u00B2 \n"\\u03B8": \u03B8 \n"'
-                     '\\u00B0": \u00B0\n\nFor example, Acceleration'
-                     ' (m/s\\u00B2) creates Acceleration (m/s\u00B2)\n'),
-                    title='Common Unicode'
+                     '\\u00B0": \u00B0\n"\\u03bc": \u03bc\n"\\u03bb": \u03bb\n'
+                     '\nFor example, Acceleration'
+                     ' (m/s\\u00B2) creates Acceleration (m/s\u00B2).\n'),
+                    title='Example Unicode'
                 )
 
             elif event in ('Back', 'Next', 'Finish'):
@@ -746,14 +739,16 @@ def _collect_column_labels(dataframes, data_source, labels, options):
         labels[i]['total_labels'] = []
 
         for j in range(len(labels[i]['sample_names'])):
-            for entry_num in range(1, len(dataset[j]) + 1):
+            index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
+
+            for entry_num in range(1, len(dataset[j]) + 1 + index_modifier):
                 for label in labels[i]['column_labels']:
-                    if data_source.label_entries and len(dataset[j]) > 1:
+                    if data_source.label_entries and len(dataset[j]) > 1 and label:
                         labels[i]['total_labels'].append(f'{label} {entry_num}')
                     else:
                         labels[i]['total_labels'].append(label)
 
-                if options['process_data'] and entry_num != len(dataset[j]):
+                if options['process_data'] and entry_num != len(dataset[j]) + index_modifier:
                     labels[i]['total_labels'].extend([
                         '' for _ in range(data_source.entry_separation)
                     ])
@@ -762,7 +757,7 @@ def _collect_column_labels(dataframes, data_source, labels, options):
                 if labels[i]['sample_summary_labels']:
                     labels[i]['total_labels'].extend([
                         *['' for _ in range(data_source.entry_separation)],
-                        *[label for label in labels[i]['sample_summary_labels']]
+                        *labels[i]['sample_summary_labels']
                     ])
 
                 labels[i]['total_labels'].extend([
@@ -771,7 +766,7 @@ def _collect_column_labels(dataframes, data_source, labels, options):
 
         if options['process_data'] and labels[i]['dataset_summary_labels']:
             labels[i]['total_labels'].extend([
-                *[label for label in labels[i]['dataset_summary_labels']],
+                *labels[i]['dataset_summary_labels'],
                 *['' for _ in range(data_source.sample_separation)]
             ])
 
@@ -892,7 +887,7 @@ def _plot_data(datasets, data_source):
 
     Parameters
     ----------
-    dataframes : list
+    datasets : list
         A nested list of lists of lists of dataframes.
     data_source : DataSource
         The DataSource object whose figure_rcParams attribute will be used
@@ -992,8 +987,7 @@ def _move_files(files):
             for i, file_list in enumerate(files):
                 # Will automatically rename files if there is already a file with
                 # the same name in the destination folder.
-                file_mover(file_list, new_folder=folders[i],
-                           skip_same_files=False)
+                file_mover(file_list, new_folder=folders[i], skip_same_files=False)
         except Exception:
             print('\nException occured during moving files:\n')
             print(traceback.format_exc())
@@ -1011,22 +1005,29 @@ def launch_main_gui(data_sources):
 
     Returns
     -------
-    dataframes : list
-        A list of lists of dataframes, with each dataframe containing the data imported from a
-        raw data file; will be None if the function fails before importing data.
-
-    fit_results : list
-        A nested list of lists of lmfit ModelResult objects, with each ModelResult
-        pertaining to a single fitting, each list of ModelResults containing all of
-        the fits for a single dataset, and east list of lists pertaining the data
-        within one processed dataframe; will be None if fitting is not done,
-        or only partially filled if the fitting process ends early.
-
-    plot_results : list
-        A list of lists, with one entry per dataset. Each interior list is composed
-        of a matplotlib.Figure object and a dictionary of matplotlib.Axes objects.
-        Will be None if plotting is not done, or only partially filled if the plotting
-        process ends early.
+    output : dict
+        A dictionary containing the following keys and values:
+            dataframes : list or None
+                A list of lists of dataframes, with each dataframe containing the
+                data imported from a raw data file; will be None if the function
+                fails before importing data, or if the only processing step taken
+                was moving files.
+            fit_results : list or None
+                A nested list of lists of lmfit ModelResult objects, with each
+                ModelResult pertaining to a single fitting, each list of
+                ModelResults containing all of the fits for a single dataset,
+                and east list of lists pertaining the data within one processed
+                dataframe; will be None if fitting is not done,  or only
+                partially filled if the fitting process ends early.
+            plot_results : list or None
+                A list of lists, with one entry per dataset. Each interior
+                list is composed of a matplotlib.Figure object and a
+                dictionary of matplotlib.Axes objects. Will be None if
+                plotting is not done, or only partially filled if the plotting
+                process ends early.
+            writer : pd.ExcelWriter or None
+                The pandas ExcelWriter used to create the output Excel file; will
+                be None if the output results were not saved to Excel.
 
     Notes
     -----
@@ -1037,9 +1038,12 @@ def launch_main_gui(data_sources):
 
     """
 
-    dataframes = None
-    fit_results = None
-    plot_results = None
+    output = {
+        'dataframes': None,
+        'fit_results': None,
+        'plot_results': None,
+        'writer': None
+    }
 
     if not isinstance(data_sources, (list, tuple)):
         data_sources = [data_sources]
@@ -1050,14 +1054,10 @@ def launch_main_gui(data_sources):
         processing_options = _select_processing_options(data_sources)
 
         # Specifying the selected data source
-        data_source = None
         for source in data_sources:
             if processing_options[f'source_{source.name}']:
                 data_source = source
                 break
-
-        if not processing_options['save_excel']:
-            writer = None # Set so that it exists for peak fitting
 
         # Selection of raw data files
         if processing_options['multiple_files']:
@@ -1081,7 +1081,7 @@ def launch_main_gui(data_sources):
                     processing_options['fit_peaks'],
                     processing_options['plot_python'])):
 
-                dataframes = [[[] for sample in dataset] for dataset in files]
+                output['dataframes'] = [[[] for sample in dataset] for dataset in files]
                 import_vals = [[[] for sample in dataset] for dataset in files]
                 if files[0][0][0].endswith('.xlsx'):
                     for i, dataset in enumerate(files):
@@ -1094,7 +1094,7 @@ def launch_main_gui(data_sources):
                                 added_dataframes = utils.raw_data_import(
                                     import_values, sample, False
                                 )
-                                dataframes[i][j].extend(added_dataframes)
+                                output['dataframes'][i][j].extend(added_dataframes)
                                 import_vals[i][j].extend(
                                     [import_values] * len(added_dataframes)
                                 )
@@ -1104,18 +1104,18 @@ def launch_main_gui(data_sources):
                     for i, dataset in enumerate(files):
                         for j, sample in enumerate(dataset):
                             for entry in sample:
-                                dataframes[i][j].extend(
+                                output['dataframes'][i][j].extend(
                                     utils.raw_data_import(import_values, entry, False)
                                 )
                                 import_vals[i][j].append(import_values)
 
         else:
             import_values = utils.select_file_gui(data_source)
-            dataframes = [[
+            output['dataframes'] = [[
                 utils.raw_data_import(import_values, import_values['file'], False)
             ]]
             files = [[[import_values['file']]]]
-            import_vals = [[[import_values] * len(dataframes[0][0])]]
+            import_vals = [[[import_values] * len(output['dataframes'][0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'],
@@ -1124,65 +1124,66 @@ def launch_main_gui(data_sources):
                 processing_options['plot_python'])):
 
             label_values = _select_column_labels(
-                dataframes, data_source, processing_options
+                output['dataframes'], data_source, processing_options
             )
 
-            labels = [{} for _ in dataframes]
+            labels = [{} for _ in output['dataframes']]
             plot_options = []
             for i, values in enumerate(label_values):
-                labels[i]['sheet_name'] = utils.string_to_unicode(values['sheet_name'])
-                labels[i]['sample_names'] = utils.string_to_unicode([
+                labels[i]['sheet_name'] = values['sheet_name']
+                labels[i]['sample_names'] = [
                     values[key] for key in values if key.startswith('sample_name')
-                ])
-                labels[i]['column_labels'] = utils.string_to_unicode(
-                    [values[key] for key in values if key.startswith('data_label')]
-                    + [values[key] for key in values if key.startswith('calculation_label')]
-                )
-                labels[i]['sample_summary_labels'] = utils.string_to_unicode([
+                ]
+                labels[i]['column_labels'] = [
+                    *[values[key] for key in values if key.startswith('data_label')],
+                    *[values[key] for key in values if key.startswith('calculation_label')]
+                ]
+                labels[i]['sample_summary_labels'] = [
                     values[key] for key in values if key.startswith('sample_summary_label')
-                ])
-                labels[i]['dataset_summary_labels'] = utils.string_to_unicode([
+                ]
+                labels[i]['dataset_summary_labels'] = [
                     values[key] for key in values if key.startswith('dataset_summary_label')
-                ])
-                labels[i]['summary_name'] = utils.string_to_unicode([
+                ]
+                labels[i]['summary_name'] = [
                     values[key] for key in values if key == 'summary_name'
-                ])
+                ]
 
                 if not processing_options['plot_data_excel']:
                     plot_options.append(None)
                 else:
                     plot_options.append({
-                        'x_label': utils.string_to_unicode(values['x_label']),
-                        'y_label': utils.string_to_unicode(values['y_label']),
-                        'chart_title' : utils.string_to_unicode(values['chart_title']),
-                        'x_plot_index': int(values['x_plot_index']),
-                        'y_plot_index': int(values['y_plot_index']),
-                        'x_min': float(values['x_min']) if values['x_min'] else None,
-                        'x_max': float(values['x_max']) if values['x_max'] else None,
-                        'y_min': float(values['y_min']) if values['y_min'] else None,
-                        'y_max': float(values['y_max']) if values['y_max'] else None,
+                        'x_label': values['x_label'],
+                        'y_label': values['y_label'],
+                        'chart_title' : values['chart_title'],
+                        'x_plot_index': values['x_plot_index'],
+                        'y_plot_index': values['y_plot_index'],
+                        'x_min': values['x_min'] if values['x_min'] != '' else None,
+                        'x_max': values['x_max'] if values['x_max'] != '' else None,
+                        'y_min': values['y_min'] if values['y_min'] != '' else None,
+                        'y_max': values['y_max'] if values['y_max'] != '' else None,
                         'x_log_scale': values['x_log_scale'],
                         'y_log_scale': values['y_log_scale']
                     })
 
             if not processing_options['process_data']: # Otherwise, will assign labels after Separation functions
-                _collect_column_labels(dataframes, data_source, labels, processing_options)
+                _collect_column_labels(output['dataframes'], data_source,
+                                       labels, processing_options)
 
         if processing_options['save_excel'] or processing_options['process_data']:
 
             if processing_options['process_data']:
                 # Perform separation functions
-                dataframes, import_vals = data_source.do_separation_functions(
-                    dataframes, import_vals
+                output['dataframes'], import_vals = data_source.do_separation_functions(
+                    output['dataframes'], import_vals
                 )
                 # Assign reference indices for all relevant columns
-                data_source.set_references(dataframes, import_vals)
+                data_source.set_references(output['dataframes'], import_vals)
 
-                _collect_column_labels(dataframes, data_source, labels, processing_options)
+                _collect_column_labels(output['dataframes'], data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
-            merged_dataframes = data_source.merge_datasets(dataframes)
-            dataframes = None # Frees up memory
+            merged_dataframes = data_source.merge_datasets(output['dataframes'])
+            output['dataframes'] = None # Frees up memory
 
             if processing_options['save_excel'] and processing_options['process_data']:
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
@@ -1195,18 +1196,18 @@ def launch_main_gui(data_sources):
                     processing_options['append_file'] = False
                     mode = 'w'
 
-                writer =  pd.ExcelWriter(
+                output['writer'] =  pd.ExcelWriter(
                     processing_options['file_name'], engine='openpyxl', mode=mode
                 )
                 # Formatting styles for the Excel workbook
                 for style, kwargs in data_source.excel_formats.items():
                     try:
-                        writer.book.add_named_style(NamedStyle(style, **kwargs))
+                        output['writer'].book.add_named_style(NamedStyle(style, **kwargs))
                     except ValueError: # Style already exists in the workbook
                         pass
 
                 _write_to_excel(
-                    merged_dataframes, data_source, labels, writer,
+                    merged_dataframes, data_source, labels, output['writer'],
                     processing_options['plot_data_excel'], plot_options
                 )
 
@@ -1214,7 +1215,7 @@ def launch_main_gui(data_sources):
                 merged_dataframes = data_source.do_python_functions(merged_dataframes)
 
             # Split data back into individual dataframes
-            dataframes = data_source.split_into_entries(merged_dataframes)
+            output['dataframes'] = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
         # Assigns column names to the dataframes
@@ -1243,13 +1244,13 @@ def launch_main_gui(data_sources):
 
         # Handles peak fitting
         if processing_options['fit_peaks']:
-            fit_results = _fit_data(
-                dataframes, data_source, labels, writer, processing_options
+            output['fit_results'] = _fit_data(
+                output['dataframes'], data_source, labels, output['writer'], processing_options
             )
 
         # Handles saving the Excel file
         if processing_options['save_excel']:
-            utils.save_excel_file(writer)
+            utils.save_excel_file(output['writer'])
 
         # Handles moving files
         if processing_options['move_files']:
@@ -1257,11 +1258,11 @@ def launch_main_gui(data_sources):
 
         # Handles plotting in python
         if processing_options['plot_python']:
-            plot_results = _plot_data(dataframes, data_source) #TODO later pass labels
+            output['plot_results'] = _plot_data(output['dataframes'], data_source) #TODO later pass labels
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
     except Exception:
         print(traceback.format_exc())
 
-    return dataframes, fit_results, plot_results
+    return output

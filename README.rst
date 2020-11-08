@@ -18,7 +18,7 @@ mcetl
 
 
 
-mcetl is a simple Extract-Transform-Load framework focused on materials characterization.
+mcetl is an Extract-Transform-Load framework focused on materials characterization.
 
 * For python 3.7+
 * Open Source: BSD 3-clause license
@@ -213,6 +213,9 @@ Data produced by the generate_raw_data function covers the following characteriz
 * Raman spectroscopy
 * Thermogravimetric analysis (TGA)
 * Differential scanning calorimetry (DSC)
+* Rheometry
+* Uniaxial tensile tests
+* Pore size measurements
 
 
 Example Programs

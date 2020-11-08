@@ -13,12 +13,53 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from openpyxl.chart import Reference, Series, ScatterChart
 from openpyxl.styles import NamedStyle
+from openpyxl.utils.cell import get_column_letter as _get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
 import PySimpleGUI as sg
 
 from . import peak_fitting
 from . import utils
+
+
+def _find_peaks(dataframe, gui_values):
+    """
+    Finds peaks in the data according to the gui_values.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        The dataframe that contains the x and y data.
+    gui_values : dict
+        A dictionary of values needed for finding the peaks.
+
+    Returns
+    -------
+    found_peaks : list
+        The list of peaks found in the data according to the
+        peak finding parameters in gui_values.
+
+    """
+
+    headers = dataframe.columns
+    x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
+    y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
+    nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
+    x_min = max(gui_values['x_min'], min(x_data))
+    x_max = min(gui_values['x_max'], max(x_data))
+
+    additional_peaks = np.array(gui_values['peak_list'])
+    additional_peaks = additional_peaks[(additional_peaks > x_min)
+                                        & (additional_peaks < x_max)]
+
+    found_peaks = peak_fitting.find_peak_centers(
+        x_data[nan_mask], y_data[nan_mask], additional_peaks,
+        gui_values['height'], gui_values['prominence'], x_min, x_max
+    )[-1]
+
+    return found_peaks
 
 
 def _show_fit_plot(dataframe, gui_values):
@@ -29,144 +70,118 @@ def _show_fit_plot(dataframe, gui_values):
     ----------
     dataframe : pd.DataFrame
         The dataframe that contains the x and y data.
-    gui_values: dict
+    gui_values : dict
         A dictionary of values needed for plotting.
 
     """
 
-    try: #TODO make the peak finding into a function because it is used multiple times
-        headers = dataframe.columns
-        x_index = int(gui_values['x_fit_index'])
-        y_index = int(gui_values['y_fit_index'])
-        x_data = dataframe[headers[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
-        y_data = dataframe[headers[y_index]].astype(float)
-        x_min = float(gui_values['x_min']) if gui_values['x_min'] != '-inf' else -np.inf
-        x_max = float(gui_values['x_max']) if gui_values['x_max'] != 'inf' else np.inf
-        bkg_min = float(gui_values['bkg_x_min']) if gui_values['bkg_x_min'] != '-inf' else -np.inf
-        bkg_max = float(gui_values['bkg_x_max']) if gui_values['bkg_x_max'] != 'inf' else np.inf
-        height = float(gui_values['height'])
-        prominence = float(gui_values['prominence']) if gui_values['prominence'] != 'inf' else np.inf
-        additional_peaks_li = [float(entry) for entry in gui_values['peak_list'].replace(' ', '').split(',') if entry != '']
+    headers = dataframe.columns
+    x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
+    y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
 
-        if x_min == -np.inf:
-            x_min = min(x_data)
-        else:
-            x_min = max(x_min, min(x_data))
-        if x_max == np.inf:
-            x_max = max(x_data)
-        else:
-            x_max = min(x_max, max(x_data))
-        if bkg_min == -np.inf:
-            bkg_min = min(x_data)
-        if bkg_min < x_min:
-            bkg_min = x_min
-        if bkg_max == np.inf:
-            bkg_max = max(x_data)
-        if bkg_max > x_max:
-            bkg_max = x_max
+    x_min = max(gui_values['x_min'], min(x_data))
+    x_max = min(gui_values['x_max'], max(x_data))
+    bkg_min = max(gui_values['bkg_x_min'], x_min)
+    bkg_max = min(gui_values['bkg_x_max'], x_max)
 
-        x_mid = (x_max + x_min) / 2
-        bkg_mid = (bkg_max + bkg_min) / 2
-        additional_peaks = np.array(additional_peaks_li)
-        additional_peaks = additional_peaks[(additional_peaks > x_min) &
-                                            (additional_peaks < x_max)]
+    x_mid = (x_max + x_min) / 2
+    bkg_mid = (bkg_max + bkg_min) / 2
+    additional_peaks = np.array(gui_values['peak_list'])
+    additional_peaks = additional_peaks[(additional_peaks > x_min)
+                                        & (additional_peaks < x_max)]
 
-        peaks = peak_fitting.find_peak_centers(x_data, y_data, additional_peaks,
-                                               height, prominence, x_min, x_max)
+    peaks = _find_peaks(dataframe, gui_values)
 
-        plt.close('Fitting')
-        fig, ax = plt.subplots(num='Fitting')
-        ax.plot(x_data, y_data)
-        ax_y = ax.get_ylim()
-        y_diff = ax_y[1] - ax_y[0]
+    plt.close('Fitting')
+    fig, ax = plt.subplots(num='Fitting')
+    ax.plot(x_data, y_data)
+    ax_y = ax.get_ylim()
+    y_diff = ax_y[1] - ax_y[0]
 
-        other_peaks = False
-        for peak in peaks[1]:
-            if peak not in additional_peaks:
-                other_peaks = True
-                found_peaks = ax.vlines(
-                    peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-                    color='green', linestyle='-.', lw=2
-                )
-        for peak in additional_peaks:
-            user_peaks = ax.vlines(
+    other_peaks = False
+    for peak in peaks:
+        if peak not in additional_peaks:
+            other_peaks = True
+            found_peaks = ax.vlines(
                 peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-                color='blue', linestyle=':', lw=2
-                )
+                color='green', linestyle='-.', lw=2
+            )
+    for peak in additional_peaks:
+        user_peaks = ax.vlines(
+            peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            color='blue', linestyle=':', lw=2
+            )
+    ax.annotate(
+        '', (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+        arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+        annotation_clip=False,
+    )
+    ax.annotate(
+        '', (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+        arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+        annotation_clip=False,
+    )
+    ax.annotate(
+        'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
+    )
+    ax.vlines(
+        x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+        color='black', linestyle='-', lw=2
+    )
+    ax.vlines(
+        x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+        color='black', linestyle='-', lw=2
+    )
+
+    if gui_values['subtract_bkg']:
         ax.annotate(
-            "", (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
-            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-            annotation_clip=False,
+            '', (bkg_max, ax_y[0] - (0.01 * y_diff)),
+            (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
         )
         ax.annotate(
-            "", (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
-            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-            annotation_clip=False,
+            '', (bkg_min, ax_y[0] - (0.01 * y_diff)),
+            (bkg_mid, ax_y[0] - (0.01 * y_diff)),
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
+            annotation_clip=False
         )
         ax.annotate(
-            'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
+            'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
+            color='red', ha='center'
         )
         ax.vlines(
-            x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-            color='black', linestyle='-', lw=2
+            bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            color='red',linestyle='--', lw=2
         )
         ax.vlines(
-            x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-            color='black', linestyle='-', lw=2
+            bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            color='red', linestyle='--', lw=2
         )
 
-        if gui_values['subtract_bkg']:
-            ax.annotate(
-                "", (bkg_max, ax_y[0] - (0.01 * y_diff)),
-                (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
-                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
-            )
-            ax.annotate(
-                "", (bkg_min, ax_y[0] - (0.01 * y_diff)),
-                (bkg_mid, ax_y[0] - (0.01 * y_diff)),
-                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
-                annotation_clip=False
-            )
-            ax.annotate(
-                'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
-                color='red', ha='center'
-            )
-            ax.vlines(
-                bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-                color='red',linestyle='--', lw=2
-            )
-            ax.vlines(
-                bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-                color='red', linestyle='--', lw=2
-            )
+    ax.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
 
-        ax.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
+    peak_list = []
+    if additional_peaks.size > 0 and other_peaks:
+        peak_list = [found_peaks, user_peaks]
+        label_list = ['Found peaks', 'User input peaks']
+    elif additional_peaks.size > 0:
+        peak_list = [user_peaks]
+        label_list = ['User input peaks']
+    elif peaks:
+        peak_list = [found_peaks]
+        label_list = ['Found peaks']
 
-        peak_list = []
-        if (additional_peaks.size > 0) and (other_peaks):
-            peak_list = [found_peaks, user_peaks]
-            label_list = ['Found peaks', 'User input peaks']
-        elif (additional_peaks.size > 0):
-            peak_list = [user_peaks]
-            label_list = ['User input peaks']
-        elif peaks[1]:
-            peak_list = [found_peaks]
-            label_list = ['Found peaks']
+    if peak_list:
+        ax.legend(
+            peak_list, label_list, frameon=False, ncol=2,
+            bbox_to_anchor=(0.0, 1.01, 1, 1.01), loc='lower left',
+            borderaxespad=0, mode='expand'
+        )
 
-        if peak_list:
-            ax.legend(
-                peak_list, label_list, frameon=False, ncol=2,
-                bbox_to_anchor=(0.0, 1.01, 1, 1.01), loc='lower left',
-                borderaxespad=0, mode='expand'
-            )
+    fig.show()
 
-        fig.show()
-
-    except Exception as e:
-        sg.popup('Error creating plot:\n    ' + repr(e))
 
 #TODO split this up into several functions?
-#TODO need to add/verify validations for plotting, peak finding, and background selection
 def fit_dataframe(dataframe, user_inputs=None):
     """
     Creates a GUI to select data from a dataframe for peak fitting.
@@ -215,10 +230,10 @@ def fit_dataframe(dataframe, user_inputs=None):
         'x_max': 'inf',
         'show_plots': True,
         'batch_fit': False,
-        'peak_list': '',
+        'peak_list': [],
         'prominence': 'inf',
         'height': '-inf',
-        'model_list': '',
+        'model_list': [],
         'default_model': 'GaussianModel',
         'vary_Voigt': False,
         'peak_width': '',
@@ -264,17 +279,15 @@ def fit_dataframe(dataframe, user_inputs=None):
 
         automatic_layout = [
             [sg.Text('Peak x values, separated by commas (leave blank to just use peak finding):')],
-            [sg.Input(key='peak_list', size=(50, 1),
-                      default_text=default_inputs['peak_list'])],
+            [sg.Input(', '.join(str(val) for val in default_inputs['peak_list']),
+                      key='peak_list', size=(50, 1))],
             [sg.Text('Prominence:', size=(13, 1)),
-             sg.Input(key='prominence', size=(5, 1),
-                      default_text=default_inputs['prominence'])],
+             sg.Input(default_inputs['prominence'], key='prominence', size=(5, 1))],
             [sg.Text('Minimum height:', size=(13, 1)),
-             sg.Input(key='height', size=(5, 1),
-                      default_text=default_inputs['height'])],
+             sg.Input(default_inputs['height'], key='height', size=(5, 1))],
             [sg.Text('Model list, separated by commas (leave blank to just use default model):')],
-            [sg.Input(key='model_list', size=(50, 1), enable_events=True,
-                      default_text=default_inputs['model_list'])]
+            [sg.Input(', '.join(str(val) for val in default_inputs['model_list']),
+                      key='model_list', size=(50, 1), enable_events=True)]
         ]
         peak_finding_layout = sg.TabGroup(
             [
@@ -290,21 +303,17 @@ def fit_dataframe(dataframe, user_inputs=None):
         )
         auto_bkg_layout = [
             [sg.Text('Model for fitting background:'),
-             sg.InputCombo(['PolynomialModel','ExponentialModel'],
-                           key='bkg_type', readonly=False,
-                           enable_events=True,
-                           default_value=default_inputs['bkg_type'])],
+             sg.Combo(['PolynomialModel','ExponentialModel'], key='bkg_type',
+                      readonly=False, enable_events=True,
+                      default_value=default_inputs['bkg_type'])],
             [sg.Text('Polynomial order:'),
-             sg.InputCombo([j for j in range(8)], key='poly_n',
-                           readonly=True,
-                           default_value=default_inputs['poly_n'])],
+             sg.Combo(list(range(8)), key='poly_n', readonly=True,
+                      default_value=default_inputs['poly_n'])],
             [sg.Text('Min and max x values to use for fitting the background:')],
             [sg.Text('    x min:', size=(8, 1)),
-             sg.Input(key='bkg_x_min', size=(5, 1),
-                      default_text=default_inputs['bkg_x_min'])],
+             sg.Input(default_inputs['bkg_x_min'], key='bkg_x_min', size=(5, 1))],
             [sg.Text('    x max:', size=(8, 1)),
-             sg.Input(key='bkg_x_max', size=(5, 1),
-                      default_text=default_inputs['bkg_x_max'])],
+             sg.Input(default_inputs['bkg_x_max'], key='bkg_x_max', size=(5, 1))],
         ]
 
         bkg_layout = sg.TabGroup(
@@ -322,22 +331,20 @@ def fit_dataframe(dataframe, user_inputs=None):
             [sg.Text('Raw Data', relief='ridge', size=(60, 1),
                      justification='center')],
             [sg.Text('Sample Name:'),
-             sg.Input(key='sample_name', do_not_clear=True, size=(20, 1),
-                      default_text=default_inputs['sample_name'],)],
+             sg.Input(default_inputs['sample_name'], key='sample_name',
+                      do_not_clear=True, size=(20, 1))],
             [sg.Text('Column of x data for fitting:'),
-             sg.InputCombo([j for j in range(len(headers))], size=(3, 1),
-                            readonly=True, key='x_fit_index',
-                            default_value=default_inputs['x_fit_index'])],
+             sg.Combo(list(range(len(headers))), size=(3, 1), readonly=True,
+                      key='x_fit_index', default_value=default_inputs['x_fit_index'])],
             [sg.Text('Column of y data for fitting:'),
-             sg.InputCombo([j for j in range(len(headers))], size=(3, 1),
-                           readonly=True, key='y_fit_index',
-                           default_value=default_inputs['y_fit_index'])],
+             sg.Combo(list(range(len(headers))), size=(3, 1), readonly=True,
+                      key='y_fit_index', default_value=default_inputs['y_fit_index'])],
             [sg.Text('x data label:'),
-             sg.Input(key='x_label', do_not_clear=True, size=(20, 1),
-                      default_text=default_inputs['x_label'])],
+             sg.Input(default_inputs['x_label'], key='x_label',
+                      do_not_clear=True, size=(20, 1))],
             [sg.Text('y data label:'),
-             sg.Input(key='y_label', do_not_clear=True, size=(20, 1),
-                      default_text=default_inputs['y_label'])],
+             sg.Input(default_inputs['y_label'], key='y_label',
+                      do_not_clear=True, size=(20, 1))],
             [sg.Text('Min and max values to use for fitting:')],
             [sg.Text('    x min:', size=(8, 1)),
              sg.Input(key='x_min', do_not_clear=True, size=(5, 1),
@@ -348,10 +355,8 @@ def fit_dataframe(dataframe, user_inputs=None):
             [sg.Text('Fitting Options', relief='ridge', size=(60, 1),
                      pad=(5, (20, 10)), justification='center')],
             [sg.Text('Default peak model:'),
-             sg.InputCombo(available_models,
-                           key='default_model', readonly=True,
-                           default_value=default_inputs['default_model'],
-                           enable_events=True)],
+             sg.Combo(available_models, key='default_model', readonly=True,
+                      default_value=default_inputs['default_model'], enable_events=True)],
             [sg.Checkbox('Vary gamma parameter', key='vary_Voigt',
                           disabled=disable_vary_Voigt,
                           default=default_inputs['vary_Voigt'],
@@ -367,20 +372,16 @@ def fit_dataframe(dataframe, user_inputs=None):
              sg.Input(key='max_sigma', do_not_clear=True, size=(5, 1),
                       default_text=default_inputs['max_sigma'])],
             [sg.Text('Minimization method:'),
-             sg.InputCombo(['least_squares','leastsq'], key='min_method',
-                           readonly=False,
-                           default_value=default_inputs['min_method'])],
-            [sg.Checkbox('Fit residuals', key='fit_residuals',
-                         enable_events=True,
+             sg.Combo(['least_squares','leastsq'], key='min_method', readonly=False,
+                      default_value=default_inputs['min_method'])],
+            [sg.Checkbox('Fit residuals', key='fit_residuals', enable_events=True,
                          default=default_inputs['fit_residuals'])],
             [sg.Text('Minimum residual height:'),
-             sg.Input(key='min_resid', do_not_clear=True, size=(5, 1),
-                      visible=False,
-                      default_text=default_inputs['min_resid'])],
+             sg.Input(default_inputs['min_resid'], key='min_resid',
+                      do_not_clear=True, size=(5, 1), visible=False)],
             [sg.Text('Number of residual fits:'),
-             sg.Input(key='num_resid_fits', do_not_clear=True, size=(5, 1),
-                      visible=False,
-                      default_text=default_inputs['num_resid_fits'])],
+             sg.Input(default_inputs['num_resid_fits'], key='num_resid_fits',
+                      do_not_clear=True, size=(5, 1), visible=False)],
             [sg.Text('')],
             [sg.Checkbox('Subtract background', key='subtract_bkg',
                          enable_events=True,
@@ -414,8 +415,7 @@ def fit_dataframe(dataframe, user_inputs=None):
             [sg.Checkbox('Show Plots After Fitting', key='show_plots',
                          default=default_inputs['show_plots'])],
             [sg.Checkbox('Batch Fit (will not show this window again)',
-                              key='batch_fit',
-                              default=default_inputs['batch_fit'])],
+                         key='batch_fit', default=default_inputs['batch_fit'])],
             [sg.Checkbox('Debug Fitting Process', key='debug',
                          default=default_inputs['debug'])],
             [sg.Text('')],
@@ -436,9 +436,9 @@ def fit_dataframe(dataframe, user_inputs=None):
             'floats': [
                 ['x_min', 'x min'],
                 ['x_max', 'x max'],
-                ['peak_width', 'peak width'],
                 ['bkg_x_min', 'background x min'],
                 ['bkg_x_max', 'background x max'],
+                ['peak_width', 'peak width'],
                 ['height', 'minimum height'],
                 ['prominence', 'prominence'],
                 ['center_offset', 'center offset'],
@@ -451,18 +451,26 @@ def fit_dataframe(dataframe, user_inputs=None):
                 ['default_model', 'default model'],
             ],
             'user_inputs': [
+                ['peak_list', 'peak x values', float, True],
                 ['sample_name', 'sample name', utils.string_to_unicode, False, None],
                 ['x_label', 'x label', utils.string_to_unicode, False, None],
                 ['y_label', 'y label', utils.string_to_unicode, False, None],
                 ['model_list', 'model list', str, True],
-                ['peak_list', 'peak x values', float, True]
             ]
         }
 
         plot_validations = {
+            'integers': validations['integers'][:2],
+            'floats': validations['floats'][:4] + validations['floats'][5:7],
+            'user_inputs': validations['user_inputs'][:1],
+        }
+        peak_selector_validations = {
             'integers': validations['integers'][:3],
             'floats': validations['floats'][:5],
             'strings': validations['strings'][:1],
+        }
+        bkg_selector_validations = {
+            'integers': validations['integers'][:2],
         }
 
         window = sg.Window('Peak Fitting', layout, finalize=True)
@@ -481,9 +489,9 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             elif event == 'Skip Fitting':
                 skip = sg.popup_yes_no(
-                        'Peak fitting will be skipped for this entry.\n\nProceed?\n',
-                        title='Skip Fitting'
-                    )
+                    'Peak fitting will be skipped for this entry.\n\nProceed?\n',
+                    title='Skip Fitting'
+                )
                 if skip == 'Yes':
                     window.close()
                     del window
@@ -495,7 +503,8 @@ def fit_dataframe(dataframe, user_inputs=None):
                 peak_list = []
 
             elif event == 'Test Plot':
-                _show_fit_plot(dataframe, values)
+                if utils.validate_inputs(values, **plot_validations):
+                    _show_fit_plot(dataframe, values)
 
             elif event == 'Show Data':
                 data_window = utils.show_dataframes(dataframe)
@@ -520,60 +529,51 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             elif event == 'bkg_selector':
                 plt.close('Background Selector')
-                try:
-                    x_index = int(values['x_fit_index'])
-                    y_index = int(values['y_fit_index'])
-                    x_data = dataframe[headers[x_index]].astype(float)
-                    y_data = dataframe[headers[y_index]].astype(float)
+                if utils.validate_inputs(values, **bkg_selector_validations):
+                    x_data = dataframe[headers[values['x_fit_index']]].astype(float)
+                    y_data = dataframe[headers[values['y_fit_index']]].astype(float)
                     bkg_points = peak_fitting.background_selector(x_data, y_data,
                                                                   bkg_points)
-                except Exception as e:
-                    sg.popup(f'\nError creating plot:\n    {repr(e)}\n')
 
             elif event == 'Launch Peak Selector':
                 plt.close('Peak Selector')
-                if utils.validate_inputs(values, **plot_validations):
+                if utils.validate_inputs(values, **peak_selector_validations):
                     try:
                         headers = dataframe.columns
-                        x_index = int(values['x_fit_index'])
-                        y_index = int(values['y_fit_index'])
-                        x_data = dataframe[headers[x_index]].astype(float)
-                        y_data = dataframe[headers[y_index]].astype(float)
-                        x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
-                        x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
-                        bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
-                        bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
+                        x_data = dataframe[headers[values['x_fit_index']]].astype(float)
+                        y_data = dataframe[headers[values['y_fit_index']]].astype(float)
+                        x_min = values['x_min']
+                        x_max = values['x_max']
+                        bkg_min = values['bkg_x_min']
+                        bkg_max = values['bkg_x_max']
                         subtract_bkg = values['subtract_bkg']
                         background_type = values['bkg_type']
-                        bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
-                        bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
-                        poly_n = int(values['poly_n'])
-                        peak_width = float(values['peak_width'])
+                        bkg_min = values['bkg_x_min']
+                        bkg_max = values['bkg_x_max']
+                        poly_n = values['poly_n']
+                        peak_width = values['peak_width']
                         default_model = values['default_model']
 
-                        if subtract_bkg:
-                            if values['manual_bkg']:
-                                subtract_bkg = False
-                                y_subtracted = y_data.copy()
-                                if len(bkg_points) > 1:
-                                    points = sorted(bkg_points, key=lambda x: x[0])
+                        if subtract_bkg and values['manual_bkg']:
+                            subtract_bkg = False
+                            y_subtracted = y_data.copy()
+                            if len(bkg_points) > 1:
+                                points = sorted(bkg_points, key=lambda x: x[0])
 
-                                    for i in range(len(points)-1):
-                                        x_points, y_points = zip(*points[i:i+2])
-                                        coeffs = np.polyfit(x_points, y_points, 1)
-                                        boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                                        x_line = x_data[boundary]
-                                        y_line = y_data[boundary]
-                                        line = np.polyval(coeffs, x_line)
-                                        y_subtracted[boundary] = y_line - line
-                                y_data = y_subtracted
+                                for i in range(len(points) - 1):
+                                    x_points, y_points = zip(*points[i:i + 2])
+                                    coeffs = np.polyfit(x_points, y_points, 1)
+                                    boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
+                                    x_line = x_data[boundary]
+                                    y_line = y_data[boundary]
+                                    y_subtracted[boundary] = y_line - np.polyval(coeffs, x_line)
+                            y_data = y_subtracted
 
                         domain_mask = (x_data > x_min) & (x_data < x_max)
-                        x_input = x_data[domain_mask]
-                        y_input = y_data[domain_mask]
                         peak_list = peak_fitting.peak_selector(
-                            x_input, y_input, peak_list, peak_width, subtract_bkg,
-                            background_type, poly_n, bkg_min, bkg_max, default_model
+                            x_data[domain_mask], y_data[domain_mask], peak_list,
+                            peak_width, subtract_bkg, background_type, poly_n,
+                            bkg_min, bkg_max, default_model
                         )
                     except Exception as e:
                         sg.popup(f'Error creating plot:\n    {repr(e)}')
@@ -625,7 +625,7 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             elif event in ('model_list', 'default_model'):
                 tmp_model_list = [
-                    entry for entry in values['model_list'].replace(' ', '').split(',') if entry
+                    entry.strip() for entry in values['model_list'].split(',') if entry
                 ]
                 if (any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list)
                         or values['default_model'] in ('VoigtModel', 'SkewedVoigtModel')):
@@ -651,10 +651,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     continue
 
                 if close:
-                    model_list = [entry for entry in
-                                  values['model_list'].replace(' ', '').split(',')
-                                  if entry != '']
-                    for entry in model_list:
+                    for entry in values['model_list']:
                         if entry not in available_models:
                             close = False
                             sg.popup(f'Need to correct the term "{entry}" in the model list',
@@ -665,27 +662,7 @@ def fit_dataframe(dataframe, user_inputs=None):
 
                 if close:
                     if not values['manual_peaks']:
-
-                        x_index = int(values['x_fit_index'])
-                        y_index = int(values['y_fit_index'])
-                        x_data = dataframe[headers[x_index]]
-                        y_data = dataframe[headers[y_index]]
-                        x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
-                        x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
-                        height = float(values['height'])
-                        prominence = float(values['prominence']) if values['prominence'] != 'inf' else np.inf
-                        if x_min == -np.inf:
-                            x_min = min(x_data)
-                        if x_max == np.inf:
-                            x_max = max(x_data)
-                        additional_peaks = [float(entry) for entry in
-                                            values['peak_list'].replace(' ', '').split(',') if entry != '']
-
-                        peaks = peak_fitting.find_peak_centers(
-                            x_data, y_data, additional_peaks,
-                            height, prominence, x_min, x_max
-                        )
-                        if not peaks[1]:
+                        if not _find_peaks(dataframe, values):
                             sg.popup(
                                 ('No peaks found in fitting range. Either manually enter \n'
                                  'peak positions or change peak finding options'),
@@ -706,27 +683,25 @@ def fit_dataframe(dataframe, user_inputs=None):
 
         plt.close('Fitting')
 
-    x_label = utils.string_to_unicode(values['x_label'])
-    y_label = utils.string_to_unicode(values['y_label'])
-    x_index = int(values['x_fit_index'])
-    y_index = int(values['y_fit_index'])
-    x_data = dataframe[headers[x_index]]
-    y_data = dataframe[headers[y_index]]
-    x_min = float(values['x_min']) if values['x_min'] != '-inf' else -np.inf
-    x_max = float(values['x_max']) if values['x_max'] != 'inf' else np.inf
+    x_label = values['x_label']
+    y_label = values['y_label']
+    x_data = dataframe[headers[values['x_fit_index']]]
+    y_data = dataframe[headers[values['y_fit_index']]]
+    x_min = values['x_min']
+    x_max = values['x_max']
     default_model = values['default_model']
     vary_Voigt = values['vary_Voigt']
-    center_offset = float(values['center_offset'])
+    center_offset = values['center_offset']
     min_method = values['min_method']
     subtract_bkg = values['subtract_bkg']
     background_type = values['bkg_type']
-    bkg_min = float(values['bkg_x_min']) if values['bkg_x_min'] != '-inf' else -np.inf
-    bkg_max = float(values['bkg_x_max']) if values['bkg_x_max'] != 'inf' else np.inf
-    max_sigma = float(values['max_sigma']) if values['max_sigma'] != 'inf' else np.inf
-    poly_n = int(values['poly_n'])
+    bkg_min = values['bkg_x_min']
+    bkg_max = values['bkg_x_max']
+    max_sigma = values['max_sigma']
+    poly_n = values['poly_n']
     fit_residuals = values['fit_residuals']
-    min_resid = float(values['min_resid'])
-    num_resid_fits = int(values['num_resid_fits'])
+    min_resid = values['min_resid']
+    num_resid_fits = values['num_resid_fits']
     debug = values['debug']
 
     if values['manual_peaks']:
@@ -741,17 +716,13 @@ def fit_dataframe(dataframe, user_inputs=None):
         prominence = np.inf
 
     else:
-        additional_peaks = [
-            float(entry) for entry in values['peak_list'].replace(' ', '').split(',') if entry
-        ]
-        model_list = [
-            entry for entry in values['model_list'].replace(' ', '').split(',') if entry
-        ]
-        peak_width = float(values['peak_width'])
+        additional_peaks = values['peak_list']
+        model_list = values['model_list']
+        peak_width = values['peak_width']
         peak_heights = None
         values['selected_peaks'] = []
-        height = float(values['height'])
-        prominence = float(values['prominence']) if values['prominence'] != 'inf' else np.inf
+        height = values['height']
+        prominence = values['prominence']
 
     if subtract_bkg:
         if not values['manual_bkg']:
@@ -768,12 +739,11 @@ def fit_dataframe(dataframe, user_inputs=None):
                     boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
                     x_line = x_data[boundary]
                     y_line = y_data[boundary]
-                    line = np.polyval(coeffs, x_line)
-                    y_subtracted[boundary] = y_line - line
+                    y_subtracted[boundary] = y_line - np.polyval(coeffs, x_line)
 
             y_data = y_subtracted
 
-    fitting_results = peak_fitting.plugNchug_fit(
+    fitting_results = peak_fitting.peak_fitting(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
         additional_peaks, model_list, background_type, poly_n, None, vary_Voigt,
@@ -792,23 +762,23 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     # Creation of dataframe for best values of all peak parameters
     vals = defaultdict(dict)
-    st_dev = defaultdict(dict)
+    std_err = defaultdict(dict)
     for term in best_values[-1]:
         if 'peak' in term[0]:
-            key = f'{term[0].split("_")[0]} {int(term[0].split("_")[1])+1}'
+            key = f'{term[0].split("_")[0]} {int(term[0].split("_")[1]) + 1}'
             param_key = '_'.join(term[0].split('_')[2:])
         else:
             key = term[0].split('_')[0]
             param_key = term[0].split('_')[-1]
         vals[key][param_key] = term[1]
-        st_dev[key][param_key] = term[2]
+        std_err[key][param_key] = term[2]
     vals_df = pd.DataFrame(vals).transpose()
-    st_dev_df = pd.DataFrame(st_dev).transpose()
+    std_err_df = pd.DataFrame(std_err).transpose()
 
     df_1 = pd.DataFrame()
     for name in vals_df.columns:
         df_1[f'{name}_val'] = vals_df[name]
-        df_1[f'{name}_sterr'] = st_dev_df[name]
+        df_1[f'{name}_sterr'] = std_err_df[name]
     df_1 = df_1.fillna('-')
 
     model_names = [component._name for component in fit_result[-1].components]
@@ -830,7 +800,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     bkg = individual_peaks[-1]['background_'] if subtract_bkg else 0
     for term in individual_peaks[-1]:
         if 'peak' in term:
-            key = f'{term.split("_")[0]} {int(term.split("_")[1])+1} {bkg_term}'
+            key = f'{term.split("_")[0]} {int(term.split("_")[1]) + 1} {bkg_term}'
             peaks_df[key] = individual_peaks[-1][term] + bkg
         else:
             key = term.split('_')[0]
@@ -892,12 +862,6 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         the background if it is present.
 
     """
-
-    from openpyxl.utils.cell import get_column_letter
-    from openpyxl.utils.dataframe import dataframe_to_rows
-
-    if plot_excel:
-        from openpyxl.chart import Reference, Series, ScatterChart
 
     # Ensures that the sheet name is unique so it does not overwrite data;
     # not needed for openpyxl, but just a precaution
@@ -968,7 +932,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         cell = worksheet.cell(row=3, column=i, value=peak_name)
         cell.style = 'fitting_subheader_' + next(suffix)
 
-    rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
+    rows = _dataframe_to_rows(peaks_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
@@ -1022,9 +986,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
     for column in range(1, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2):
-        worksheet.column_dimensions[get_column_letter(column)].width = 12.5
+        worksheet.column_dimensions[_get_column_letter(column)].width = 12.5
     for column in range(len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2, total_width + 2):
-        worksheet.column_dimensions[get_column_letter(column)].width = 20
+        worksheet.column_dimensions[_get_column_letter(column)].width = 20
 
     if plot_excel:
         axis_attributes = {
