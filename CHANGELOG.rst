@@ -3,7 +3,7 @@ Changelog
 =========
 
 
-0.3.0 (2020-11-06)
+0.3.0 (2020-11-08)
 ------------------
 
 This is a minor version with new features, bug fixes, and documentation improvements.
