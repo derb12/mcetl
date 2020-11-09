@@ -530,6 +530,8 @@ def raw_data_import(window_values, file, show_popup=True):
 
     """
 
+    excel_formats = ('.xls', '.xlsx', '.xlsm')
+
     try:
         row_start = window_values['row_start']
         row_end = window_values['row_end']
@@ -542,7 +544,7 @@ def raw_data_import(window_values, file, show_popup=True):
         #if separator is not None: #TODO check whether this is needed since tkinter gives a raw string from the input; regex should work automatically
         #    separator = string_to_unicode(separator)
 
-        if file.endswith('.xlsx'):
+        if Path(file).suffix in excel_formats:
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1
             columns = list(range(first_col, last_col))
@@ -626,6 +628,8 @@ def select_file_gui(data_source=None, file=None):
 
     """
 
+    excel_formats = ('.xls', '.xlsx', '.xlsm')
+
     # Default values for if there is no file specified
     default_inputs = {
         'row_start': 0 if data_source is None else data_source.start_row,
@@ -666,7 +670,7 @@ def select_file_gui(data_source=None, file=None):
     if file is not None:
         disable_bottom = False
 
-        if not file.endswith('.xlsx'):
+        if not Path(file).suffix in excel_formats:
             disable_other = False
         else:
             disable_excel = False
@@ -753,9 +757,11 @@ def select_file_gui(data_source=None, file=None):
                           disabled=True, size=(28, 1), pad=(5, (10, 5))),
              sg.FileBrowse(key='file_browse', target='file', pad=(5, (10, 5)),
                            file_types=(("All Files", "*.*"),
-                                       ("Excel Workbook", "*.xlsx"),
                                        ("CSV", "*.csv"),
-                                       ("Text Files", "*.txt")))]
+                                       ("Text Files", "*.txt"),
+                                       ("Excel Workbook", "*.xlsx"),
+                                       ("Excel 97-2003 Workbook", "*.xls"),
+                                       ("Excel Macro-Enabled Workbook", "*.xlsm"),))]
         )
     if data_source is not None:
         for variable in data_source.unique_variables:
@@ -784,7 +790,7 @@ def select_file_gui(data_source=None, file=None):
             if values['file'] == 'Choose a file':
                 continue
 
-            elif values['file'].endswith('xlsx'):
+            elif Path(values['file']).suffix in excel_formats:
                 dataframes = pd.read_excel(values['file'], None, None,
                                            convert_float=False)
                 sheet_names = list(dataframes.keys())
@@ -895,6 +901,7 @@ def select_file_gui(data_source=None, file=None):
                     _assign_indices(window, update_text,
                                     default_inputs['variable_indices'])
             except ValueError:
+                window['repeat_unit'].update('')
                 sg.popup('Please enter an integer in "number of columns per dataset"',
                          title='Error')
 
@@ -941,7 +948,7 @@ def _assign_indices(window, columns, variables):
     Parameters
     ----------
     window : sg.Window
-        The PySimpleGUI window update.
+        The PySimpleGUI window to update.
     columns : list or tuple
         A list or tuple of column numbers.
     variables : dict
