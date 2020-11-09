@@ -2593,19 +2593,19 @@ def _add_remove_annotations(axis, add_annotation):
     if add_annotation:
         if values['radio_text']:
             axis.annotate(
-                utils.string_to_unicode(values['text']),
-                xy=(float(values['x']), float(values['y'])),
-                fontsize=float(values['fontsize']), rotation=float(values['rotation']),
-                color=values['text_color_'], annotation_clip=False, in_layout=False
+                values['text'],
+                xy=(values['x'], values['y']), fontsize=values['fontsize'],
+                rotation=values['rotation'], color=values['text_color_'],
+                annotation_clip=False, in_layout=False
             )
         else:
             axis.annotate(
-                '', xy=(float(values['head_x']), float(values['head_y'])),
-                xytext=(float(values['tail_x']), float(values['tail_y'])),
+                '', xy=(values['head_x'], values['head_y']),
+                xytext=(values['tail_x'], values['tail_y']),
                 annotation_clip=False, in_layout=False,
                 arrowprops={
-                    'linewidth': float(values['linewidth']),
-                    'mutation_scale': 10 * float(values['head_scale']), # *10 b/c the connectionpatch defaults to 10 rather than 1
+                    'linewidth': values['linewidth'],
+                    'mutation_scale': 10 * values['head_scale'], # *10 b/c the connectionpatch defaults to 10 rather than 1
                     'arrowstyle': values['arrow_style'],
                     'color': values['arrow_color_'],
                     'linestyle': LINE_MAPPING[values['linestyle']]}
@@ -2613,27 +2613,25 @@ def _add_remove_annotations(axis, add_annotation):
 
     elif add_annotation is None:
         for i, annotation in enumerate(annotations['text']):
-            annotation.update(
-                dict(
-                    text=utils.string_to_unicode(values[f'text_{i}']),
-                    color=values[f'text_color_{i}'],
-                    position=(float(values[f'x_{i}']), float(values[f'y_{i}'])),
-                    fontsize=float(values[f'fontsize_{i}']), in_layout=False,
-                    rotation=float(values[f'rotation_{i}']), annotation_clip=False
-                )
-            )
+            annotation.update({
+                'text': values[f'text_{i}'],
+                'color': values[f'text_color_{i}'],
+                'position': (values[f'x_{i}'], values[f'y_{i}']),
+                'fontsize': values[f'fontsize_{i}'],
+                'rotation': values[f'rotation_{i}'],
+                'in_layout': False, 'annotation_clip': False
+            })
 
         for i, annotation in enumerate(annotations['arrows']):
             # not able to move arrow head location, so have to create new annotations
             axis.texts[axis.texts.index(annotation)].remove()
-
             axis.annotate(
-                '', xy=(float(values[f'head_x_{i}']), float(values[f'head_y_{i}'])),
-                xytext=(float(values[f'tail_x_{i}']), float(values[f'tail_y_{i}'])),
+                '', xy=(values[f'head_x_{i}'], values[f'head_y_{i}']),
+                xytext=(values[f'tail_x_{i}'], values[f'tail_y_{i}']),
                 annotation_clip=False, in_layout=False,
                 arrowprops={
-                    'linewidth': float(values[f'linewidth_{i}']),
-                    'mutation_scale': 10 * float(values[f'head_scale_{i}']),
+                    'linewidth': values[f'linewidth_{i}'],
+                    'mutation_scale': 10 * values[f'head_scale_{i}'],
                     'arrowstyle': values[f'arrow_style_{i}'],
                     'color': values[f'arrow_color_{i}'],
                     'linestyle': LINE_MAPPING[values[f'linestyle_{i}']]}
@@ -2933,7 +2931,7 @@ def _add_remove_peaks(axis, add_peak):
                     close = utils.validate_inputs(values, **validations['line'])
 
                 if close:
-                    if utils.string_to_unicode(values['label']) in peaks:
+                    if values['label'] in peaks:
                         close = False
                         sg.popup(
                             'The selected peak label is already a peak.\n',
@@ -2973,7 +2971,7 @@ def _add_remove_peaks(axis, add_peak):
 
     if add_peak:
         # main designates defining axis, secondary designates non-defining axis
-        positions = [float(value.strip()) for value in values['positions'].split(',')]
+        positions = values['positions']
         secondary_limits = getattr(
             axis, f'get_{"xy".replace(values["defining_axis"], "")}lim')()
         offset = 0.05 * (secondary_limits[1] - secondary_limits[0])
@@ -3003,14 +3001,14 @@ def _add_remove_peaks(axis, add_peak):
         for data in zip(plot_data['x'], plot_data['y']):
             axis.plot(
                 *data,
-                label='-PEAK-' + utils.string_to_unicode(values['label']),
-                marker=utils.string_to_unicode(values['marker_style'].split(' ')[0]) if values['radio_marker'] else 'None',
-                markersize=float(values['marker_size']) if values['radio_marker'] else None,
+                label='-PEAK-' + values['label'],
+                marker=values['marker_style'].split(' ')[0] if values['radio_marker'] else 'None',
+                markersize=values['marker_size'] if values['radio_marker'] else None,
                 markerfacecolor=values['face_color_'] if values['radio_marker'] else 'None',
                 markeredgecolor=values['edge_color_'] if values['radio_marker'] else 'None',
-                markeredgewidth=float(values[f'edge_width']) if values['radio_marker'] else None,
+                markeredgewidth=values[f'edge_width'] if values['radio_marker'] else None,
                 color=values['line_color_'] if values['radio_line'] else 'None',
-                linewidth=float(values['line_size']) if values['radio_line'] else None,
+                linewidth=values['line_size'] if values['radio_line'] else None,
                 linestyle=LINE_MAPPING[values['line_style']] if values['radio_line'] else ''
             )
 
@@ -3020,7 +3018,7 @@ def _add_remove_peaks(axis, add_peak):
                     data[1][-1] + offset if values['defining_axis'] == 'x' else data[1][-1]
                 )
                 axis.annotate(
-                    utils.string_to_unicode(values['label']),
+                    values['label'],
                     xy=annotation_position,
                     rotation=90 if values['defining_axis'] == 'x' else 0,
                     horizontalalignment='center' if values['defining_axis'] == 'x' else 'left',
@@ -3032,9 +3030,7 @@ def _add_remove_peaks(axis, add_peak):
     elif add_peak is None:
         for i, key in enumerate(peaks):
             for annotation in peaks[key]['annotations']:
-                annotation.update({
-                    'text': utils.string_to_unicode(values[f'label_{i}']),
-                })
+                annotation.update({'text': values[f'label_{i}']})
 
             deleted_peaks = []
             for j, line in enumerate(peaks[key]['peaks']):
@@ -3042,16 +3038,16 @@ def _add_remove_peaks(axis, add_peak):
                     deleted_peaks.append(line)
                 else:
                     line.update({
-                        'xdata': [float(values[entry]) for entry in values if entry.startswith(f'x_{i}_{j}_')],
-                        'ydata': [float(values[entry]) for entry in values if entry.startswith(f'y_{i}_{j}_')],
-                        'label': '-PEAK-' + utils.string_to_unicode(values[f'label_{i}']),
-                        'marker': utils.string_to_unicode(values.get(f'marker_style_{i}', 'None').split(' ')[0]),
+                        'xdata': [values[entry] for entry in values if entry.startswith(f'x_{i}_{j}_')],
+                        'ydata': [values[entry] for entry in values if entry.startswith(f'y_{i}_{j}_')],
+                        'label': '-PEAK-' + values[f'label_{i}'],
+                        'marker': values.get(f'marker_style_{i}', 'None').split(' ')[0],
                         'markerfacecolor': values.get(f'face_color_{i}', 'None'),
                         'markeredgecolor': values.get(f'edge_color_{i}', 'None'),
-                        'markeredgewidth': float(values.get(f'edge_width_{i}', 0)),
-                        'markersize': float(values.get(f'marker_size_{i}', 0)),
+                        'markeredgewidth': values.get(f'edge_width_{i}', 0),
+                        'markersize': values.get(f'marker_size_{i}', 0),
                         'linestyle': LINE_MAPPING[values.get(f'line_style_{i}', 'None')],
-                        'linewidth': float(values.get(f'line_size_{i}', 0)),
+                        'linewidth': values.get(f'line_size_{i}', 0),
                         'color': values.get(f'line_color_{i}', 'None'),
                     })
 
