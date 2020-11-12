@@ -21,7 +21,164 @@ import pandas as pd
 import PySimpleGUI as sg
 
 from . import peak_fitting
+from . import plotting_utils
 from . import utils
+
+
+class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
+    """
+    A window containing just an embedded figure and a close button.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        The dataframe that contains the x and y data.
+    gui_values : dict
+        A dictionary of values needed for plotting.
+
+    """
+
+    def __init__(self, dataframe, gui_values):
+
+        headers = dataframe.columns
+        x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
+        y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
+
+        super().__init__(x_data, y_data)
+        self.enable_events = False
+
+        x_min = max(gui_values['x_min'], min(x_data))
+        x_max = min(gui_values['x_max'], max(x_data))
+        bkg_min = max(gui_values['bkg_x_min'], x_min)
+        bkg_max = min(gui_values['bkg_x_max'], x_max)
+
+        x_mid = (x_max + x_min) / 2
+        bkg_mid = (bkg_max + bkg_min) / 2
+        additional_peaks = np.array(gui_values['peak_list'])
+        additional_peaks = additional_peaks[(additional_peaks > x_min)
+                                            & (additional_peaks < x_max)]
+        plt.close('Fitting')
+        self.figure, self.axis = plt.subplots(
+            num='Fitting', tight_layout=True, dpi=plotting_utils.determine_dpi()
+        )
+        self.axis.plot(x_data, y_data)
+        ax_y = self.axis.get_ylim()
+        y_diff = ax_y[1] - ax_y[0]
+
+        peaks = _find_peaks(dataframe, gui_values)
+        other_peaks = False
+        for peak in peaks:
+            if peak not in additional_peaks:
+                other_peaks = True
+                found_peaks = self.axis.vlines(
+                    peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                    color='green', linestyle='-.', lw=2
+                )
+        for peak in additional_peaks:
+            user_peaks = self.axis.vlines(
+                peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                color='blue', linestyle=':', lw=2
+                )
+        self.axis.annotate(
+            '', (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+            annotation_clip=False,
+        )
+        self.axis.annotate(
+            '', (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
+            annotation_clip=False,
+        )
+        self.axis.annotate(
+            'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
+        )
+        self.axis.vlines(
+            x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            color='black', linestyle='-', lw=2
+        )
+        self.axis.vlines(
+            x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            color='black', linestyle='-', lw=2
+        )
+
+        if gui_values['subtract_bkg']:
+            self.axis.annotate(
+                '', (bkg_max, ax_y[0] - (0.01 * y_diff)),
+                (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
+                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
+            )
+            self.axis.annotate(
+                '', (bkg_min, ax_y[0] - (0.01 * y_diff)),
+                (bkg_mid, ax_y[0] - (0.01 * y_diff)),
+                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
+                annotation_clip=False
+            )
+            self.axis.annotate(
+                'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
+                color='red', ha='center'
+            )
+            self.axis.vlines(
+                bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                color='red',linestyle='--', lw=2
+            )
+            self.axis.vlines(
+                bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                color='red', linestyle='--', lw=2
+            )
+
+        self.axis.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
+
+        peak_list = []
+        if additional_peaks.size > 0 and other_peaks:
+            peak_list = [found_peaks, user_peaks]
+            label_list = ['Found peaks', 'User input peaks']
+        elif additional_peaks.size > 0:
+            peak_list = [user_peaks]
+            label_list = ['User input peaks']
+        elif peaks:
+            peak_list = [found_peaks]
+            label_list = ['Found peaks']
+
+        if peak_list:
+            self.axis.legend(
+                peak_list, label_list, frameon=False, ncol=2,
+                bbox_to_anchor=(0.0, 1.01, 1, 1.01), loc='lower left',
+                borderaxespad=0, mode='expand'
+            )
+
+        self._create_window()
+        self._place_figure_on_canvas()
+
+
+    def _create_window(self):
+        """Creates the GUI."""
+
+        size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
+                                        size=(size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
+
+        layout = [
+            [self.canvas],
+            [self.toolbar_canvas],
+            [sg.Button('Back', key='close', button_color=utils.PROCEED_COLOR)]
+        ]
+
+        self.window = sg.Window('Preview', layout, finalize=True)
+
+
+    def event_loop(self):
+        """
+        Handles the event loop for the GUI.
+
+        The GUI will close as soon as an event is triggered.
+
+        """
+
+        self.window.read(close=True)
+        self.window = None
+        plt.close(self.figure)
+        self.figure = None
 
 
 def _find_peaks(dataframe, gui_values):
@@ -60,125 +217,6 @@ def _find_peaks(dataframe, gui_values):
     )[-1]
 
     return found_peaks
-
-
-def _show_fit_plot(dataframe, gui_values):
-    """
-    Shows a plot of data with the fit range, background range, and possible peaks marked.
-
-    Parameters
-    ----------
-    dataframe : pd.DataFrame
-        The dataframe that contains the x and y data.
-    gui_values : dict
-        A dictionary of values needed for plotting.
-
-    """
-
-    headers = dataframe.columns
-    x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
-    y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
-
-    x_min = max(gui_values['x_min'], min(x_data))
-    x_max = min(gui_values['x_max'], max(x_data))
-    bkg_min = max(gui_values['bkg_x_min'], x_min)
-    bkg_max = min(gui_values['bkg_x_max'], x_max)
-
-    x_mid = (x_max + x_min) / 2
-    bkg_mid = (bkg_max + bkg_min) / 2
-    additional_peaks = np.array(gui_values['peak_list'])
-    additional_peaks = additional_peaks[(additional_peaks > x_min)
-                                        & (additional_peaks < x_max)]
-
-    peaks = _find_peaks(dataframe, gui_values)
-
-    plt.close('Fitting')
-    fig, ax = plt.subplots(num='Fitting')
-    ax.plot(x_data, y_data)
-    ax_y = ax.get_ylim()
-    y_diff = ax_y[1] - ax_y[0]
-
-    other_peaks = False
-    for peak in peaks:
-        if peak not in additional_peaks:
-            other_peaks = True
-            found_peaks = ax.vlines(
-                peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-                color='green', linestyle='-.', lw=2
-            )
-    for peak in additional_peaks:
-        user_peaks = ax.vlines(
-            peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-            color='blue', linestyle=':', lw=2
-            )
-    ax.annotate(
-        '', (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
-        arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-        annotation_clip=False,
-    )
-    ax.annotate(
-        '', (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
-        arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
-        annotation_clip=False,
-    )
-    ax.annotate(
-        'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
-    )
-    ax.vlines(
-        x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-        color='black', linestyle='-', lw=2
-    )
-    ax.vlines(
-        x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-        color='black', linestyle='-', lw=2
-    )
-
-    if gui_values['subtract_bkg']:
-        ax.annotate(
-            '', (bkg_max, ax_y[0] - (0.01 * y_diff)),
-            (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
-            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
-        )
-        ax.annotate(
-            '', (bkg_min, ax_y[0] - (0.01 * y_diff)),
-            (bkg_mid, ax_y[0] - (0.01 * y_diff)),
-            arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
-            annotation_clip=False
-        )
-        ax.annotate(
-            'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
-            color='red', ha='center'
-        )
-        ax.vlines(
-            bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-            color='red',linestyle='--', lw=2
-        )
-        ax.vlines(
-            bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
-            color='red', linestyle='--', lw=2
-        )
-
-    ax.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
-
-    peak_list = []
-    if additional_peaks.size > 0 and other_peaks:
-        peak_list = [found_peaks, user_peaks]
-        label_list = ['Found peaks', 'User input peaks']
-    elif additional_peaks.size > 0:
-        peak_list = [user_peaks]
-        label_list = ['User input peaks']
-    elif peaks:
-        peak_list = [found_peaks]
-        label_list = ['Found peaks']
-
-    if peak_list:
-        ax.legend(
-            peak_list, label_list, frameon=False, ncol=2,
-            bbox_to_anchor=(0.0, 1.01, 1, 1.01), loc='lower left',
-            borderaxespad=0, mode='expand'
-        )
-
-    fig.show()
 
 
 #TODO split this up into several functions?
@@ -295,9 +333,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                         visible=default_inputs['automatic_peaks']),
                  sg.Tab('Options', [
                      [sg.Text('')],
-                     [sg.Button('Launch Peak Selector', enable_events=True, size=(30, 5)),
-                      sg.Button('Update Peak & Model Lists', enable_events=True,
-                                size=(30, 5))]
+                     [sg.Button('Launch Peak Selector', enable_events=True, size=(30, 5))]
                  ], key='manual_tab', visible=default_inputs['manual_peaks'])]
             ], key='tab'
         )
@@ -502,9 +538,11 @@ def fit_dataframe(dataframe, user_inputs=None):
                 plt.close('Peak Selector')
                 peak_list = []
 
-            elif event == 'Test Plot':
-                if utils.validate_inputs(values, **plot_validations):
-                    _show_fit_plot(dataframe, values)
+            elif (event == 'Test Plot'
+                    and utils.validate_inputs(values, **plot_validations)):
+                window.hide()
+                SimpleEmbeddedFigure(dataframe, values).event_loop()
+                window.un_hide()
 
             elif event == 'Show Data':
                 data_window = utils.show_dataframes(dataframe)
@@ -513,70 +551,74 @@ def fit_dataframe(dataframe, user_inputs=None):
                     data_window.read(close=True)
                     data_window = None
 
-            elif event == 'Update Peak & Model Lists':
-                # updates values in the window from the peak selector plot
-                centers = [[peak[0][0], np.round(peak[1][0], 2)] for peak in peak_list]
-                sorted_peaks = sorted(centers, key=lambda x: x[1])
-                sorted_centers = ', '.join([str(center) for model, center in sorted_peaks])
-                tmp_model_list = [model for model, center in sorted_peaks]
-                model_list = ', '.join(tmp_model_list)
-                window['peak_list'].update(value=sorted_centers)
-                window['model_list'].update(value=model_list)
-                if any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list):
-                    window['vary_Voigt'].update(disabled=False)
-                elif values['default_model'] not in ('VoigtModel', 'SkewedVoigtModel'):
-                    window['vary_Voigt'].update(disabled=True, value=False)
+            elif (event == 'bkg_selector'
+                    and utils.validate_inputs(values, **bkg_selector_validations)):
+                window.hide()
 
-            elif event == 'bkg_selector':
-                plt.close('Background Selector')
-                if utils.validate_inputs(values, **bkg_selector_validations):
-                    x_data = dataframe[headers[values['x_fit_index']]].astype(float)
-                    y_data = dataframe[headers[values['y_fit_index']]].astype(float)
-                    bkg_points = peak_fitting.background_selector(x_data, y_data,
-                                                                  bkg_points)
+                x_data = dataframe[headers[values['x_fit_index']]].astype(float)
+                y_data = dataframe[headers[values['y_fit_index']]].astype(float)
+                bkg_points = peak_fitting.BackgroundSelector(
+                    x_data, y_data, bkg_points).event_loop()
 
-            elif event == 'Launch Peak Selector':
-                plt.close('Peak Selector')
-                if utils.validate_inputs(values, **peak_selector_validations):
-                    try:
-                        headers = dataframe.columns
-                        x_data = dataframe[headers[values['x_fit_index']]].astype(float)
-                        y_data = dataframe[headers[values['y_fit_index']]].astype(float)
-                        x_min = values['x_min']
-                        x_max = values['x_max']
-                        bkg_min = values['bkg_x_min']
-                        bkg_max = values['bkg_x_max']
-                        subtract_bkg = values['subtract_bkg']
-                        background_type = values['bkg_type']
-                        bkg_min = values['bkg_x_min']
-                        bkg_max = values['bkg_x_max']
-                        poly_n = values['poly_n']
-                        peak_width = values['peak_width']
-                        default_model = values['default_model']
+                window.un_hide()
 
-                        if subtract_bkg and values['manual_bkg']:
-                            subtract_bkg = False
-                            y_subtracted = y_data.copy()
-                            if len(bkg_points) > 1:
-                                points = sorted(bkg_points, key=lambda x: x[0])
+            elif (event == 'Launch Peak Selector'
+                    and utils.validate_inputs(values, **peak_selector_validations)):
+                window.hide()
 
-                                for i in range(len(points) - 1):
-                                    x_points, y_points = zip(*points[i:i + 2])
-                                    coeffs = np.polyfit(x_points, y_points, 1)
-                                    boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                                    x_line = x_data[boundary]
-                                    y_line = y_data[boundary]
-                                    y_subtracted[boundary] = y_line - np.polyval(coeffs, x_line)
-                            y_data = y_subtracted
+                headers = dataframe.columns
+                x_data = dataframe[headers[values['x_fit_index']]].astype(float)
+                y_data = dataframe[headers[values['y_fit_index']]].astype(float)
+                x_min = values['x_min']
+                x_max = values['x_max']
+                bkg_min = values['bkg_x_min']
+                bkg_max = values['bkg_x_max']
+                subtract_bkg = values['subtract_bkg']
+                background_type = values['bkg_type']
+                bkg_min = values['bkg_x_min']
+                bkg_max = values['bkg_x_max']
+                poly_n = values['poly_n']
+                peak_width = values['peak_width']
+                default_model = values['default_model']
 
-                        domain_mask = (x_data > x_min) & (x_data < x_max)
-                        peak_list = peak_fitting.peak_selector(
-                            x_data[domain_mask], y_data[domain_mask], peak_list,
-                            peak_width, subtract_bkg, background_type, poly_n,
-                            bkg_min, bkg_max, default_model
-                        )
-                    except Exception as e:
-                        sg.popup(f'Error creating plot:\n    {repr(e)}')
+                if subtract_bkg and values['manual_bkg']:
+                    subtract_bkg = False
+                    y_subtracted = y_data.copy()
+                    if len(bkg_points) > 1:
+                        points = sorted(bkg_points, key=lambda x: x[0])
+
+                        for i in range(len(points) - 1):
+                            x_points, y_points = zip(*points[i:i + 2])
+                            boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
+                            y_line = y_data[boundary]
+                            y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
+
+                    y_data = y_subtracted
+
+                domain_mask = (x_data > x_min) & (x_data < x_max)
+                try:
+                    peak_list = peak_fitting.PeakSelector(
+                        x_data[domain_mask], y_data[domain_mask], peak_list,
+                        peak_width, subtract_bkg, background_type, poly_n,
+                        bkg_min, bkg_max, default_model
+                    ).event_loop()
+                except Exception as e:
+                    sg.popup(f'Error creating plot:\n    {repr(e)}')
+                else:
+                    # updates values in the window from the peak selector plot
+                    centers = [[peak[0][0], np.round(peak[1][0], 2)] for peak in peak_list]
+                    sorted_peaks = sorted(centers, key=lambda x: x[1])
+                    sorted_centers = ', '.join([str(center) for model, center in sorted_peaks])
+                    tmp_model_list = [model for model, center in sorted_peaks]
+                    model_list = ', '.join(tmp_model_list)
+                    window['peak_list'].update(value=sorted_centers)
+                    window['model_list'].update(value=model_list)
+                    if any(model in ('VoigtModel', 'SkewedVoigtModel') for model in tmp_model_list):
+                        window['vary_Voigt'].update(disabled=False)
+                    elif values['default_model'] not in ('VoigtModel', 'SkewedVoigtModel'):
+                        window['vary_Voigt'].update(disabled=True, value=False)
+
+                window.un_hide()
 
             elif event in ('automatic_peaks', 'manual_peaks'):
                 if event == 'automatic_peaks':
@@ -1062,12 +1104,11 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     rc_params = mpl_changes.copy() if mpl_changes is not None else {}
     # Correctly scales the dpi to match the desired dpi.
     dpi = rc_params.get('figure.dpi', plt.rcParams['figure.dpi'])
-    dpi_scale = utils.get_dpi_correction(dpi)
     rc_params.update({
         'interactive': False,
         'figure.constrained_layout.use': False,
         'figure.autolayout': True,
-        'figure.dpi': dpi_scale * dpi
+        'figure.dpi': dpi * plotting_utils.get_dpi_correction(dpi)
     })
 
     if dataframe is not None:

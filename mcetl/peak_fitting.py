@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Functions for creating and fitting a model with peaks and a background and plotting the results
+"""Functions for creating and fitting a model with peaks and a background and plotting the results.
+
+Also contains two classes that create windows to allow selection of peak positions and
+background points.
 
 @author: Donald Erb
 Created on Sep 14, 2019
@@ -11,11 +14,13 @@ from collections import defaultdict
 import itertools
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-from matplotlib.widgets import TextBox, RadioButtons
 import lmfit
 import numpy as np
+import PySimpleGUI as sg
 from scipy import signal
+
+from . import plotting_utils
+from . import utils
 
 
 def peak_transformer():
@@ -194,7 +199,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     """
 
     model_list = model_list if model_list is not None else []
-    peak_list = iter(model_list + [default_model] * (len(peak_centers)-len(model_list)))
+    peak_list = iter(model_list + [default_model] * (len(peak_centers) - len(model_list)))
     peak_widths = peak_width if isinstance(peak_width, (list, tuple)) else [peak_width] * len(peak_centers)
 
     y = y - background_y
@@ -227,7 +232,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
 
     models_dict = peak_transformer()
     for i, peak_center in enumerate(peak_centers):
-        prefix = f'peak_{i+j}_'
+        prefix = f'peak_{i + j}_'
         peak_width = peak_widths[i]
         peak_type = next(peak_list)
 
@@ -235,15 +240,15 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
 
             if use_middles:
-                peak_mask = (x>=middles[i]) & (x<=middles[i + 1])
+                peak_mask = (x >= middles[i]) & (x <= middles[i + 1])
             else:
-                peak_mask = (x>peak_center-(peak_width/2)) & (x<peak_center+(peak_width/2))
+                peak_mask = (x > peak_center - (peak_width / 2)) & (x < peak_center + (peak_width / 2))
 
             x_peak = x[peak_mask]
             y_peak = y[peak_mask]
 
             if peak_heights is None:
-                peak_height = y_peak[np.argmin(np.abs(peak_center-x_peak))] / 2
+                peak_height = y_peak[np.argmin(np.abs(peak_center - x_peak))] / 2
             else:
                 peak_height = peak_heights[i]
             negative_peak = peak_height < 0
@@ -258,8 +263,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             if peak_type != 'LognormalModel':
 
                 peak_model.set_param_hint('center', value=peak_center,
-                                          min=peak_center-center_offset,
-                                          max=peak_center+center_offset)
+                                          min=peak_center - center_offset,
+                                          max=peak_center + center_offset)
                 peak_model.set_param_hint('amplitude', min=min_area, max=max_area)
                 peak_model.set_param_hint('sigma', min=min_sigma, max=max_sigma)
 
@@ -274,9 +279,9 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 #directly estimates the parameters for lognormal model
                 #since lmfit's guess is not accurate for lognormal
                 xm2 = peak_center**2 # xm2 denotes x_mode squared
-                sigma = 0.85 * np.log((peak_width + peak_center * np.sqrt((4*xm2 + peak_width**2) / (xm2))) / (2 * peak_center))
+                sigma = 0.85 * np.log((peak_width + peak_center * np.sqrt((4 * xm2 + peak_width**2) / (xm2))) / (2 * peak_center))
                 mean = np.log(peak_center) + sigma**2
-                amplitude = (peak_height * sigma * np.sqrt(2*np.pi)) / (np.exp(((sigma**2) / 2) - mean))
+                amplitude = (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
                 #cannot easily set bounds for center for lognormal since it depends on sigma
                 peak_model.set_param_hint('center', value=mean)
@@ -552,7 +557,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
             right_fwhm = 0
             right_center = np.inf
 
-        if (peak_x > left_center + (left_fwhm/2)) and (peak_x < right_center - (right_fwhm/2)):
+        if (peak_x > left_center + (left_fwhm / 2)) and (peak_x < right_center - (right_fwhm / 2)):
             residual_peaks_accepted.append(peak_x)
 
     if debug:
@@ -571,9 +576,9 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
             colors = ['red', 'green']
             styles = ['-.', '--']
             for i in range(2):
-                plt.text(0.1+0.35*i, 0.96, legend[i], ha='left', va='center',
+                plt.text(0.1 + 0.35 * i, 0.96, legend[i], ha='left', va='center',
                          transform=ax.transAxes)
-                plt.hlines(0.96, 0.02+0.35*i, 0.08+0.35*i, color=colors[i],
+                plt.hlines(0.96, 0.02 + 0.35 * i, 0.08 + 0.35 * i, color=colors[i],
                            linestyle=styles[i], transform=ax.transAxes)
 
         ax.legend()
@@ -1029,120 +1034,155 @@ def r_squared(y, y_calc, num_variables):
     SS_tot = np.sum((y - mean)**2)
     SS_res = np.sum((y - y_calc)**2)
 
-    r_sq = 1 - (SS_res/SS_tot)
-    r_sq_adj = 1 - (SS_res/(n-num_variables-1))/(SS_tot/(n-1))
+    r_sq = 1 - (SS_res / SS_tot)
+    r_sq_adj = 1 - (SS_res / (n - num_variables - 1)) / (SS_tot / (n - 1))
 
     return r_sq, r_sq_adj
 
 
-def background_selector(x_input, y_input, click_list=None):
+class BackgroundSelector(plotting_utils.EmbeddedFigure):
     """
-    Allows selection of the background for the data on a matplotlib plot.
+    A window for selecting points to define the background of data.
 
     Parameters
     ----------
-    x_input, y_input : array-like
-        x and y values for the fitting.
+    x : array-like
+        The x-values to be plotted.
+    y : array-like
+        The y-values to be plotted.
     click_list : list, optional
-        A nested list, with each entry corresponding to [x, y] locations
-        for the points needed fit the background.
+        A list of selected points on the plot.
 
-    Returns
-    -------
-    click_list : list
-        A nested list, with each entry corresponding to [x, y] locations
-        for the points needed fit the background.
+    Attributes
+    ----------
+    axis_2 : plt.Axes
+        The secondary axis on the figure which has no events.
 
-    #TODO: maybe change it so that the input click_list and output click_list are different
     """
 
+    def __init__(self, x, y, click_list=None):
 
-    def remove_circle(axis):
+        super().__init__(x, y, click_list)
+
+        self.figure, (self.axis, self.axis_2) = plt.subplots(
+            2, num='Background Selector', sharex=True, tight_layout=True,
+            gridspec_kw={'height_ratios':[1.5, 1], 'hspace': 0},
+            dpi=plotting_utils.determine_dpi()
+        )
+
+        self.axis.plot(self.x, self.y, 'o-', color='dodgerblue', ms=2, label='raw data')
+        self.axis_2.plot(self.x, self.y, 'ro-', ms=2, label='subtracted data')
+
+        self.xaxis_limits = self.axis.get_xlim()
+        self.yaxis_limits = self.axis.get_ylim()
+
+        # set limits so axis bounds do not change
+        self.axis.set_xlim(self.xaxis_limits)
+        self.axis.set_ylim(self.yaxis_limits)
+
+        if self.click_list:
+            self._update_plot()
+            for point in self.click_list:
+                self._create_circle(point[0], point[1])
+
+        self.axis.legend()
+        self.axis_2.legend()
+        self.axis.tick_params(labelbottom=False, bottom=False, which='both')
+
+        self._create_window()
+        self._place_figure_on_canvas()
+
+
+    def _create_window(self):
+        """Creates the GUI."""
+
+        size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)), size=(size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
+
+        layout = [
+            [sg.Column([
+                [sg.Text(('Create point: double left click.  Select point: single click.\n'
+                        'Delete selected point: double right click or delete key.'),
+                        justification='center')],
+                [self.canvas]], element_justification='center', pad=(0, 0))],
+            [self.toolbar_canvas],
+            [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR),
+             sg.Button('Clear Points', key='clear')]
+        ]
+
+        self.window = sg.Window('Background Selector', layout, finalize=True)
+
+
+    def event_loop(self):
         """
-        Removes the selected circle from the axis.
+        Handles the event loop for the GUI.
 
-        Parameters
-        ----------
-        axis : plt.Axes
-            The axis to use.
+        Returns
+        -------
+        list(list(float, float))
+            A list of the (x, y) values for the selected points on the figure.
 
         """
 
-        coords = list(axis.picked_object.get_center())
-        for i, value in enumerate(click_list):
-            if all(np.isclose(value, coords)):
-                del click_list[i]
+        while True:
+            event = self.window.read()[0]
+            if event in ('close', sg.WIN_CLOSED):
                 break
-        axis.picked_object.remove()
-        axis.picked_object = None
+            elif event == 'clear':
+                for patch in self.axis.patches.copy():
+                    self.picked_object = patch
+                    self._remove_circle()
+                self._update_plot()
+
+        self.window.close()
+        self.window = None
+        plt.close(self.figure)
+        self.figure = None
+
+        return self.click_list
 
 
-    def create_circle(x, y, axis):
-        """
-        Places a circle at the designated x,y position.
+    def _update_plot(self):
+        """Updates the plot after events on the matplotlib figure."""
 
-        Parameters
-        ----------
-        x, y : float
-            The x, y position to place the center of the circle.
-        axis : plt.Axes
-            The axis to use.
-
-        """
-
-        x_min, x_max, y_min, y_max = axis.axis()
-        circle_width = 0.03 * (x_min - x_max)
-        circle_height = 0.03 * (y_min - y_max) * 2 # *2 because the aspect ratio is not square
-
-        circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker=True)
-        axis.add_patch(circ)
-
-
-    def plot_background(x, y, axis, axis_2):
-        """
-        Plots a background that fits the selected peaks.
-
-        Parameters
-        ----------
-        x, y : array-like
-            The x and y values of the raw data.
-        axis : plt.Axes
-            The axis upon which to plot the background.
-        axis_2 : plt.Axes
-            The axis to show the background after subtracting the user
-            specified points.
-
-        """
-
-        for line in axis.lines[1:]:
-            line.remove()
-        for line in axis_2.lines:
+        for line in self.axis.lines[1:] + self.axis_2.lines:
             line.remove()
 
-        y_subtracted = y.copy()
-        if len(click_list) > 1:
-            points = sorted(click_list, key=lambda cl: cl[0])
+        y_subtracted = self.y.copy()
+        if len(self.click_list) > 1:
+            points = sorted(self.click_list, key=lambda cl: cl[0])
 
-            for i in range(len(points)-1):
-                x_points, y_points = zip(*points[i:i+2])
-                axis.plot(x_points, y_points, color='k', ls='--',
-                          lw=2)
-                coeffs = np.polyfit(x_points, y_points, 1)
-                boundary = (x >= x_points[0]) & (x <= x_points[1])
-                x_line = x[boundary]
-                y_line = y[boundary]
-                line = np.polyval(coeffs, x_line)
-                y_subtracted[boundary] = y_line - line
+            for i in range(len(points) - 1):
+                x_points, y_points = zip(*points[i:i + 2])
+                self.axis.plot(x_points, y_points, color='k', ls='--', lw=2)
+                boundary = (self.x >= x_points[0]) & (self.x <= x_points[1])
 
-            axis.plot(0, 0, 'k--', lw=2, label='background')
+                y_line = self.y[boundary]
+                y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
 
-        axis_2.plot(x, y_subtracted, 'ro-', ms=2, label='subtracted data')
-        axis.legend()
-        axis_2.legend()
+            self.axis.plot(0, 0, 'k--', lw=2, label='background')
+
+        self.axis_2.plot(self.x, y_subtracted, 'ro-', ms=2, label='subtracted data')
+        self.axis.legend()
+        self.axis_2.legend()
+        self.figure.canvas.draw_idle()
 
 
-    def on_click(event):
+    def _remove_circle(self):
+        """Removes the selected circle from the axis."""
+
+        coords = self.picked_object.get_center()
+        for i, value in enumerate(self.click_list):
+            if all(np.isclose(value, coords)):
+                del self.click_list[i]
+                break
+
+        self.picked_object.remove()
+        self.picked_object = None
+
+
+    def _on_click(self, event):
         """
         The function to be executed whenever this is a button press event.
 
@@ -1153,143 +1193,52 @@ def background_selector(x_input, y_input, click_list=None):
 
         Notes
         -----
-        1) If the button press is not within the 'ax' axis, then nothing is done
-        2) If a double left click is done, then a circle is place on the ax axis
-        3) If a double right click is done, and a circle is selected, then the circle
-           is deleted from the ax axis
+        1) If the button press is not within the self.axis, then nothing is done.
+        2) If a double left click is done, then a circle is placed on self.axis.
+        3) If a double right click is done and a circle is selected, then the circle
+           is deleted from the self.axis.
         4) If a single left or right click is done, it deselects any selected circle
-           if the click is not on the circle
-        Peaks will be (re)plotted if 2) or 3) occurs
+           if the click is not on the circle.
 
         """
 
-        if event.inaxes == ax:
+        if event.inaxes == self.axis:
+            if event.dblclick: # a double click
+                # left click
+                if event.button == 1:
+                    self.click_list.append([event.xdata, event.ydata])
+                    self._create_circle(event.xdata, event.ydata)
+                    self._update_plot()
 
-            if event.dblclick: # is a double click
-                if event.button == 1: # left click
+                # right click
+                elif event.button == 3 and self.picked_object is not None:
+                    self._remove_circle()
+                    self._update_plot()
 
-                    click_list.append([event.xdata, event.ydata])
-
-                    create_circle(event.xdata, event.ydata, ax)
-
-                    plot_background(x, y, ax, ax_2)
-                    ax.figure.canvas.draw_idle()
-
-                elif event.button == 3: # right click
-                    if ax.picked_object is not None:
-                        remove_circle(ax)
-                        plot_background(x, y, ax, ax_2)
-                        ax.figure.canvas.draw_idle()
-
-            elif event.button in [1, 3]: # left or right click
-                if ax.picked_object is not None and not ax.picked_object.contains(event)[0]:
-                    ax.picked_object.set_facecolor('green')
-                    ax.picked_object = None
-                    ax.figure.canvas.draw_idle()
+            # left or right single click
+            elif (event.button in (1, 3) and self.picked_object is not None
+                    and not self.picked_object.contains(event)[0]):
+                self.picked_object.set_facecolor('green')
+                self.picked_object = None
+                self.figure.canvas.draw_idle()
 
 
-    def on_pick(event):
-        """
-        The function to be executed whenever this is a button press event.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        If a circle is selected, its color will change from green to red.
-        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
-        which is just an easy way to keep the axis and the objects lumped together.
-
-        """
-
-        if ax.picked_object is not None and ax.picked_object != event.artist:
-            ax.picked_object.set_facecolor('green')
-            ax.picked_object = None
-        ax.picked_object = event.artist
-        ax.picked_object.set_facecolor('red')
-        ax.figure.canvas.draw_idle()
-
-
-    def on_key(event):
-        """
-        The function to be executed if a key is pressed.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.KeyEvent
-            key_press_event event.
-
-        Notes
-        -----
-        If the 'delete' key is pressed and a circle is selected, the circle
-        will be removed from the ax axis and the peaks will be replotted
-
-        """
-
-        if event.key == 'delete':
-            if ax.picked_object is not None:
-                remove_circle(ax)
-                plot_background(x, y, ax, ax_2)
-                ax.figure.canvas.draw_idle()
-
-
-    x = np.array(x_input, float)
-    y = np.array(y_input, float)
-    click_list = click_list if click_list is not None else []
-
-    fig, (ax, ax_2) = plt.subplots(
-        2, num='Background Selector', sharex=True,
-        gridspec_kw={'height_ratios':[2, 1], 'hspace': 0}
-    )
-
-    ax.text(0.5, 1.01, 'Create point: double left click.  Select point: single click.\n'\
-            'Delete selected point: double right click or delete key.',
-            ha='center', va='bottom', transform=ax.transAxes)
-    ax.picked_object = None
-    ax.plot(x, y, 'o-', color='dodgerblue', ms=2, label='raw data')
-    ax_2.plot(x, y, 'ro-', ms=2, label='subtracted data')
-
-    #create references (cid#) to the events so they are not garbage collected
-    cid1 = fig.canvas.mpl_connect('button_press_event', on_click)
-    cid2 = fig.canvas.mpl_connect('pick_event', on_pick)
-    cid3 = fig.canvas.mpl_connect('key_press_event', on_key)
-
-    if click_list:
-        plot_background(x, y, ax, ax_2)
-        for point in click_list:
-            create_circle(point[0], point[1], ax)
-
-    ax.set_xlim(ax.get_xlim())
-    ax.set_ylim(ax.get_ylim())
-    ax.legend()
-    ax_2.legend()
-    ax.tick_params(labelbottom=False, bottom=False, which='both')
-    fig.set_tight_layout(True)
-
-    plt.show(block=False)
-
-    return click_list
-
-
-def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
-                  subtract_background=False, background_type='PolynomialModel',
-                  poly_n=4, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
+class PeakSelector(plotting_utils.EmbeddedFigure):
     """
-    Allows selection of peaks on a matplotlib plot, along with peak width and type.
+    A window for selecting peaks on a plot, along with peak width and type.
 
     Parameters
     ----------
-    x_input, y_input : array-like
-        x and y values for the fitting.
-    click_list : list
+    x : array-like
+        The x-values to be plotted and fitted.
+    y : array-like
+        The y-values to be plotted and fitted.
+    click_list : list, optional
         A nested list, with each entry corresponding to a peak. Each entry
         has the following layout:
-        [[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
+        [[lmfit model, sigma function, aplitude function], [peak center, peak height, peak width]]
         where lmfit model is something like 'GaussianModel'. The first entry
-        in the list comes directly from the peak_transformer function.
+        in the list comes directly from the mcetl.peak_fitting.peak_transformer function.
     initial_peak_width : int or float
         The initial peak width input in the plot.
     subtract_background : bool
@@ -1308,87 +1257,148 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
         The initial model to have selected on the plot, corresponds to
         a model in lmfit.models.
 
-    Returns
-    -------
-    click_list : list
-        A nested list, with each entry corresponding to a peak. Each entry
-        has the following layout:
-        [[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
-        where lmfit model is something like 'GaussianModel'.
+    Attributes
+    ----------
+    background : array-like
+        The y-values for the background function.
 
     """
 
-    def remove_circle(axis):
+    def __init__(self, x, y, click_list=None, initial_peak_width=1,
+                 subtract_background=False, background_type='PolynomialModel',
+                 poly_n=4, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
+
+        super().__init__(x, y, click_list)
+
+        nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
+        self.x = self.x[nan_mask]
+        self.y = self.y[nan_mask]
+
+        self.figure, self.axis = plt.subplots(
+            num='Peak Selector', tight_layout=True, dpi=plotting_utils.determine_dpi()
+        )
+
+        self.axis.plot(self.x, self.y, 'o-', color='dodgerblue',
+                       ms=2, label='raw data')
+
+        if not subtract_background:
+            self.background = np.zeros(x.size)
+        else:
+            bkg_mask = (self.x > bkg_min) & (self.x < bkg_max)
+            if background_type == 'PolynomialModel':
+                bkg_model = getattr(
+                    lmfit.models, background_type)(poly_n, prefix='background_')
+            else:
+                bkg_model = getattr(
+                    lmfit.models, background_type)(prefix='background_')
+
+            bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
+            self.background = bkg_model.eval(bkg_params, x=x)
+
+        self.axis.plot(self.x, self.background, 'r--', lw=2, label='background')
+        self.xaxis_limits = self.axis.get_xlim()
+        self.yaxis_limits = self.axis.get_ylim()
+
+        # set limits so axis bounds do not change
+        self.axis.set_xlim(self.xaxis_limits)
+        self.axis.set_ylim(self.yaxis_limits)
+
+        self.axis.legend()
+
+        if self.click_list:
+            self._update_plot()
+            for peak in self.click_list:
+                center = peak[1][0]
+                height = peak[1][1] + self.background[np.argmin(np.abs(center - self.x))]
+                self._create_circle(center, height)
+
+        self._create_window(initial_peak_width, default_model)
+        self._place_figure_on_canvas()
+
+
+    def _create_window(self, peak_width, peak_model):
+        """Creates the GUI."""
+
+        size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)), size=(size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
+
+        models_dict = peak_transformer()
+        display_models = [models_dict[model][0] for model in models_dict]
+        try:
+            initial_model = display_models[list(models_dict.keys()).index(peak_model)]
+        except ValueError:
+            initial_model = display_models[0]
+
+        layout = [
+            [sg.Column([
+                [sg.Text(('Create point: double left click.  Select point: single click.\n'
+                         'Delete selected point: double right click.'),
+                         justification='center')],
+                [self.canvas]], element_justification='center', pad=(0, 0))],
+            [self.toolbar_canvas],
+            [sg.Text('Peak model:'),
+             sg.Combo(display_models, key='peak_model', readonly=True,
+                      default_value=initial_model),
+             sg.Text('    Peak width:', size=(11, 1)),
+             sg.Input(peak_width, key='peak_width', do_not_clear=True, size=(10, 1))],
+            [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
+                       bind_return_key=True, pad=(5, (15, 0))),
+             sg.Button('Clear Points', key='clear', pad=(5, (15, 0)))]
+        ]
+
+        self.window = sg.Window('Peak Selector', layout, finalize=True)
+
+
+    def event_loop(self):
         """
-        Removes the selected circle from the axis.
+        Handles the event loop for the GUI.
 
-        Parameters
-        ----------
-        axis : plt.Axes
-            The axis to use.
+        Returns
+        -------
+        list
+            A nested list, with each entry corresponding to a peak. Each entry
+            has the following layout:
+            [[lmfit model, sigma function, aplitude function], [peak center, peak height, peak width]]
+            where lmfit model is something like 'GaussianModel'. The first entry
+            in the list comes directly from the mcetl.peak_fitting.peak_transformer function.
 
         """
 
-        center, height = list(axis.picked_object.get_center())
-        bkrd_height = initial_bkrd[np.argmin(np.abs(center-x))]
-        for i, value in enumerate(click_list):
-            if all(np.isclose(value[1][:2], [center, height - bkrd_height])):
-                del click_list[i]
+        while True:
+            event = self.window.read()[0]
+            if event in ('close', sg.WIN_CLOSED):
                 break
-        axis.picked_object.remove()
-        axis.picked_object = None
+            elif event == 'clear':
+                for patch in self.axis.patches.copy():
+                    self.picked_object = patch
+                    self._remove_circle()
+                self._update_plot()
+
+        self.window.close()
+        self.window = None
+        plt.close(self.figure)
+        self.figure = None
+
+        return self.click_list
 
 
-    def create_circle(x, y, axis):
-        """
-        Places a circle at the designated x,y position.
+    def _update_plot(self):
+        """Updates the plot after events on the matplotlib figure."""
 
-        Parameters
-        ----------
-        x, y : float
-            The x, y position to place the center of the circle.
-        axis : plt.Axes
-            The axis to use.
-
-        """
-
-        ax_width = axis.get_xlim()
-        ax_height = axis.get_ylim()
-        circle_width = 0.05 * (ax_width[1] - ax_width[0])
-        circle_height = 0.05 * (ax_height[1] - ax_height[0])
-
-        circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker=True)
-        axis.add_patch(circ)
-
-
-    def plot_total_peaks(x, axis):
-        """
-        Plots each selected peak and the sum of all peaks on the axis.
-
-        Parameters
-        ----------
-        x, y : array-like
-            The x and y values of the raw data.
-        axis : plt.Axes
-            The axis upon which to plot the peaks.
-        """
-
-        y_tot = 0 * x
-
-        for line in axis.lines[2:]:
+        for line in self.axis.lines[2:]:
             line.remove()
 
-        if click_list:
+        if self.click_list:
+            y_tot = 0 * self.x
             # resets the color cycle to start at 0
-            axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
-            peaks = sorted(click_list, key=lambda cl: cl[1][0])
-            minx, maxx = [min(x), max(x)]
+            self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
+            peaks = sorted(self.click_list, key=lambda cl: cl[1][0])
 
-            middles = [0.0 for num in range(len(peaks)+1)]
-            middles[0] = minx
-            middles[-1] = maxx
-            for i in range(len(peaks)-1):
+            middles = [0.0 for num in range(len(peaks) + 1)]
+            middles[0] = min(self.x)
+            middles[-1] = max(self.x)
+            for i in range(len(peaks) - 1):
                 middles[i + 1] = np.mean([peaks[i][1][0], peaks[i + 1][1][0]])
 
             for i, peak in enumerate(peaks):
@@ -1421,181 +1431,88 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
                                               value=peak[0][1][0](height, width))
 
                 peak_params = peak_model.make_params()
-                peak = peak_model.eval(peak_params, x=x)
-                axis.plot(x, peak + initial_bkrd, ':',
-                          lw=2, label=f'peak {i + 1}')
+                peak = peak_model.eval(peak_params, x=self.x)
+                self.axis.plot(self.x, peak + self.background, ':',
+                               lw=2, label=f'peak {i + 1}')
                 y_tot += peak
 
-            axis.plot(x, y_tot + initial_bkrd, color='k', ls='--',
-                      lw=2, label='total')
-        axis.legend()
+            self.axis.plot(self.x, y_tot + self.background, color='k', ls='--',
+                           lw=2, label='total')
+
+        self.axis.legend()
+        self.figure.canvas.draw_idle()
 
 
-    def on_click(event):
-        """
-        The function to be executed whenever this is a button press event.
+    def _remove_circle(self):
+        """Removes the selected circle from the axis."""
 
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        1) If the button press is not within the 'ax' axis, then nothing is done
-        2) If a double left click is done, then a circle is place on the ax axis
-        3) If a double right click is done, and a circle is selected, then the circle
-           is deleted from the ax axis
-        4) If a single left or right click is done, it deselects any selected circle
-           if the click is not on the circle
-        Peaks will be (re)plotted if 2) or 3) occurs
-        """
-
-        if event.inaxes == ax:
-
-            if event.dblclick: # double click
-                if (event.button == 1) and (text_box.text): # left click
-                    for key in models_dict:
-                        if radio.value_selected == models_dict[key][0]:
-                            model = [key, models_dict[key][1]]
-                            break
-
-                    #[[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
-                    peak_center = event.xdata
-                    peak_height = event.ydata - initial_bkrd[np.argmin(np.abs(peak_center-x))]
-                    click_list.append([model, [peak_center, peak_height,
-                                               float(text_box.text)]])
-
-                    create_circle(event.xdata, event.ydata, ax)
-
-                    plot_total_peaks(x, ax)
-                    ax.figure.canvas.draw_idle()
-
-                elif event.button == 3: # right click
-                    if ax.picked_object is not None:
-                        remove_circle(ax)
-                        plot_total_peaks(x, ax)
-                        ax.figure.canvas.draw_idle()
-
-            elif event.button in (1, 3): # left or right click
-                if ax.picked_object is not None and not ax.picked_object.contains(event)[0]:
-                    ax.picked_object.set_facecolor('green')
-                    ax.picked_object = None
-                    ax.figure.canvas.draw_idle()
-
-
-    def on_pick(event):
-        """
-        The function to be executed whenever this is a button press event.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        If a circle is selected, its color will change from green to red.
-        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
-        which is just an easy way to keep the axis and the objects lumped together.
-        """
-
-        if ax.picked_object is not None and ax.picked_object != event.artist:
-            ax.picked_object.set_facecolor('green')
-            ax.picked_object = None
-        ax.picked_object = event.artist
-        ax.picked_object.set_facecolor('red')
-        ax.figure.canvas.draw_idle()
-
-
-    def on_key(event):
-        """
-        The function to be executed if a key is pressed.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.KeyEvent
-            key_press_event event.
-
-        Notes
-        -----
-        If the 'delete' key is pressed and a circle is selected, the circle
-        will be removed from the ax axis and the peaks will be replotted
-
-        """
-
-        if event.key == 'delete':
-            if ax.picked_object is not None:
-                remove_circle(ax)
-                plot_total_peaks(x, ax)
-                ax.figure.canvas.draw_idle()
-
-
-    x = np.array(x_input, float)
-    y = np.array(y_input, float)
-    click_list = click_list if click_list is not None else []
-    fig = plt.figure(num='Peak Selector')
-    #[left, bottom, width, height]
-    ax = plt.axes([0.32, 0.07, 0.64, 0.83])
-    ax.tick_params(labelbottom=False, labelleft=False)
-    ax.text(0.5, 1.01, 'Create peak: double left click.  Select peak: single click.\n'\
-            'Delete selected peak: double right click or delete key.',
-            ha='center', va='bottom', transform=ax.transAxes)
-    ax.picked_object = None
-    ax.plot(x, y, 'o-', color='dodgerblue', ms=2, label='raw data')
-
-    if subtract_background:
-        bkg_mask = (x > bkg_min) & (x < bkg_max)
-        if background_type == 'PolynomialModel':
-            background = getattr(
-                lmfit.models, background_type)(poly_n, prefix='background_')
-        else:
-            background = getattr(
-                lmfit.models, background_type)(prefix='background_')
-
-        init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkrd = background.eval(init_bkrd_params, x=x)
-
-    else:
-        initial_bkrd = np.array([0]*len(x))
-
-    ax.plot(x, initial_bkrd, 'r--', lw=2, label='background')
-    ax.legend()
-
-    #create references (cid#) to the events so they are not garbage collected
-    cid1 = fig.canvas.mpl_connect('button_press_event', on_click)
-    cid2 = fig.canvas.mpl_connect('pick_event', on_pick)
-    cid3 = fig.canvas.mpl_connect('key_press_event', on_key)
-
-    ax_text = plt.axes([0.1, 0.25, 0.1, 0.1])
-    ax_radio = plt.axes([0.02, 0.4, 0.26, 0.5])
-    text_box = TextBox(ax_text, 'Peak \nWidth', initial=f'{initial_peak_width}',
-                       label_pad=0.1)
-
-    models_dict = peak_transformer()
-    if default_model is not None:
-        default_index = 0
-        for index, key in enumerate(models_dict):
-            if default_model == key:
-                default_index = index
+        center, height = self.picked_object.get_center()
+        bkrd_height = self.background[np.argmin(np.abs(center - self.x))]
+        for i, value in enumerate(self.click_list):
+            if all(np.isclose(value[1][:2], [center, height - bkrd_height])):
+                del self.click_list[i]
                 break
-    else:
-        default_index = 0
-    display_values = [models_dict[model][0] for model in models_dict]
-    radio = RadioButtons(ax_radio, display_values, active=default_index)
 
-    if click_list:
-        plot_total_peaks(x, ax)
-        for peak in click_list:
-            center = peak[1][0]
-            height = peak[1][1] + initial_bkrd[np.argmin(np.abs(center - x))]
-            create_circle(center, height, ax)
+        self.picked_object.remove()
+        self.picked_object = None
 
-    ax.set_xlim(ax.get_xlim())
-    ax.set_ylim(ax.get_ylim())
-    plt.show(block=False)
 
-    return click_list
+    def _on_click(self, event):
+        """
+        The function to be executed whenever this is a button press event.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.MouseEvent
+            The button_press_event event.
+
+        Notes
+        -----
+        1) If the button press is not within the self.axis, then nothing is done.
+        2) If a double left click is done, then a circle is placed on self.axis.
+        3) If a double right click is done and a circle is selected, then the circle
+           is deleted from the self.axis.
+        4) If a single left or right click is done, it deselects any selected circle
+           if the click is not on the circle.
+
+        """
+
+        if event.inaxes == self.axis:
+            if event.dblclick: # a double click
+                # left click
+                if event.button == 1:
+                    try:
+                        peak_width = float(self.window['peak_width'].get())
+                    except:
+                        self.window['peak_width'].update('')
+                    else:
+                        models_dict = peak_transformer()
+                        for key in models_dict:
+                            if self.window['peak_model'].get() == models_dict[key][0]:
+                                model = [key, models_dict[key][1]]
+                                break
+                        else: # in case no break
+                            model = [key, models_dict[key][1]]
+
+                        #[[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
+                        peak_center = event.xdata
+                        peak_height = event.ydata - self.background[np.argmin(np.abs(peak_center - self.x))]
+                        self.click_list.append([model, [peak_center, peak_height, peak_width]])
+
+                        self._create_circle(event.xdata, event.ydata)
+                        self._update_plot()
+
+                # right click
+                elif event.button == 3 and self.picked_object is not None:
+                    self._remove_circle()
+                    self._update_plot()
+
+            # left or right single click
+            elif (event.button in (1, 3) and self.picked_object is not None
+                    and not self.picked_object.contains(event)[0]):
+                self.picked_object.set_facecolor('green')
+                self.picked_object = None
+                self.figure.canvas.draw_idle()
 
 
 def plot_confidence_intervals(x, y, fit_result, n_sig=3):
@@ -1619,7 +1536,7 @@ def plot_confidence_intervals(x, y, fit_result, n_sig=3):
     plt.fill_between(
         x, fit_result.best_fit - del_y,
         fit_result.best_fit+del_y, color='darkgrey',
-        label=f'best fit $\pm$ {n_sig}$\sigma$'
+        label=fr'best fit $\pm$ {n_sig}$\sigma$'
     )
     plt.plot(x, y, 'o', ms=1.5, color='dodgerblue', label='data')
     plt.plot(x, fit_result.best_fit, 'k-', lw=1.5, label='best fit')
@@ -1824,14 +1741,14 @@ if __name__ == '__main__':
 
     import time
 
-    #data
+    # data
     x_array = np.linspace(0, 60, 100)
     background = 0.1 * x_array
     noise = 0.1 * np.random.randn(len(x_array))
     peaks = lmfit.lineshapes.gaussian(x_array, 30, 15, 5) + lmfit.lineshapes.gaussian(x_array, 50, 35, 3)
     y_array = background + noise + peaks
 
-    #inputs for plugNchug_fit function
+    # inputs for peak_fitting function
     rel_height = 0
     prominence = np.inf
     center_offset = 10

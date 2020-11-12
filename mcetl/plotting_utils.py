@@ -91,6 +91,192 @@ class PlotToolbar(NavigationToolbar2Tk):
         super().__init__(fig_canvas, canvas)
 
 
+class EmbeddedFigure:
+    """
+    Class defining a PySimpleGUI window with an embedded matplotlib Figure.
+
+    Class to be used to define BackgroundSelector and PeakSelector
+    classes, which share common functions.
+
+    Parameters
+    ----------
+    x : array-like
+        The x-values to be plotted.
+    y : array-like
+        The y-values to be plotted.
+    click_list : list, optional
+        A list of selected points on the plot.
+
+    Attributes
+    ----------
+    x : array-like
+        The x-values to be plotted.
+    y : array-like
+        The y-values to be plotted.
+    click_list : list
+        A list of selected points on the plot.
+    figure : plt.Figure
+        The figure embedded in the window.
+    axis : plt.Axes
+        The main axis on the figure which owns the events.
+    canvas : sg.Canvas
+        The canvas element in the window which contains the figure.
+    toolbar_canvas : sg.Canvas
+        The canvas element that contains the toolbar for the figure.
+    picked_object : plt.Artist
+        The selected Artist objected on the figure.
+    xaxis_limits : tuple
+        The x axis limits when the figure is first created. The values
+        are used to determine the size of the Ellipse place by the
+        _create_circle function. The initial limits are used so that
+        zooming on the figure does not change the size of the Ellipse.
+    yaxis_limits : tuple
+        The y axis limits when the figure is first created.
+    enable_events : bool
+        If True, will enable the embedded matplotlib figure to connect
+        events.
+    toolbar_class : NavigationToolbar2Tk
+        The class of the toolbar to place in the window. The default
+        is PeakFittingToolbar.
+    window : sg.Window
+        The PySimpleGUI window containing the figure.
+
+    Notes
+    -----
+    This class allows easy subclassing to create simple windows with
+    embedded matplotlib figures. The only function that should be
+    publically available is the event_loop function, which should return
+    the desired output.
+
+    """
+
+    def __init__(self, x, y, click_list=None):
+
+        self.x = np.array(x, float)
+        self.y = np.array(y, float)
+        self.click_list = click_list if click_list is not None else []
+
+        self.toolbar_class = PeakFittingToolbar
+        self.figure = None
+        self.axis = None
+        self.window = None
+        self.canvas = None
+        self.toolbar_canvas = None
+        self.picked_object = None
+        self.xaxis_limits = (0, 1)
+        self.yaxis_limits = (0, 1)
+        self.enable_events = True
+
+
+    def event_loop(self):
+        """Handles the event loop for the GUI."""
+
+
+    def _create_window(self):
+        """Creates the GUI."""
+
+
+    def _update_plot(self):
+        """Updates the plot after events on the matplotlib figure."""
+
+
+    def _remove_circle(self):
+        """Removes the selected circle from the axis."""
+
+
+    def _on_click(self, event):
+        """The function to be executed whenever this is a button press event."""
+
+
+    def _on_pick(self, event):
+        """
+        The function to be executed whenever this is a button press event.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.MouseEvent
+            The button_press_event event.
+
+        Notes
+        -----
+        If a circle is selected, its color will change from green to red.
+        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
+        which is just an easy way to keep the axis and the objects lumped together.
+
+        """
+
+        if self.picked_object is not None and self.picked_object != event.artist:
+            self.picked_object.set_facecolor('green')
+            self.picked_object = None
+
+        self.picked_object = event.artist
+        self.picked_object.set_facecolor('red')
+        self.figure.canvas.draw_idle()
+
+
+    def _on_key(self, event):
+        """
+        The function to be executed if a key is pressed.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.KeyEvent
+            key_press_event event.
+
+        Notes
+        -----
+        If the 'delete' key is pressed and a circle is selected, the circle
+        will be removed from self.axis and the plot will be updated.
+
+        """
+
+        if event.key == 'delete' and self.picked_object is not None:
+            self._remove_circle()
+            self._update_plot()
+
+
+    def _create_circle(self, x, y):
+        """
+        Places a circle at the designated x, y position.
+
+        Parameters
+        ----------
+        x : float
+            The x position to place the center of the circle.
+        y : float
+            The y position to place the center of the circle.
+
+        """
+
+        circle_width = 0.03 * (self.xaxis_limits[1] - self.xaxis_limits[0])
+        circle_height = 0.03 * (self.yaxis_limits[1] - self.yaxis_limits[0])
+        # scale the height based on the axis width/height ratio to get perfect circles
+        circle_height *= self.axis.bbox.width / self.axis.bbox.height
+
+        self.axis.add_patch(
+            Ellipse((x, y), circle_width, circle_height, edgecolor='black',
+                    facecolor='green', picker=True)
+        )
+
+
+    def _place_figure_on_canvas(self):
+        """Places the figure and toolbar onto the PySimpleGUI canvas."""
+
+        if self.toolbar_canvas is not None:
+            toolbar_canvas = self.toolbar_canvas.TKCanvas
+        else:
+            toolbar_canvas = None
+
+        draw_figure_on_canvas(self.canvas.TKCanvas, self.figure,
+                              toolbar_canvas, self.toolbar_class)
+
+        if self.enable_events:
+            # create references (_cid#) to the connections so they are not garbage collected
+            self._cid1 = self.figure.canvas.mpl_connect('button_press_event', self._on_click)
+            self._cid2 = self.figure.canvas.mpl_connect('pick_event', self._on_pick)
+            self._cid3 = self.figure.canvas.mpl_connect('key_press_event', self._on_key)
+
+
 def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None, toolbar_class=PlotToolbar):
     """
     Places the figure and toolbar onto the PySimpleGUI canvas.
