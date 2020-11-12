@@ -37,7 +37,6 @@ from pathlib import Path
 import string
 import traceback
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
@@ -45,10 +44,11 @@ import pandas as pd
 import PySimpleGUI as sg
 import sympy as sp
 
+from . import plotting_utils
 from . import utils
 
 
-CANVAS_SIZE = (800, 800)
+CANVAS_SIZE = plotting_utils.CANVAS_SIZE
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
     'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue'
@@ -79,42 +79,6 @@ _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information
 _THEME_EXTENSION = '.figtheme'
-
-
-class PlotToolbar(NavigationToolbar2Tk):
-    """
-    Custom toolbar without the subplots and save figure buttons.
-
-    Ensures that saving is done through the save menu in the window, which
-    gives better options for output image quality and ensures the figure
-    dimensions are correct. The subplots button is removed so that the
-    user does not mess with the plot layout since it is handled by using
-    matplotlib's tight layout.
-
-    """
-
-    def __init__(self, fig_canvas, canvas):
-        """
-
-        Parameters
-        ----------
-        fig_canvas : matplotlib.FigureCanvas
-            The figure canvas on which to operate.
-        canvas : tk.window
-            The parent window which owns this toolbar.
-
-        """
-
-        self.toolitems = (
-            ('Home', 'Reset original view', 'home', 'home'),
-            ('Back', 'Back to previous view', 'back', 'back'),
-            ('Forward', 'Forward to next view', 'forward', 'forward'),
-            (None, None, None, None),
-            ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
-            ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
-        )
-
-        super().__init__(fig_canvas, canvas)
 
 
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
@@ -718,7 +682,7 @@ def _create_figure(fig_kwargs, saving=False):
     saving : bool
         Designates whether the figure will be saved. If True, will use the input
         figure size and dpi. If False, will scale and figure size and dpi to fit
-        onto the tkinter canvas with size = CANVAS_SIZE.
+        onto the PySimpleGUI canvas with size = CANVAS_SIZE.
 
     Returns
     -------
@@ -745,25 +709,17 @@ def _create_figure(fig_kwargs, saving=False):
     """
 
     fig_name = fig_kwargs.get('fig_name', _PREVIEW_NAME)
-    plt.close(fig_name)
 
     if saving:
-        dpi = float(fig_kwargs['dpi'])
-
+        dpi = fig_kwargs['dpi']
     else:
-        dpi_scale = utils.get_dpi_correction(float(fig_kwargs['dpi']))
+        dpi = plotting_utils.determine_dpi(fig_kwargs)
 
-        if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
-            size_scale = CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
-        else:
-            size_scale = CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
-
-        dpi = float(fig_kwargs['dpi']) * dpi_scale * size_scale
-
+    plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(
-        num=fig_name, dpi=dpi,
-        figsize = (float(fig_kwargs['fig_width']) / float(fig_kwargs['dpi']),
-                   float(fig_kwargs['fig_height']) / float(fig_kwargs['dpi'])),
+        num=fig_kwargs['fig_name'], dpi=dpi,
+        figsize = (fig_kwargs['fig_width'] / fig_kwargs['dpi'],
+                   fig_kwargs['fig_height'] / fig_kwargs['dpi']),
         tight_layout={'pad': TIGHT_LAYOUT_PAD,
                       'w_pad': 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD,
                       'h_pad': 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD}
@@ -956,7 +912,7 @@ def _annotate_example_figure(axes, canvas, figure):
     ----------
     axes : dict
         A dictionary of axes in the figure.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The canvas for the figure.
     figure : plt.Figure
         The figure that will be shown.
@@ -981,7 +937,7 @@ def _annotate_example_figure(axes, canvas, figure):
             ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
             ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 
-    _draw_figure_on_canvas(canvas, figure)
+    plotting_utils.draw_figure_on_canvas(canvas, figure)
 
 
 def _create_advanced_layout(input_values, canvas, figure):
@@ -994,22 +950,27 @@ def _create_advanced_layout(input_values, canvas, figure):
         The dictionary containing the values describing the layout
         of axes within the figure. Will be modified inplace by
         this function.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The canvas for the figure.
     figure : plt.Figure
         The figure that will be shown.
 
     """
 
-    num_cols = int(input_values['num_cols'])
-    num_rows = int(input_values['num_rows'])
+    num_cols = input_values['num_cols']
+    num_rows = input_values['num_rows']
 
-    validations = {'floats': []}
-    validations['floats'].extend([[f'width_{i}', f'width {i + 1}'] for i in range(num_cols)])
-    validations['floats'].extend([[f'height_{i}', f'height {i + 1}'] for i in range(num_rows)])
+    validations = {'floats': [], 'constraints': []}
+    for i in range(num_cols):
+        validations['floats'].append([f'width_{i}', f'width {i + 1}'])
+        validations['constraints'].append( [f'width_{i}', f'width {i + 1}', '> 0'])
+
+    for i in range(num_rows):
+        validations['floats'].append([f'height_{i}', f'height {i + 1}'])
+        validations['constraints'].append([f'height_{i}', f'height {i + 1}', '> 0'])
 
     columm_layout =  [
-        [sg.Text(i+1, size=(2, 1), justification='right')]
+        [sg.Text(i + 1, size=(2, 1), justification='right')]
         + [sg.Input(input_values[f'gridspec_{i}_{j}'], size=(5, 1), pad=(1, 1),
                     justification='right', key=f'gridspec_{i}_{j}') for j in range(num_cols)]
         for i in range(num_rows)]
@@ -1023,7 +984,7 @@ def _create_advanced_layout(input_values, canvas, figure):
 
     header_layout = [
         [sg.Text('', size=(2, 1))] +
-        [sg.Text(j+1, size=(5,1), justification='center') for j in range(num_cols)]]
+        [sg.Text(j + 1, size=(5,1), justification='center') for j in range(num_cols)]]
 
     layout = [
         [sg.Text('Figure Layout\n')],
@@ -1049,15 +1010,13 @@ def _create_advanced_layout(input_values, canvas, figure):
     while True:
         event, values = window.read()
 
-        if event != sg.WIN_CLOSED:
-            input_values.update(values)
-        else:
+        if event == sg.WIN_CLOSED:
             break
 
-        if event in ('Preview', 'Submit'):
+        elif event in ('Preview', 'Submit'):
             window.TKroot.grab_release()
-            proceed = utils.validate_inputs(values, **validations)
-            if proceed:
+            if utils.validate_inputs(values, **validations):
+                input_values.update(values)
                 figure, axes = _create_figure_components(**input_values)
 
                 if event == 'Preview':
@@ -1091,8 +1050,8 @@ def _create_gridspec_labels(fig_kwargs):
 
     """
 
-    num_cols = int(fig_kwargs['num_cols'])
-    num_rows = int(fig_kwargs['num_rows'])
+    num_cols = fig_kwargs['num_cols']
+    num_rows = fig_kwargs['num_rows']
 
     new_kwargs = fig_kwargs.copy()
     # deletes previous gridspec values
@@ -1122,8 +1081,8 @@ def _create_gridspec_labels(fig_kwargs):
         current_col = 0
         current_row = 0
 
-    new_kwargs.update({f'width_{i}': '1' for i in range(current_col, num_cols)})
-    new_kwargs.update({f'height_{i}': '1' for i in range(current_row, num_rows)})
+    new_kwargs.update({f'width_{i}': 1 for i in range(current_col, num_cols)})
+    new_kwargs.update({f'height_{i}': 1 for i in range(current_row, num_rows)})
     letters = itertools.cycle(string.ascii_letters)
     for i in range(num_rows):
         for j in range(num_cols):
@@ -1146,7 +1105,7 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     user_inputs : dict
         The dictionary containing the values needed to create the plt.Figure.
         Will be modified inplace by this function to include any twin axes.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The tkinter canvas on which the figure resides.
 
     """
@@ -1177,12 +1136,12 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
                     [sg.Text(f'Row {val[0][0] + 1}, Column {val[1][0] + 1}   ')]
                 ]),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_x_{val[0][0]}_{val[1][0]}',
-                                 default=default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'])]
+                    [sg.Check('      ', default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'],
+                              key=f'twin_x_{val[0][0]}_{val[1][0]}')]
                 ], element_justification='center'),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_y_{val[0][0]}_{val[1][0]}',
-                                 default=default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'])]
+                    [sg.Check('      ', default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'],
+                              key=f'twin_y_{val[0][0]}_{val[1][0]}')]
                 ], element_justification='center')
             ])
 
@@ -1219,7 +1178,7 @@ def _select_plot_type(user_inputs=None):
 
     Parameters
     ----------
-    user_inputs : dict
+    user_inputs : dict, optional
         A dictionary containing values to recreate a previous layout.
 
     Returns
@@ -1243,18 +1202,18 @@ def _select_plot_type(user_inputs=None):
         'scatter': False,
         'line': False,
         'line_scatter': True,
-        'num_rows': '1',
-        'num_cols': '1',
+        'num_rows': 1,
+        'num_cols': 1,
         'share_x': False,
         'share_y': False
     }
 
     default_inputs.update({key: num == 0 for num, key in enumerate(plot_types)})
     fig_kwargs = _create_gridspec_labels(default_inputs.copy())
+    if user_inputs is not None:
+        default_inputs.update(user_inputs)
+        fig_kwargs.update(user_inputs)
 
-    user_inputs = user_inputs if user_inputs is not None else {}
-    default_inputs.update(user_inputs)
-    fig_kwargs.update(user_inputs)
     fig_kwargs['fig_name'] = 'example'
 
     check_buttons = []
@@ -1320,7 +1279,12 @@ def _select_plot_type(user_inputs=None):
 
     validations= {
         'floats': [['fig_width', 'Figure Width'], ['fig_height', 'Figure Height'],
-                   ['dpi', 'DPI']]
+                   ['dpi', 'DPI']],
+        'integers': [['num_rows', 'Number of rows'],
+                     ['num_cols', 'Number of columns']],
+        'constraints': [['fig_width', 'Figure Width', '> 0'],
+                        ['fig_height', 'Figure Height', '> 0'],
+                        ['dpi', 'DPI', '> 0']]
     }
 
     while True:
@@ -1329,33 +1293,33 @@ def _select_plot_type(user_inputs=None):
         if event == sg.WIN_CLOSED:
             plt.close('example')
             utils.safely_close_window(window)
-            break
-        elif event in ('Advanced Options', 'Next', 'Preview', 'Add Twin Axes'):
+
+        elif (event in ('Advanced Options', 'Next', 'Preview', 'Add Twin Axes')
+                and utils.validate_inputs(values, **validations)):
+
             fig_kwargs.update(values)
-            proceed = utils.validate_inputs(values, **validations)
-            if proceed:
-                fig_kwargs = _create_gridspec_labels(fig_kwargs)
-                fig = _create_figure(fig_kwargs)
-                gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
-                axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
+            fig_kwargs = _create_gridspec_labels(fig_kwargs)
+            fig = _create_figure(fig_kwargs)
+            gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
+            axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
 
-                if event == 'Preview':
-                    _annotate_example_figure(
-                        axes, window['example_canvas'].TKCanvas, fig
-                    )
+            if event == 'Preview':
+                _annotate_example_figure(
+                    axes, window['example_canvas'].TKCanvas, fig
+                )
 
-                elif event == 'Advanced Options':
-                    _create_advanced_layout(
-                        fig_kwargs, window['example_canvas'].TKCanvas, fig
-                    )
+            elif event == 'Advanced Options':
+                _create_advanced_layout(
+                    fig_kwargs, window['example_canvas'].TKCanvas, fig
+                )
 
-                elif event == 'Add Twin Axes':
-                    _set_twin_axes(
-                        gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas
-                    )
+            elif event == 'Add Twin Axes':
+                _set_twin_axes(
+                    gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas
+                )
 
-                elif event == 'Next':
-                    break
+            elif event == 'Next':
+                break
 
         elif event in plot_types:
             if values['Multiple Plots']:
@@ -1906,50 +1870,11 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True,
                        finalize=True, location=location)
-    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
-                           window['controls_canvas'].TKCanvas)
+    plotting_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
+                                         window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) # expands the column when window changes size
 
     return window
-
-
-def _draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
-    """
-    Places the figure and toolbar onto the tkinter canvas.
-
-    Parameters
-    ----------
-    canvas : tk.Canvas
-        The tkinter Canvas element for the figure.
-    figure : plt.Figure
-        The figure to be place on the canvas.
-    toolbar_canvas: tk.Canvas
-        The tkinter Canvas element for the toolbar.
-
-    """
-
-    if canvas.children:
-        for child in canvas.winfo_children():
-            child.destroy()
-
-    figure_canvas_agg = FigureCanvasTkAgg(figure, master=canvas)
-    if toolbar_canvas is not None:
-        if toolbar_canvas.children:
-            for child in toolbar_canvas.winfo_children():
-                child.destroy()
-
-        toolbar = PlotToolbar(figure_canvas_agg, toolbar_canvas)
-        toolbar.update()
-
-    try:
-        figure_canvas_agg.draw()
-        figure_canvas_agg.get_tk_widget().pack(side='left', anchor='nw')
-    except Exception as e:
-        sg.popup(
-            ('Exception occurred during figure creation. Could be due to '
-             f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
-            title='Plotting Error'
-        )
 
 
 def _plot_data(data, axes, old_axes=None, **kwargs):
@@ -3209,8 +3134,10 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plotting_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas
+                    )
 
                     window[f'edit_annotation_{index[0]}_{index[1]}'].update(
                         disabled=not axes[key][label].texts
@@ -3233,8 +3160,10 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_peaks(axes[key][label], add_peak)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plotting_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas
+                    )
 
                     window[f'edit_peak_{index[0]}_{index[1]}'].update(
                         disabled=not any(
@@ -3265,8 +3194,10 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # update the figure
                 elif event == 'Update Figure':
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plotting_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas
+                    )
                 # resets all options to their defaults
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
