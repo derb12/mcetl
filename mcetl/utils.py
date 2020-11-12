@@ -1025,42 +1025,6 @@ def open_multiple_files():
     return dataframes
 
 
-def get_dpi_correction(dpi):
-    """
-    Calculates the correction factor needed to create a figure with the desired dpi.
-
-    Necessary because some matplotlib backends (namely qt5Agg) will adjust
-    the dpi of the figure after creation.
-
-    Parameters
-    ----------
-    dpi : float or int
-        The desired figure dpi.
-
-    Returns
-    -------
-    dpi_correction : float
-        The scaling factor needed to create a figure with the desired dpi.
-
-    Notes
-    -----
-    The matplotlib dpi correction occurs when the operating system display
-    scaling is set to any value not equal to 100% (at least on Windows,
-    other operating systems are unknown). This may cause issues when
-    using UHD monitors, but I cannot test.
-
-    To get the desired dpi, simply create a figure with a dpi equal
-    to dpi * dpi_correction.
-
-    """
-
-    with plt.rc_context({'interactive': False}):
-        dpi_correction = dpi / plt.figure('dpi_corrrection', dpi=dpi).get_dpi()
-        plt.close('dpi_corrrection')
-
-    return dpi_correction
-
-
 def save_excel_file(excel_writer):
     """
     Handles saving the Excel file and the various exceptions that can occur.
