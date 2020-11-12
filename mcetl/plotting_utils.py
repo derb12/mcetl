@@ -298,20 +298,24 @@ class EmbeddedFigure:
         self.figure = None
 
 
+def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
+                          toolbar_class=PlotToolbar, kwargs=None):
     """
     Places the figure and toolbar onto the PySimpleGUI canvas.
 
     Parameters
     ----------
-    canvas : sg.Canvas
-        The PySimpleGUI Canvas element for the figure.
+    canvas : tkinter.Canvas
+        The tkinter Canvas element for the figure.
     figure : plt.Figure
         The figure to be place on the canvas.
-    toolbar_canvas : sg.Canvas, optional
-        The PySimpleGUI Canvas element for the toolbar.
+    toolbar_canvas : tkinter.Canvas, optional
+        The tkinter Canvas element for the toolbar.
     toolbar_class : NavigationToolbar2Tk, optional
         The toolbar class used to create the toolbar for the figure. The
         default is PlotToolbar.
+    kwargs : dict, optional
+        Keyword arguments designating how to pack the figure into the window.
 
     Notes
     -----
@@ -320,24 +324,35 @@ class EmbeddedFigure:
 
     """
 
+    if kwargs is None:
+        kwargs = {'side': 'top', 'anchor': 'nw'}
+
     figure_canvas = FigureCanvasTkAgg(figure, master=canvas)
     try:
         figure_canvas.draw()
-        figure_canvas.get_tk_widget().pack(side='left', anchor='nw')
+        figure_canvas.get_tk_widget().pack(**kwargs)
     except Exception as e:
+        create_toolbar = False
         sg.popup(
             ('Exception occurred during figure creation. Could be due to '
              f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
             title='Plotting Error'
         )
+    else:
+        create_toolbar = True
     finally:
         for child in canvas.winfo_children()[:-1]:
             child.destroy()
 
     if toolbar_canvas is not None:
-        toolbar = toolbar_class(figure_canvas, toolbar_canvas)
-        toolbar.update()
-        for child in toolbar_canvas.winfo_children()[:-1]:
+        if create_toolbar:
+            toolbar = toolbar_class(figure_canvas, toolbar_canvas)
+            toolbar.update()
+            last_index = -1 if toolbar_canvas is not canvas else -2
+        else:
+            last_index = None
+
+        for child in toolbar_canvas.winfo_children()[:last_index]:
             child.destroy()
 
 
