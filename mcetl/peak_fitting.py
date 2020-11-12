@@ -1080,17 +1080,19 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
         self.axis.set_xlim(self.xaxis_limits)
         self.axis.set_ylim(self.yaxis_limits)
 
-        if self.click_list:
-            self._update_plot()
-            for point in self.click_list:
-                self._create_circle(point[0], point[1])
-
         self.axis.legend()
         self.axis_2.legend()
         self.axis.tick_params(labelbottom=False, bottom=False, which='both')
 
         self._create_window()
         self._place_figure_on_canvas()
+
+        # update plot after placing on canvas because figure.canvas.draw_idle will
+        # cause a threading issue otherwise
+        if self.click_list:
+            self._update_plot()
+            for point in self.click_list:
+                self._create_circle(point[0], point[1])
 
 
     def _create_window(self):
@@ -1111,7 +1113,7 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
              sg.Button('Clear Points', key='clear')]
         ]
 
-        self.window = sg.Window('Background Selector', layout, finalize=True)
+        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0)
 
 
     def event_loop(self):
@@ -1125,6 +1127,8 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
 
         """
 
+        self.window.reappear()
+
         while True:
             event = self.window.read()[0]
             if event in ('close', sg.WIN_CLOSED):
@@ -1135,10 +1139,7 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
                     self._remove_circle()
                 self._update_plot()
 
-        self.window.close()
-        self.window = None
-        plt.close(self.figure)
-        self.figure = None
+        self._close()
 
         return self.click_list
 
@@ -1305,6 +1306,9 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
 
         self.axis.legend()
 
+        self._create_window(initial_peak_width, default_model)
+        self._place_figure_on_canvas()
+
         if self.click_list:
             self._update_plot()
             for peak in self.click_list:
@@ -1312,15 +1316,13 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
                 height = peak[1][1] + self.background[np.argmin(np.abs(center - self.x))]
                 self._create_circle(center, height)
 
-        self._create_window(initial_peak_width, default_model)
-        self._place_figure_on_canvas()
-
 
     def _create_window(self, peak_width, peak_model):
         """Creates the GUI."""
 
         size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
-        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)), size=(size[0], 10))
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
+                                        size=(size[0], 10))
         self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
 
         models_dict = peak_transformer()
@@ -1341,13 +1343,13 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
              sg.Combo(display_models, key='peak_model', readonly=True,
                       default_value=initial_model),
              sg.Text('    Peak width:', size=(11, 1)),
-             sg.Input(peak_width, key='peak_width', do_not_clear=True, size=(10, 1))],
+             sg.Input(peak_width, key='peak_width', size=(10, 1))],
             [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
                        bind_return_key=True, pad=(5, (15, 0))),
              sg.Button('Clear Points', key='clear', pad=(5, (15, 0)))]
         ]
 
-        self.window = sg.Window('Peak Selector', layout, finalize=True)
+        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
 
 
     def event_loop(self):
@@ -1365,6 +1367,8 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
 
         """
 
+        self.window.reappear()
+
         while True:
             event = self.window.read()[0]
             if event in ('close', sg.WIN_CLOSED):
@@ -1375,10 +1379,7 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
                     self._remove_circle()
                 self._update_plot()
 
-        self.window.close()
-        self.window = None
-        plt.close(self.figure)
-        self.figure = None
+        self._close()
 
         return self.click_list
 
@@ -1619,7 +1620,7 @@ def plot_fit_results(x, y, fit_result, label_rsq=False, plot_initial=False):
     if plot_initial:
         ax_1.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
     ax_1.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
-    ax_resid.plot(x, -fit_result[-1].residual, 'o', color='dodgerblue',
+    ax_resid.plot(x, -fit_result[-1].residual, 'o', color='green',
                   ms=1, label='residuals')
     ax_resid.axhline(0, color='k', linestyle='-')
     ax_1.legend()
@@ -1636,7 +1637,7 @@ def plot_fit_results(x, y, fit_result, label_rsq=False, plot_initial=False):
     ax_1.label_outer()
 
     ax_1.set_xlabel('x')
-    ax_resid.set_ylabel('$y_{obs}-y_{calc}$')
+    ax_resid.set_ylabel('$y_{data}-y_{fit}$')
     ax_resid.set_ylim(ax_resid.get_ylim()[0] * (1 + 0.1), ax_resid.get_ylim()[1] * (1 + 0.1))
     ax_resid.label_outer()
     plt.show(block=False)

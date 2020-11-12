@@ -120,9 +120,9 @@ class EmbeddedFigure:
     axis : plt.Axes
         The main axis on the figure which owns the events.
     canvas : sg.Canvas
-        The canvas element in the window which contains the figure.
+        The PySimpleGUI canvas element in the window which contains the figure.
     toolbar_canvas : sg.Canvas
-        The canvas element that contains the toolbar for the figure.
+        The PySimpleGUI canvas element that contains the toolbar for the figure.
     picked_object : plt.Artist
         The selected Artist objected on the figure.
     xaxis_limits : tuple
@@ -144,9 +144,13 @@ class EmbeddedFigure:
     Notes
     -----
     This class allows easy subclassing to create simple windows with
-    embedded matplotlib figures. The only function that should be
-    publically available is the event_loop function, which should return
-    the desired output.
+    embedded matplotlib figures.
+
+    The only function that should be publically available is the
+    event_loop method, which should return the desired output.
+
+    To close the window, use the internal _close method, which ensures
+    that both the window and the figure are correctly closed.
 
     """
 
@@ -277,7 +281,23 @@ class EmbeddedFigure:
             self._cid3 = self.figure.canvas.mpl_connect('key_press_event', self._on_key)
 
 
-def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None, toolbar_class=PlotToolbar):
+    def _close(self):
+        """Safely stops the event loop and closes the window and figure."""
+
+        if self.window is not None:
+            try:
+                self.window.TKroot.quit() # exits GUI's event loop first
+            except AttributeError:
+                pass # window's root was already destroyed
+            else:
+                self.window.close()
+            finally:
+                self.window = None
+
+        plt.close(self.figure)
+        self.figure = None
+
+
     """
     Places the figure and toolbar onto the PySimpleGUI canvas.
 

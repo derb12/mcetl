@@ -57,7 +57,7 @@ class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
         additional_peaks = np.array(gui_values['peak_list'])
         additional_peaks = additional_peaks[(additional_peaks > x_min)
                                             & (additional_peaks < x_max)]
-        plt.close('Fitting')
+
         self.figure, self.axis = plt.subplots(
             num='Fitting', tight_layout=True, dpi=plotting_utils.determine_dpi()
         )
@@ -164,7 +164,7 @@ class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
             [sg.Button('Back', key='close', button_color=utils.PROCEED_COLOR)]
         ]
 
-        self.window = sg.Window('Preview', layout, finalize=True)
+        self.window = sg.Window('Preview', layout, finalize=True, alpha_channel=0)
 
 
     def event_loop(self):
@@ -175,10 +175,9 @@ class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
 
         """
 
-        self.window.read(close=True)
-        self.window = None
-        plt.close(self.figure)
-        self.figure = None
+        self.window.reappear()
+        self.window.read()
+        self._close()
 
 
 def _find_peaks(dataframe, gui_values):
