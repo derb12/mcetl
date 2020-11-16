@@ -9,8 +9,7 @@ Created on Sat Aug 22 17:34:39 2020
 
 """
 
-
-from mcetl import launch_plotting_gui
+from mcetl.plotting import launch_plotting_gui
 #from mcetl import utils, plotting_utils
 #import PySimpleGUI as sg
 

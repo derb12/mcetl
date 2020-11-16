@@ -91,10 +91,6 @@ class SeparationFunction(FunctionBase):
         function_kwargs : TYPE, optional
             DESCRIPTION. The default is None.
 
-        Returns
-        -------
-        None.
-
         """
 
         super().__init__(name, target_columns)

@@ -10,7 +10,7 @@ Created on Sat Aug 22 17:34:39 2020
 """
 
 import matplotlib.pyplot as plt
-from mcetl import launch_peak_fitting_gui
+from mcetl.fitting import launch_fitting_gui
 
 
 # changes some defaults for the plot formatting so it looks nice
@@ -39,7 +39,7 @@ changes = {
     'figure.figsize': (6, 4.5)
 }
 
-fit_results, gui_values, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
+fit_results, gui_values, all_data_fit = launch_fitting_gui(mpl_changes=changes)
 
 # Ensures program will not end until all plots are closed
 if plt.get_fignums():
