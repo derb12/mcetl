@@ -224,8 +224,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         middles[i + 1] = np.mean([peak_centers[i], peak_centers[i + 1]])
 
     if debug:
-        fig1, ax1 = plt.subplots()
-        fig2, ax2 = plt.subplots()
+        ax1 = plt.subplots()[-1]
+        ax2 = plt.subplots()[-1]
         ax1.plot(x, y)
         ax2.plot(x, y, label='data')
 
@@ -560,7 +560,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
             residual_peaks_accepted.append(peak_x)
 
     if debug:
-        fig, ax = plt.subplots()
+        ax = plt.subplots()[-1]
         ax.plot(x,residuals, label='residuals')
         ax.plot(x, resid_interp, label='interpolated residuals')
         ax.plot(x, np.array([prominence] * len(x)),
@@ -647,7 +647,40 @@ def _re_sort_prefixes(params_dict):
     return new_params_dict
 
 
-def peak_fitting(
+def _check_background(background_model, background_value, y):
+    """
+    Ensures that the background_value and y have the same shape.
+
+    ConstantModel and ComplexConstantModel return a single value
+    rather than an array, so need to create an array for those
+    models so that issues aren't caused during plotting.
+
+    Parameters
+    ----------
+    background_model : str
+        The model used for the background, such as 'ConstantModel'.
+    background_value : array-like or float
+        The value(s) of the background.
+    y : array-like
+        The data being fit.
+
+    Returns
+    -------
+    output : array-like
+        An array of the background values, with the same size as the
+        input y array.
+
+    """
+
+    if background_model in ('ConstantModel', 'ComplexConstantModel'):
+        output = np.full(y.size, background_value)
+    else:
+        output = background_value
+
+    return output
+
+
+def fit_peaks(
         x, y, height=None, prominence=np.inf, center_offset=1.0,
         peak_width=1.0, default_model='PseudoVoigtModel', subtract_background=False,
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
@@ -786,7 +819,7 @@ def peak_fitting(
 
     Within this function:
         params == parameters for all of the peaks
-        bkrd_params == parameters for the background
+        bkg_params == parameters for the background
         composite_params == parameters for peaks + background
 
         model == CompositeModel object for all of the peaks
@@ -834,7 +867,7 @@ def peak_fitting(
     y = y_array[domain_mask]
 
     if debug:
-        tot_fig, tot_ax = plt.subplots()
+        tot_ax = plt.subplots()[-1]
         tot_ax.plot(x, y, label='data')
         tot_ax.set_title('initial fits and backgrounds')
 
@@ -843,27 +876,31 @@ def peak_fitting(
         bkg_kwargs = {'degree': poly_n} if background_type == 'PolynomialModel' else {}
 
         background = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
-        init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkrd = background.eval(init_bkrd_params, x=x)
+        bkg_params = background.guess(y[bkg_mask], x=x[bkg_mask])
+        initial_bkg = _check_background(background_type, background.eval(bkg_params, x=x), y)
 
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
             vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
-            max_sigma=max_sigma, background_y=initial_bkrd,
+            max_sigma=max_sigma, background_y=initial_bkg,
             debug=debug, peak_heights=peak_heights
         )
 
         model, params = _generate_lmfit_model(params_dict)
-        fit_wo_bkrd = model.eval(params, x=x)
-        bkrd_params = background.guess(y - fit_wo_bkrd, x=x)
+        fit_wo_bkg = model.eval(params, x=x)
+        bkg_params = background.guess(y - fit_wo_bkg, x=x)
 
         if debug:
-            tot_ax.plot(x, initial_bkrd, label='initial_bkrd')
-            tot_ax.plot(x, background.eval(bkrd_params, x=x), label='background_1')
+            tot_ax.plot(x, initial_bkg, label='initialization background')
+            tot_ax.plot(
+                x,
+                _check_background(background_type, background.eval(bkg_params, x=x), y),
+                label='background_1'
+            )
 
         composite_model = model + background
-        composite_params = params + bkrd_params
+        composite_params = params + bkg_params
 
     else:
         params_dict = _initialize_peaks(
@@ -933,15 +970,18 @@ def peak_fitting(
             model, params = _generate_lmfit_model(params_dict)
 
             if subtract_background:
-                fit_wo_bkrd = model.eval(params, x=x)
-                bkrd_params = background.guess(y - fit_wo_bkrd, x=x)
+                fit_wo_bkg = model.eval(params, x=x)
+                bkg_params = background.guess(y - fit_wo_bkg, x=x)
 
-                composite_params = params + bkrd_params
+                composite_params = params + bkg_params
                 composite_model = model + background
 
                 if debug:
-                    tot_ax.plot(x, background.eval(bkrd_params, x=x),
-                                label=f'background_{eval_num+2}')
+                    tot_ax.plot(
+                        x,
+                        _check_background(background_type, background.eval(bkg_params, x=x), y),
+                        label=f'background_{eval_num + 2}'
+                    )
 
             else:
                 composite_model = model
@@ -981,11 +1021,9 @@ def peak_fitting(
     for fit_result in output['fit_results']:
         # list of y-values for the inidividual models
         output['individual_peaks'].append(fit_result.eval_components(x=x))
-        if 'ConstantModel' in background_type:
-            # ComplexConstantModel and ConstantModel output only a single value, so
-            # need to create an array for their output
-            output['individual_peaks'][-1]['background_'] = np.full(
-                y.size, output['individual_peaks'][-1]['background_']
+        if subtract_background:
+            output['individual_peaks'][-1]['background_'] = _check_background(
+                background_type, output['individual_peaks'][-1]['background_'], y
             )
 
         # gets the parameters for each model and their standard errors, if available
@@ -1284,7 +1322,7 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
 
             bkg_model = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
             bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
-            self.background = bkg_model.eval(bkg_params, x=x)
+            self.background = _check_background(background_type, bkg_model.eval(bkg_params, x=x), y)
 
         self.axis.plot(self.x, self.background, 'r--', lw=2, label='background')
         self.xaxis_limits = self.axis.get_xlim()
@@ -1507,33 +1545,51 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
                 self.figure.canvas.draw_idle()
 
 
-def plot_confidence_intervals(x, y, fit_result, n_sig=3):
+def plot_confidence_intervals(fit_result, n_sig=3, return_figure=False):
     """
-    Plot the data, fit, and the fit +- n_sig*sigma confidence intervals.
+    Plot the data, the fit, and the fit +- n_sig * sigma confidence intervals.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
     fit_result : lmfit.ModelResult
         The ModelResult object for the fitting.
-    n_sig : int
-        An integer describing the multiple of the standard error to use
-        as the plotted error.
+    n_sig : float, optional
+        The multiple of the standard error to use as the plotted error.
+        The default is 3.
+    return_figure : bool, optional
+        If True, will return the created figure; otherwise, it will display
+        the figure using plt.show(block=False) (default).
+
+    Returns
+    -------
+    plt.Figure or None
+        If return_figure is True, the figure is returned; otherwise, None
+        is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
+    x = fit_result.userkws['x']
+    y = fit_result.data
     del_y = fit_result.eval_uncertainty(sigma=n_sig)
-    plt.figure()
+
+    figure = plt.figure()
     plt.fill_between(
-        x, fit_result.best_fit - del_y,
-        fit_result.best_fit+del_y, color='darkgrey',
-        label=fr'best fit $\pm$ {n_sig}$\sigma$'
+        x, fit_result.best_fit - del_y, fit_result.best_fit + del_y,
+        color='darkgrey', label=fr'best fit $\pm$ {n_sig}$\sigma$'
     )
     plt.plot(x, y, 'o', ms=1.5, color='dodgerblue', label='data')
     plt.plot(x, fit_result.best_fit, 'k-', lw=1.5, label='best fit')
     plt.legend()
-    plt.show(block=False)
+
+    if return_figure:
+        return figure
+    else:
+        plt.show(block=False)
 
 
 def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
@@ -1543,8 +1599,10 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
+    x : array-like
+        x data used in the fitting.
+    y : array-like
+        y data used in the fitting.
     x_min : float or int
         Minimum x values used for the fitting procedure.
     x_max : float or int
@@ -1562,7 +1620,7 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
 
     """
 
-    fig, ax = plt.subplots()
+    ax = plt.subplots()[-1]
     legend = ['Rejected Peaks', 'Found Peaks', 'User Peaks']
     colors = ['r', 'g', 'purple']
     ax.plot(x, y, 'b-', ms=2)
@@ -1574,81 +1632,99 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
                                            & (np.array(additional_peaks)<x_max)]:
         ax.axvline(peak, 0, 0.9, c='purple', linestyle='--')
     for i in range(3):
-        plt.text(0.1+0.35*i, 0.95, legend[i], ha='left', va='center',
+        plt.text(0.1 + 0.35 * i, 0.95, legend[i], ha='left', va='center',
                  transform=ax.transAxes)
-        plt.hlines(0.95, 0.02+0.35*i, 0.08+0.35*i, color=colors[i], linestyle='--',
-                   transform=ax.transAxes)
-    plt.ylim(ax.get_ylim()[0], ax.get_ylim()[1]*1.1)
+        plt.hlines(0.95, 0.02 + 0.35 * i, 0.08 + 0.35 * i, color=colors[i],
+                   linestyle='--', transform=ax.transAxes)
+    ax.set_ylim(plotting_utils.scale_axis(ax.get_ylim(), None, 0.1))
     plt.show(block=False)
 
 
-def plot_fit_results(x, y, fit_result, label_rsq=False, plot_initial=False):
+def plot_fit_results(fit_result, label_rsq=False, plot_initial=False, return_figure=False):
     """
     Plot the raw data, best fit, and residuals.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
-    fit_result : lmfit.ModelResult
+    fit_result : lmfit.ModelResult or list(lmfit.ModelResult)
         A ModelResult object from lmfit; can be a list of ModelResults,
         in which case, the initial fit will use fit_result[0], and the
         best fit will use fit_result[-1].
-    label_rsq : bool
+    label_rsq : bool, optional
         If True, will put a label with the adjusted r squared value of the fitting.
-    plot_initial : bool
+    plot_initial : bool, optional
         If True, will plot the initial fitting as well as the best fit.
+    return_figure : bool, optional
+        If True, will return the created figure; otherwise, it will display
+        the figure using plt.show(block=False) (default).
+
+    Returns
+    -------
+    plt.Figure or None
+        If return_figure is True, the figure is returned; otherwise, None
+        is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
     if not isinstance(fit_result, (list, tuple)):
         fit_result = [fit_result]
 
-    fig_a, (ax_resid, ax_1) = plt.subplots(
+    x = fit_result[-1].userkws['x']
+    y = fit_result[-1].data
+
+    figure, (ax_resid, ax_main) = plt.subplots(
         2, sharex=True, gridspec_kw={'height_ratios':[1, 5], 'hspace': 0}
     )
-    ax_1.plot(x, y, 'o', color='dodgerblue', ms=1.5, label='data')
+    ax_main.plot(x, y, 'o', color='dodgerblue', ms=1.5, label='data')
     if plot_initial:
-        ax_1.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
-    ax_1.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
+        ax_main.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
+    ax_main.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
     ax_resid.plot(x, -fit_result[-1].residual, 'o', color='green',
                   ms=1, label='residuals')
     ax_resid.axhline(0, color='k', linestyle='-')
-    ax_1.legend()
 
-    ax_1.set_ylabel('y')
-    ax_1.set_xlim(np.min(x)-5, np.max(x)+5)
-    ax_1.set_ylim(ax_1.get_ylim()[0] * (1 - 0.1), ax_1.get_ylim()[1] * (1 + 0.1))
+    ax_main.set_ylim(plotting_utils.scale_axis(ax_main.get_ylim(), 0.05, 0.05))
+    ax_resid.set_ylim(plotting_utils.scale_axis(ax_resid.get_ylim(), 0.05, 0.05))
+    ax_main.legend()
+    ax_main.set_ylabel('y')
+
     if label_rsq:
-        ax_1.text((ax_1.get_xlim()[1]-ax_1.get_xlim()[0])*0.05 + ax_1.get_xlim()[0],
-                  (ax_1.get_ylim()[1]-ax_1.get_ylim()[0])*0.95 + ax_1.get_ylim()[0],
-                   f'R$^2$= {r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
-                   ha='left', va='top')
+        ax_main.text(
+            plotting_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
+            plotting_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
+            f'R$^2$= {r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
+            ha='left', va='top'
+        )
     ax_resid.tick_params(labelbottom=False, bottom=False, which='both')
-    ax_1.label_outer()
-
-    ax_1.set_xlabel('x')
+    ax_main.label_outer()
+    ax_main.set_xlabel('x')
     ax_resid.set_ylabel('$y_{data}-y_{fit}$')
-    ax_resid.set_ylim(ax_resid.get_ylim()[0] * (1 + 0.1), ax_resid.get_ylim()[1] * (1 + 0.1))
     ax_resid.label_outer()
-    plt.show(block=False)
+
+    if return_figure:
+        return figure
+    else:
+        plt.show(block=False)
 
 
-def plot_individual_peaks(x, y, individual_peaks, fit_result, background_subtracted=False,
+def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=False,
                           plot_subtract_background=False, plot_separate_background=False,
-                          plot_w_background=False):
+                          plot_w_background=False, return_figures=False):
     """
     Plots each individual peak in the composite model and the total model.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
+    fit_result : lmfit.ModelResult
+        The ModelResult object from the fitting.
     individual_peaks : dict
         A dictionary with keys corresponding to the model prefixes
         in the fitting, and their values corresponding to their y values.
-    fit_result : lmfit.ModelResult
-        The ModelResult object from the fitting.
     background_subtracted : bool
         Whether or not the background was subtracted in the fitting.
     plot_subtract_background : bool
@@ -1661,166 +1737,94 @@ def plot_individual_peaks(x, y, individual_peaks, fit_result, background_subtrac
     plot_w_background : bool
         If True, has the background added to all peaks, i.e. it shows
         exactly how the composite model fits the raw data.
+    return_figures : bool, optional
+        If True, will return the created figures; otherwise, it will display
+        the figures using plt.show(block=False) (default).
+
+    Returns
+    -------
+    list(plt.Figure) or None
+        If return_figures is True, the list of created figures is returned.
+        Otherwise, None is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
-    #Creates a color cycle to override matplotlib's to prevent color clashing
+    x = fit_result.userkws['x']
+    y = fit_result.data
+
+    # Creates a color cycle to override matplotlib's to prevent color clashing
     COLORS = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b','#e377c2',
               '#bcbd22', '#17becf']
-    n_col = int(np.ceil(len(individual_peaks) / 5))
+    n_col = max(1, len(individual_peaks) // 5)
 
+    figures = []
     if background_subtracted:
         if plot_subtract_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
-            ax.plot(x, y-individual_peaks['background_'], 'o',
+            ax.plot(x, y - individual_peaks['background_'], 'o',
                     color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                    ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                             color=next(color_cycle))
                     i += 1
-            ax.plot(x, fit_result.best_fit-individual_peaks['background_'],
+            ax.plot(x, fit_result.best_fit - individual_peaks['background_'],
                     'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
         if plot_w_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak]+individual_peaks['background_'],
-                            label=f'peak {i+1}', color=next(color_cycle))
+                    ax.plot(x, individual_peaks[peak] + individual_peaks['background_'],
+                            label=f'peak {i}', color=next(color_cycle))
                     i += 1
             ax.plot(x, individual_peaks['background_'], 'k', label='background')
             ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
         if plot_separate_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                    ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                             color=next(color_cycle))
                     i += 1
             ax.plot(x, individual_peaks['background_'], 'k', label='background')
             ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
     else:
         fig, ax = plt.subplots()
         color_cycle = itertools.cycle(COLORS)
         ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-        for i, peak in enumerate(individual_peaks):
+        i = 1
+        for peak in individual_peaks:
             if peak != 'background_':
-                ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                         color=next(color_cycle))
+                i += 1
         ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
         ax.legend(ncol=n_col)
+        figures.append(fig)
+
+    if return_figures:
+        return figures
+    else:
         plt.show(block=False)
-
-
-if __name__ == '__main__':
-
-    import time
-
-    # data
-    x_array = np.linspace(0, 60, 100)
-    background = 0.1 * x_array
-    noise = 0.1 * np.random.randn(len(x_array))
-    peaks = lmfit.lineshapes.gaussian(x_array, 30, 15, 5) + lmfit.lineshapes.gaussian(x_array, 50, 35, 3)
-    y_array = background + noise + peaks
-
-    # inputs for peak_fitting function
-    rel_height = 0
-    prominence = np.inf
-    center_offset = 10
-    peak_width = 10
-    x_min = 5
-    x_max = 55
-    additional_peaks = [2, 10, 36]
-    subtract_background=True
-    model_list = []
-    min_method = 'least_squares'
-    background_type = 'PolynomialModel'
-    poly_n = 1
-    default_model='GaussianModel'
-    fit_kws = {}
-    vary_Voigt=False
-    fit_residuals=True
-    num_resid_fits=5
-    min_resid = 0.1
-    debug=True
-    bkg_min = 45
-
-    #options for plotting data after fitting
-    plot_data_wo_background=False
-    plot_data_w_background=True
-    plot_data_separatebackground=False
-    plot_fit_result=True
-    plot_CI=True
-    n_sig = 3
-    plot_peaks=True
-    plot_initial=False
-
-    time0 = time.time()
-
-    fitting_results = peak_fitting(
-        x_array, y_array, height=rel_height, prominence=prominence,
-        center_offset=center_offset, peak_width=peak_width, model_list=model_list,
-        subtract_background=subtract_background, x_min=x_min, x_max=x_max,
-        additional_peaks=additional_peaks, background_type=background_type,
-        poly_n=poly_n, min_method=min_method, default_model=default_model,
-        fit_kws=fit_kws, vary_Voigt=vary_Voigt, fit_residuals=fit_residuals,
-        num_resid_fits=num_resid_fits, min_resid=min_resid,
-        debug=debug, bkg_min=bkg_min
-    )
-
-    print('\n\n'+'-'*8+f' {time.time()-time0:.1f} seconds '+'-'*8)
-
-    #unpacks all of the data from the output of the plugNchug_fit function
-    output_list = [fitting_results[key] for key in fitting_results]
-    resid_found, resid_accept, peaks_found, peaks_accept, initial_fit, fit_results, individual_peaks, best_values = output_list
-    fit_result = fit_results[-1]
-    individual_peaks = individual_peaks[-1]
-    best_values = best_values[-1]
-
-    domain_mask = (x_array > x_min) & (x_array < x_max)
-    x_array = x_array[domain_mask]
-    y_array = y_array[domain_mask]
-
-    #Plot the peaks found or added, as well as if they were used in the fitting
-    if plot_peaks:
-        plot_peaks_for_model(x_array, y_array, x_min, x_max, peaks_found,
-                             peaks_accept, additional_peaks)
-
-    #Plot the initial model used for fitting
-    if plot_initial:
-        fig=plt.figure()
-        plt.plot(x_array, y_array, 'o', x_array, initial_fit[0], ms=2)
-        plt.legend(['data', 'initial guess'])
-        plt.show(block=False)
-
-    #Plot the best fit and residuals
-    if plot_fit_result:
-        plot_fit_results(x_array, y_array, fit_results, True, True)
-
-    #Plots individual peaks from the fitting
-    plot_individual_peaks(x_array, y_array, individual_peaks, fit_result, subtract_background,
-                          plot_data_wo_background, plot_data_separatebackground,
-                          plot_data_w_background)
-
-    #Plot the data, fit, and the fit +- n_sig*sigma confidence intervals
-    if plot_CI:
-        plot_confidence_intervals(x_array, y_array, fit_result, n_sig)
-
-    print('\n\n', fit_result.fit_report(min_correl=0.5))
