@@ -449,7 +449,7 @@ def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, *
             )
             # need to catch the following errors: ValueError('x0 is infeasible')
             predicted_viscosity = carreau_model(shear_rate, *params)
-            r_sq = mcetl.peak_fitting.r_squared(viscosity, predicted_viscosity, 4)[1]
+            r_sq = mcetl.fitting.r_squared(viscosity, predicted_viscosity, 4)[1]
 
             df[sample[1 + (j * num_columns)]] = pd.Series(predicted_viscosity)
             df[sample[2 + (j * num_columns)]] = pd.Series(
