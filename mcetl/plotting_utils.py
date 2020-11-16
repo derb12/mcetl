@@ -421,3 +421,43 @@ def determine_dpi(fig_kwargs=None):
         size_scale = CANVAS_SIZE[1] / fig_kwargs['fig_height']
 
     return fig_kwargs['dpi'] * dpi_scale * size_scale
+
+
+def scale_axis(axis_bounds, lower_scale=None, upper_scale=None):
+    """
+    Calculates the new bounds to scale the current axis bounds.
+
+    The new bounds are calculated by multiplying the desired scale factor
+    by the current difference of the upper and lower bounds, and then
+    adding (for upper bound) or subtracting (for lower bound) from
+    the current bound.
+
+    Parameters
+    ----------
+    axis_bounds : tuple(float, float)
+        The current lower and upper axis bounds.
+    lower_scale : float, optional
+        The desired fraction by which to scale the current lower bound.
+        If None, will not scale the current lower bounds.
+    upper_scale : float, optional
+        The desired fraction by which to scale the current upper bound.
+        If None, will not scale the current upper bounds.
+
+    Returns
+    -------
+    lower_bound : float
+        The lower bound after scaling.
+    upper_bound : float
+        The upper bound after scaling.
+
+    """
+
+    l_scale = lower_scale if lower_scale is not None else 0
+    u_scale = upper_scale if upper_scale is not None else 0
+
+    difference = axis_bounds[1] - axis_bounds[0]
+
+    lower_bound = axis_bounds[0] - (l_scale * difference)
+    upper_bound = axis_bounds[1] + (u_scale * difference)
+
+    return lower_bound, upper_bound
