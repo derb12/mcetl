@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Provides a GUI to ease the use of the peak_fitting program and save the results to Excel
+"""Provides a GUI to fit data using lmfit Models and save the results to Excel
 
 @author: Donald Erb
 Created on May 24, 2020
@@ -21,8 +21,7 @@ import pandas as pd
 import PySimpleGUI as sg
 
 from . import peak_fitting
-from . import plotting_utils
-from . import utils
+from .. import plotting_utils, utils
 
 
 class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
@@ -226,15 +225,15 @@ def fit_dataframe(dataframe, user_inputs=None):
     Parameters
     ----------
     dataframe : pd.DataFrame
-        A pandas dataframe.
-    user_inputs : dict
+        A pandas dataframe containing the data to be fit.
+    user_inputs : dict, optional
         Values to use as the default inputs in the GUI.
 
     Returns
     -------
-    tuple or bool
-        If peak fitting was skipped for an entry, then False is returned. Otherwise,
-        a tuple is returned with the following entries:
+    tuple
+        If peak fitting was skipped for the input dataframe, then an empty tuple
+        is returned. Otherwise, a tuple is returned with the following entries:
             fit_result : list
                 A list of lmfit.ModelResult objects, which give information for each
                 of the fits done on the dataset.
@@ -523,7 +522,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                 if skip == 'Yes':
                     window.close()
                     del window
-                    return False
+                    return ()
 
             elif event == 'Reset to Default':
                 window.fill(default_inputs)
@@ -718,7 +717,7 @@ def fit_dataframe(dataframe, user_inputs=None):
         plt.close('Fitting')
 
     x_label = values['x_label']
-    y_label = values['y_label']
+    y_label = values['y_label'] if values['y_label'] != x_label else values['y_label'] + '_1'
     x_data = dataframe[headers[values['x_fit_index']]]
     y_data = dataframe[headers[values['y_fit_index']]]
     x_min = values['x_min']
@@ -826,9 +825,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     # Creation of dataframe for peak values and x and y raw data
     x = fit_result[-1].userkws['x']
     y = fit_result[-1].data
-    peaks_df = pd.DataFrame()
-    peaks_df[x_label] = x
-    peaks_df[y_label] = y
+    peaks_df = pd.DataFrame({x_label: x, y_label: y})
 
     bkg_term = '+ background' if subtract_bkg else ''
     bkg = individual_peaks[-1]['background_'] if subtract_bkg else 0
@@ -914,6 +911,10 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             sheet_name = f'{sheet_base}_{num}'
             num += 1
 
+    param_names = dict.fromkeys([
+        '',
+        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
+    ])
     total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
                    + len(descriptors_dataframe.columns) + 1)
 
@@ -970,11 +971,6 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             cell.style = 'fitting_columns_' + next(suffix)
 
     # Formatting for params_dataframe
-    param_names = dict.fromkeys([
-        '',
-        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
-    ])
-
     for index, subheader in enumerate(param_names):
         style_suffix = next(suffix)
 
@@ -1054,9 +1050,8 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         worksheet.add_chart(chart, 'D8')
 
 
-def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
-                            save_excel=True, plot_excel=True, mpl_changes=None,
-                            save_when_done=True):
+def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_excel=True,
+                       plot_excel=True, mpl_changes=None, save_when_done=True):
     """
     Convenience function to fit dataframe(s) and write their results to Excel.
 
@@ -1093,7 +1088,7 @@ def launch_peak_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
         peak fitting.
 
     """
-    #TODO check that mpl backend is interactive; if not, try to switch to tkAgg
+
     rc_params = mpl_changes.copy() if mpl_changes is not None else {}
     # Correctly scales the dpi to match the desired dpi.
     dpi = rc_params.get('figure.dpi', plt.rcParams['figure.dpi'])

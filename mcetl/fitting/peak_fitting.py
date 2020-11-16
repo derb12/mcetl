@@ -19,8 +19,7 @@ import numpy as np
 import PySimpleGUI as sg
 from scipy import signal
 
-from . import plotting_utils
-from . import utils
+from .. import plotting_utils, utils
 
 
 def peak_transformer():
@@ -39,7 +38,7 @@ def peak_transformer():
 
     Notes
     -----
-    The equations for approximating the amplitude and sigma were obtained from:
+    The equations for approximating the amplitude and sigma were gotten from:
     http://openafox.com/science/peak-function-derivations.html
 
     Lognormal does not have equations for sigma and amplitude because the equations
@@ -990,20 +989,19 @@ def peak_fitting(
             )
 
         # gets the parameters for each model and their standard errors, if available
-        if None not in {fit_result.params[var].stderr for var in fit_result.var_names}:
+        if not any(param.stderr is None for param in fit_result.params.values()):
             output['best_values'].append([
-                [var, fit_result.params[var].value,
-                 fit_result.params[var].stderr] for var in fit_result.params
+                [param.name, param.value, param.stderr] for param in fit_result.params.values()
             ])
         else:
             output['best_values'].append([
-                [var, fit_result.params[var].value, 'N/A'] for var in fit_result.params
+                [param.name, param.value, 'N/A'] for param in fit_result.params.values()
             ])
 
     return output
 
 
-def r_squared(y, y_calc, num_variables):
+def r_squared(y, y_calc, num_variables=1):
     """
     Calculates r^2 and adjusted r^2 for the fitting.
 
@@ -1013,7 +1011,7 @@ def r_squared(y, y_calc, num_variables):
         The experimental y data.
     y_calc : array-like
         The calculated y from fitting.
-    num_variables : int
+    num_variables : int, optional
         The number of variables used by the fitting model.
 
     Returns
@@ -1026,9 +1024,8 @@ def r_squared(y, y_calc, num_variables):
 
     """
 
-    mean = np.mean(y)
     n = len(y)
-    SS_tot = np.sum((y - mean)**2)
+    SS_tot = np.sum((y - np.mean(y))**2)
     SS_res = np.sum((y - y_calc)**2)
 
     r_sq = 1 - (SS_res / SS_tot)
