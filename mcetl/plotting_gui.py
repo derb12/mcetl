@@ -155,7 +155,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                         'markersize': line.get_markersize(),
                         'linestyle': line.get_linestyle(),
                         'linewidth': line.get_linewidth(),
-                        'color': line.get_color()
+                        'color': line.get_color(),
+                        'alpha': line.get_alpha()
                     })
 
         if Path(filename).suffix != _THEME_EXTENSION:
@@ -681,8 +682,8 @@ def _create_figure(fig_kwargs, saving=False):
         Keyword arguments for creating the figure.
     saving : bool
         Designates whether the figure will be saved. If True, will use the input
-        figure size and dpi. If False, will scale and figure size and dpi to fit
-        onto the PySimpleGUI canvas with size = CANVAS_SIZE.
+        figure size and dpi. If False, will scale the dpi to fit the figure onto
+        the PySimpleGUI canvas with size = CANVAS_SIZE.
 
     Returns
     -------
@@ -708,7 +709,16 @@ def _create_figure(fig_kwargs, saving=False):
 
     """
 
-    fig_name = fig_kwargs.get('fig_name', _PREVIEW_NAME)
+    defaults = {
+        'fig_name': _PREVIEW_NAME,
+        'fig_width': plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi'],
+        'fig_height': plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi'],
+        'dpi': plt.rcParams['figure.dpi'],
+        'share_x': False,
+        'share_y': False
+    }
+    for key, value in defaults.items():
+        fig_kwargs.setdefault(key, value)
 
     if saving:
         dpi = fig_kwargs['dpi']
@@ -1372,18 +1382,28 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
     -------
     window : sg.Window
         The window that contains the plotting options.
+    validations : dict
+        A dictionary containing all of the validations for the created
+        window for use in the utils.validate_inputs function.
 
     TODO set metadata for elements to determine whether they should be readonly when enabled
 
     """
 
     default_inputs = {}
+    validations = {
+        'integers': [],
+        'floats': [],
+        'user_inputs': [],
+        'constraints': []
+    }
     # generates default values based on the Axes and data length
     for i, key in enumerate(axes):
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
+            axis_label = axis.get_label()
             color_cyle = itertools.cycle(COLORS[1:])
 
             if kwargs['line']:
@@ -1458,6 +1478,27 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                 f'y_major_grid_{i}_{j}': False,
                 f'y_minor_grid_{i}_{j}': False,
             })
+
+            validations['floats'].extend([
+                [f'x_axis_min_{i}_{j}', f'x axis minimum for {axis_label}'],
+                [f'x_axis_max_{i}_{j}', f'x axis maximum for {axis_label}'],
+                [f'x_label_offset_{i}_{j}', f'x axis label offset for {axis_label}'],
+                [f'y_axis_min_{i}_{j}', f'y axis minimum for {axis_label}'],
+                [f'y_axis_max_{i}_{j}', f'y axis maximum for {axis_label}'],
+                [f'y_label_offset_{i}_{j}', f'y axis label offset for {axis_label}'],
+                [f'secondary_x_label_offset_{i}_{j}', f'secondary x axis label offset for {axis_label}'],
+                [f'secondary_y_label_offset_{i}_{j}', f'secondary y axis label offset for {axis_label}'],
+            ])
+            validations['user_inputs'].extend([
+                [f'x_axis_min_{i}_{j}', f'x axis minimum for {axis_label}', float, label == 'Twin X', None],
+                [f'x_axis_max_{i}_{j}', f'x axis maximum for {axis_label}', float, label == 'Twin X', None],
+                [f'x_label_offset_{i}_{j}', f'x axis label offset for {axis_label}', float, label == 'Twin X', None],
+                [f'y_axis_min_{i}_{j}', f'y axis minimum for {axis_label}', float, label == 'Twin Y', None],
+                [f'y_axis_max_{i}_{j}', f'y axis maximum for {axis_label}', float, label == 'Twin Y', None],
+                [f'y_label_offset_{i}_{j}', f'y axis label offset for {axis_label}', float, label == 'Twin Y', None],
+                [f'secondary_x_label_offset_{i}_{j}', f'secondary x axis label offset for {axis_label}'],
+                [f'secondary_y_label_offset_{i}_{j}', f'secondary y axis label offset for {axis_label}'],
+            ])
 
             # Options for each data entry
             for k in range(len(data)):
@@ -1874,7 +1915,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                                          window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) # expands the column when window changes size
 
-    return window
+    return window, validations
 
 
 def _plot_data(data, axes, old_axes=None, **kwargs):
@@ -2224,8 +2265,8 @@ def _add_remove_annotations(axis, add_annotation):
     """
 
     remove_annotation = False
-    validations = {'text': {'floats': [], 'user_inputs': []},
-                   'arrows': {'floats': []}}
+    validations = {'text': {'floats': [], 'user_inputs': [], 'constraints': []},
+                   'arrows': {'floats': [], 'constraints': []}}
 
     if add_annotation:
         window_text = 'Add Annotation'
@@ -2293,6 +2334,9 @@ def _add_remove_annotations(axis, add_annotation):
             ['fontsize', 'fontsize'],
             ['rotation', 'rotation'],
         ])
+        validations['text']['constraints'].extend([
+            ['fontsize', 'fontsize', '> 0'],
+        ])
         validations['text']['user_inputs'].extend([
             ['text', 'Text', utils.string_to_unicode, False, None]
         ])
@@ -2305,6 +2349,11 @@ def _add_remove_annotations(axis, add_annotation):
             ['linewidth', 'linewidth'],
             ['head_scale', 'head-size multiplier'],
         ])
+        validations['arrows']['constraints'].extend([
+            ['linewidth', 'linewidth', '> 0'],
+            ['head_scale', 'head-size multiplier', '> 0'],
+        ])
+
 
     elif add_annotation is None:
         window_text = 'Edit Annotations'
@@ -2352,7 +2401,9 @@ def _add_remove_annotations(axis, add_annotation):
                 [f'fontsize_{i}', f'fontsize for Text {i + 1}'],
                 [f'rotation_{i}', f'rotation for Text {i + 1}'],
             ])
-
+            validations['text']['constraints'].extend([
+                [f'fontsize_{i}', f'fontsize for Text {i + 1}', '> 0'],
+            ])
             validations['text']['user_inputs'].extend([
                 [f'text_{i}', f'text in Text {i + 1}',
                  utils.string_to_unicode, False, None]
@@ -2410,6 +2461,10 @@ def _add_remove_annotations(axis, add_annotation):
                 [f'tail_y_{i}', f'tail y position for Arrow {i + 1}'],
                 [f'linewidth_{i}', f'linewidth for Arrow {i + 1}'],
                 [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}'],
+            ])
+            validations['arrows']['constraints'].extend([
+                [f'linewidth_{i}', f'linewidth for Arrow {i + 1}', '> 0'],
+                [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}', '> 0'],
             ])
 
         tab_layout = [[
@@ -2591,8 +2646,8 @@ def _add_remove_peaks(axis, add_peak):
     """
 
     remove_peak = False
-    validations = {'line': {'floats': [], 'user_inputs': []},
-                   'marker': {'floats': [], 'user_inputs': []}}
+    validations = {'line': {'floats': [], 'user_inputs': [], 'constraints': []},
+                   'marker': {'floats': [], 'user_inputs': [], 'constraints': []}}
 
     peaks = {}
     non_peaks = {}
@@ -2678,10 +2733,16 @@ def _add_remove_peaks(axis, add_peak):
             validations[key]['floats'].append(
                 [f'{key}_size', f'{key} size']
             )
+            validations[key]['constraints'].append(
+                [f'{key}_size', f'{key} size', '> 0']
+            )
         validations['marker']['user_inputs'].append(
             ['marker_style', 'marker style', utils.string_to_unicode, True, None]
         )
         validations['marker']['floats'].append(['edge_width', 'edge line width'])
+        validations['marker']['constraints'].append(
+            ['edge_width', 'edge line width', '> 0']
+        )
 
     elif add_peak is None:
         window_text = 'Edit Peaks'
@@ -2746,6 +2807,9 @@ def _add_remove_peaks(axis, add_peak):
                 validations['marker']['floats'].append(
                     [f'line_size_{i}', f'line width for peak #{i + 1}']
                 )
+                validations['marker']['constraints'].append(
+                    [f'line_size_{i}', f'line width for peak #{i + 1}', '> 0']
+                )
 
             else: # a marker
                 marker = line.get_marker()
@@ -2783,6 +2847,10 @@ def _add_remove_peaks(axis, add_peak):
                 validations['marker']['floats'].extend([
                     [f'marker_size_{i}', f'marker size for peak #{i + 1}'],
                     [f'edge_width_{i}', f'edge line width for peak #{i + 1}']
+                ])
+                validations['marker']['constraints'].extend([
+                    [f'marker_size_{i}', f'marker size for peak #{i + 1}', '> 0'],
+                    [f'edge_width_{i}', f'edge line width for peak #{i + 1}', '> 0']
                 ])
                 validations['marker']['user_inputs'].append(
                     [f'marker_style_{i}', f'marker style for peak #{i + 1}',
@@ -3026,13 +3094,15 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
             if i == 0 and input_axes is not None: # loading a previous figure
                 fig_kwargs = input_fig_kwargs.copy()
                 fig, axes = _create_figure_components(**fig_kwargs)
-                window = _create_plot_options_gui(
+                window, validations = _create_plot_options_gui(
                     data, fig, axes, input_values, input_axes, **fig_kwargs
                 )
             else:
                 fig_kwargs = _select_plot_type()
                 fig, axes = _create_figure_components(**fig_kwargs)
-                window = _create_plot_options_gui(data, fig, axes, **fig_kwargs)
+                window, validations = _create_plot_options_gui(
+                    data, fig, axes, **fig_kwargs
+                )
 
             while True:
                 event, values = window.read()
@@ -3084,7 +3154,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         plt.close(_PREVIEW_NAME)
                         old_axes, values, fig_kwargs = new_figure_theme
                         fig, axes = _create_figure_components(**fig_kwargs)
-                        window = _create_plot_options_gui(
+                        window, validations = _create_plot_options_gui(
                             data, fig, axes, values, old_axes, old_location, **fig_kwargs
                         )
                 # show tables of data
@@ -3116,7 +3186,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     old_location = window.current_location()
                     window.close()
                     window = None
-                    window = _create_plot_options_gui(
+                    window, validations = _create_plot_options_gui(
                         data, fig, axes, values, axes, old_location, **fig_kwargs
                     )
                 # add/edit/remove annotations
@@ -3188,7 +3258,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     fig_kwargs = _select_plot_type(fig_kwargs)
                     old_axes = axes
                     fig, axes = _create_figure_components(**fig_kwargs)
-                    window = _create_plot_options_gui(
+                    window, validations = _create_plot_options_gui(
                         data, fig, axes, values, old_axes, old_location, **fig_kwargs
                     )
                 # update the figure
@@ -3210,7 +3280,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         window.close()
                         window = None
                         fig, axes = _create_figure_components(**fig_kwargs)
-                        window = _create_plot_options_gui(
+                        window, validations = _create_plot_options_gui(
                             data, fig, axes, location=old_location, **fig_kwargs
                         )
                 # toggles legend options
