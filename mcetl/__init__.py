@@ -30,8 +30,6 @@ __version__ = '0.3.0'
 from .datasource import DataSource
 from .functions import SeparationFunction, CalculationFunction, SummaryFunction
 from .main_gui import launch_main_gui
-from .peak_fitting_gui import launch_peak_fitting_gui
-from .plotting_gui import launch_plotting_gui, load_previous_figure
 
 
 # Fixes blurry tkinter windows due to weird dpi scaling in Windows os

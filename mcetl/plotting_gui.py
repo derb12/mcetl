@@ -27,6 +27,13 @@ TIGHT_LAYOUT_W_PAD : float
     The width (horizontal) padding between axes in a figure; used by
     matplotlib's tight_layout option.
 
+Notes
+-----
+The sympy import is within the _parse_equation function because sympy
+takes a significant time to load, is only used for that function, and
+the function is only used when making secondary axes with different scales
+than the main axes.
+
 """
 
 
@@ -42,10 +49,8 @@ from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
-import sympy as sp
 
-from . import plotting_utils
-from . import utils
+from .. import plotting_utils, utils
 
 
 CANVAS_SIZE = plotting_utils.CANVAS_SIZE
@@ -2039,16 +2044,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend.set_in_layout(False)
 
                 if 'Twin' not in label and kwargs[f'secondary_x_{i}_{j}']:
-                    if not kwargs[f'secondary_x_expr_{i}_{j}']:
-                        functions = None
+                    if kwargs[f'secondary_x_expr_{i}_{j}']:
+                        functions = _parse_equation(kwargs[f'secondary_x_expr_{i}_{j}'])
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_x_expr_{i}_{j}'])
-                        forward_eqn = sp.lambdify(['x'], eqn_a, ['numpy'])
-                        eqn_b = sp.solve([sp.Symbol('y') - eqn_a],
-                                         [sp.Symbol('x')])[sp.Symbol('x')]
-                        backward_eqn = sp.lambdify(['y'], eqn_b, ['numpy'])
-
-                        functions = (forward_eqn, backward_eqn)
+                        functions = None
 
                     sec_x_axis = axis.secondary_xaxis('top', functions=functions)
                     sec_x_axis.set_xlabel(
@@ -2062,16 +2061,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}_{j}'] + 1))
 
                 if 'Twin' not in label and kwargs[f'secondary_y_{i}_{j}']:
-                    if not kwargs[f'secondary_y_expr_{i}_{j}']:
-                        functions = None
+                    if kwargs[f'secondary_y_expr_{i}_{j}']:
+                        functions = _parse_equation(kwargs[f'secondary_y_expr_{i}_{j}'], False)
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_y_expr_{i}_{j}'])
-                        forward_eqn = sp.lambdify(['y'], eqn_a, ['numpy'])
-                        eqn_b = sp.solve([sp.Symbol('x') - eqn_a],
-                                         [sp.Symbol('y')])[sp.Symbol('y')]
-                        backward_eqn = sp.lambdify(['x'], eqn_b, ['numpy'])
-
-                        functions = (forward_eqn, backward_eqn)
+                        functions = None
 
                     sec_y_axis = axis.secondary_yaxis('right', functions=functions)
                     sec_y_axis.set_ylabel(
@@ -2120,6 +2113,51 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         markersize=peak.get_markersize(),
                         label=peak.get_label()
                     )
+
+
+def _parse_equation(expression, x_axis=True):
+    """
+    Uses sympy to parse a string expression and obtain the function and its inverse.
+
+    Used to create forward and backward equations for secondary axes.
+
+    Parameters
+    ----------
+    expression : str
+        The string to parse and turn into a function. Must have the variable
+        'x' or 'y'. For example, 'x + 50' would mean the values of the secondary
+        x-axis would be equal to the main x-axis values + 50.
+    x_axis : bool
+        True designates that the expression is for the x-axis, in which case the
+        main variable will be 'x' in the input expression. If False, the main
+        variable in the input expression is 'y'
+
+    Returns
+    -------
+    equation : function
+        The function corresponding to the input expression.
+    inverse : function
+        The inverse function of the input expression.
+
+    Notes
+    -----
+    sympy is imported within the function because this function will rarely
+    be used, and sympy takes a significant time to import.
+
+    """
+
+    import sympy as sp
+
+    var_a, var_b = ('x', 'y') if x_axis else ('y', 'x')
+
+    eqn_a = sp.parse_expr(expression)
+    equation = sp.lambdify([var_a], eqn_a, ['numpy'])
+
+    eqn_b = sp.solve([sp.Symbol(var_b) - eqn_a],
+                     [sp.Symbol(var_a)], dict=True)[0][sp.Symbol(var_a)]
+    inverse = sp.lambdify([var_b], eqn_b, ['numpy'])
+
+    return equation, inverse
 
 
 def _add_remove_dataset(current_data, plot_details, data_list=None,
