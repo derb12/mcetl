@@ -62,7 +62,7 @@ class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
         )
         self.axis.plot(x_data, y_data)
         ax_y = self.axis.get_ylim()
-        y_diff = ax_y[1] - ax_y[0]
+        self.axis.set_ylim(plotting_utils.scale_axis(ax_y, 0.15, 0.15))
 
         peaks = _find_peaks(dataframe, gui_values)
         other_peaks = False
@@ -70,62 +70,65 @@ class SimpleEmbeddedFigure(plotting_utils.EmbeddedFigure):
             if peak not in additional_peaks:
                 other_peaks = True
                 found_peaks = self.axis.vlines(
-                    peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                    peak, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
                     color='green', linestyle='-.', lw=2
                 )
         for peak in additional_peaks:
             user_peaks = self.axis.vlines(
-                peak, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                peak, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
                 color='blue', linestyle=':', lw=2
                 )
         self.axis.annotate(
-            '', (x_max, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+            '', (x_max, plotting_utils.scale_axis(ax_y, None, 0.03)[1]),
+            (x_mid, plotting_utils.scale_axis(ax_y, None, 0.03)[1]),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
             annotation_clip=False,
         )
         self.axis.annotate(
-            '', (x_min, ax_y[1] + (0.03 * y_diff)), (x_mid, ax_y[1] + (0.03 * y_diff)),
+            '', (x_min, plotting_utils.scale_axis(ax_y, None, 0.03)[1]),
+            (x_mid, plotting_utils.scale_axis(ax_y, None, 0.03)[1]),
             arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='black'),
             annotation_clip=False,
         )
         self.axis.annotate(
-            'Fitting range', (x_mid, ax_y[1] + (0.063 * y_diff)), ha='center'
+            'Fitting range', (x_mid, plotting_utils.scale_axis(ax_y, None, 0.063)[1]),
+            ha='center'
         )
         self.axis.vlines(
-            x_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            x_min, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
             color='black', linestyle='-', lw=2
         )
         self.axis.vlines(
-            x_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+            x_max, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
             color='black', linestyle='-', lw=2
         )
 
         if gui_values['subtract_bkg']:
             self.axis.annotate(
-                '', (bkg_max, ax_y[0] - (0.01 * y_diff)),
-                (bkg_mid, ax_y[0] - (0.01 * y_diff)), annotation_clip=False,
-                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red')
+                '', (bkg_max, plotting_utils.scale_axis(ax_y, 0.01, None)[0]),
+                (bkg_mid, plotting_utils.scale_axis(ax_y, 0.01, None)[0]),
+                arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
+                annotation_clip=False,
             )
             self.axis.annotate(
-                '', (bkg_min, ax_y[0] - (0.01 * y_diff)),
-                (bkg_mid, ax_y[0] - (0.01 * y_diff)),
+                '', (bkg_min, plotting_utils.scale_axis(ax_y, 0.01, None)[0]),
+                (bkg_mid, plotting_utils.scale_axis(ax_y, 0.01, None)[0]),
                 arrowprops=dict(width=1.2, headwidth=5, headlength=5, color='red'),
                 annotation_clip=False
             )
             self.axis.annotate(
-                'Background range', (bkg_mid, ax_y[0] - (0.085 * y_diff)),
+                'Background range',
+                (bkg_mid, plotting_utils.scale_axis(ax_y, 0.085, None)[0]),
                 color='red', ha='center'
             )
             self.axis.vlines(
-                bkg_min, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                bkg_min, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
                 color='red',linestyle='--', lw=2
             )
             self.axis.vlines(
-                bkg_max, ax_y[0] - (0.01 * y_diff), ax_y[1] + (0.03 * y_diff),
+                bkg_max, *plotting_utils.scale_axis(ax_y, 0.01, 0.03),
                 color='red', linestyle='--', lw=2
             )
-
-        self.axis.set_ylim(ax_y[0] - (0.15 * y_diff), ax_y[1] + (0.15 * y_diff))
 
         peak_list = []
         if additional_peaks.size > 0 and other_peaks:
@@ -776,7 +779,7 @@ def fit_dataframe(dataframe, user_inputs=None):
 
             y_data = y_subtracted
 
-    fitting_results = peak_fitting.peak_fitting(
+    fitting_results = peak_fitting.fit_peaks(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
         additional_peaks, model_list, background_type, poly_n, None, vary_Voigt,
@@ -822,10 +825,9 @@ def fit_dataframe(dataframe, user_inputs=None):
     df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
     params_df = pd.concat([df_0, df_1], axis=1)
 
-    # Creation of dataframe for peak values and x and y raw data
-    x = fit_result[-1].userkws['x']
-    y = fit_result[-1].data
-    peaks_df = pd.DataFrame({x_label: x, y_label: y})
+    # Creation of dataframe for raw data and peak values
+    peaks_df = pd.DataFrame({x_label: fit_result[-1].userkws['x'],
+                             y_label: fit_result[-1].data})
 
     bkg_term = '+ background' if subtract_bkg else ''
     bkg = individual_peaks[-1]['background_'] if subtract_bkg else 0
@@ -839,7 +841,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     peaks_df['total fit'] = fit_result[-1].best_fit
 
     # Creation of dataframe for descriptions of the fitting
-    adj_r_sq = peak_fitting.r_squared(y, fit_result[-1].best_fit,
+    adj_r_sq = peak_fitting.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
                                       fit_result[-1].nvarys)[1]
     red_chi_sq = fit_result[-1].redchi
     bayesian_info_criteria = fit_result[-1].bic
@@ -852,11 +854,9 @@ def fit_dataframe(dataframe, user_inputs=None):
     )
 
     if values['show_plots']:
-        peak_fitting.plot_fit_results(x, y, fit_result, True, True)
-        peak_fitting.plot_individual_peaks(
-            x, y, individual_peaks[-1], fit_result[-1],
-            subtract_bkg, plot_w_background=True
-        )
+        peak_fitting.plot_fit_results(fit_result, True, True)
+        peak_fitting.plot_individual_peaks(fit_result[-1], individual_peaks[-1],
+                                           subtract_bkg, plot_w_background=True)
         plt.pause(0.01)
 
     return fit_result, peaks_df, params_df, descriptors_df, values
@@ -1107,7 +1107,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_
     else:
         fit_dataframes = utils.open_multiple_files()
 
-    if not save_excel or excel_writer is not None:
+    if not save_excel or excel_writer is not None or not fit_dataframes:
         writer = excel_writer
     else:
         layout = [
