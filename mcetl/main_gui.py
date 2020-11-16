@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel
 
+Notes
+-----
+The imports for the fitting and plotting guis are within their respective
+functions to reduce the time it takes for this module to be imported.
+
 @author: Donald Erb
 Created on May 5, 2020
 
@@ -13,18 +18,20 @@ from pathlib import Path
 import sys
 import traceback
 
+from openpyxl.chart import Reference, Series, ScatterChart
+from openpyxl.chart.series import SeriesLabel, StrRef
 from openpyxl.styles import NamedStyle
+from openpyxl.utils.cell import get_column_letter as _get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
 import PySimpleGUI as sg
 
 from . import utils
 from .datasource import DataSource
 from .file_organizer import file_finder, file_mover
-from .peak_fitting_gui import launch_peak_fitting_gui
-from .plotting_gui import launch_plotting_gui
 
 
-def _get_save_location():
+def get_save_location():
     """
     Gets the correct filepath to save the previous_search.json depending on the operating system.
 
@@ -81,12 +88,6 @@ def _write_to_excel(dataframes, data_source, labels,
 
     """
 
-    from openpyxl.utils.dataframe import dataframe_to_rows
-    if plot_excel:
-        from openpyxl.chart import Reference, Series, ScatterChart
-        from openpyxl.chart.series import SeriesLabel, StrRef
-        from openpyxl.utils.cell import get_column_letter
-
     # openpyxl uses 1-based indices
     first_row = data_source.excel_row_offset + 1
     first_column = data_source.excel_column_offset + 1
@@ -137,7 +138,7 @@ def _write_to_excel(dataframes, data_source, labels,
                 cell.style = 'subheader_' + suffix
 
         # Dataset values and formatting
-        rows = dataframe_to_rows(dataset, index=False, header=False)
+        rows = _dataframe_to_rows(dataset, index=False, header=False)
         for row_index, row in enumerate(rows, first_row + 2):
             entry = 1
             suffix = 'even'
@@ -234,7 +235,7 @@ def _write_to_excel(dataframes, data_source, labels,
                         )
                     )
                     series.title = SeriesLabel(
-                        StrRef(f"'{sheet_name}'!{get_column_letter(location)}{first_row}")
+                        StrRef(f"'{sheet_name}'!{_get_column_letter(location)}{first_row}")
                     )
                     chart.append(series)
                 location += sum(data_source.lengths[i][j])
@@ -258,7 +259,7 @@ def _select_processing_options(data_sources):
 
     """
 
-    if _get_save_location().joinpath('previous_search.json').exists():
+    if get_save_location().joinpath('previous_search.json').exists():
         last_search_disabled = False
     else:
         last_search_disabled = True
@@ -807,6 +808,9 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
 
     """
 
+    from .fitting import launch_fitting_gui
+
+
     # Changes some defaults for the plot formatting to look nice.
     mpl_changes = { #TODO maybe allow this to be an input into the main gui function
         'font.serif': 'Times New Roman',
@@ -859,7 +863,7 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
 
                     default_inputs.update({'sample_name': name})
 
-                    fit_output, default_inputs, proceed = launch_peak_fitting_gui(
+                    fit_output, default_inputs, proceed = launch_fitting_gui(
                         entry, default_inputs, excel_writer,
                         options['save_fitting'], options['plot_fit_excel'],
                         mpl_changes, False
@@ -902,6 +906,9 @@ def _plot_data(datasets, data_source):
         datasets in dataframes, then [None, None] will be the entry instead.
 
     """
+
+    from .plotting import launch_plotting_gui
+
 
     plot_datasets = []
     for dataset in datasets: # Flattens the dataset to a single list per dataset
@@ -1062,7 +1069,7 @@ def launch_main_gui(data_sources):
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
-                with _get_save_location().joinpath('previous_search.json').open('r') as f:
+                with get_save_location().joinpath('previous_search.json').open('r') as f:
                     files = json.load(f)
             else:
                 files = file_finder(
@@ -1070,7 +1077,7 @@ def launch_main_gui(data_sources):
                 )
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
-                save_path = _get_save_location()
+                save_path = get_save_location()
                 save_path.mkdir(exist_ok=True)
                 with save_path.joinpath('previous_search.json').open('w') as f:
                     json.dump(files, f, indent=2)
