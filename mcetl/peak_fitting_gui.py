@@ -366,8 +366,7 @@ def fit_dataframe(dataframe, user_inputs=None):
             [sg.Text('Raw Data', relief='ridge', size=(60, 1),
                      justification='center')],
             [sg.Text('Sample Name:'),
-             sg.Input(default_inputs['sample_name'], key='sample_name',
-                      do_not_clear=True, size=(20, 1))],
+             sg.Input(default_inputs['sample_name'], key='sample_name', size=(20, 1))],
             [sg.Text('Column of x data for fitting:'),
              sg.Combo(list(range(len(headers))), size=(3, 1), readonly=True,
                       key='x_fit_index', default_value=default_inputs['x_fit_index'])],
@@ -375,69 +374,56 @@ def fit_dataframe(dataframe, user_inputs=None):
              sg.Combo(list(range(len(headers))), size=(3, 1), readonly=True,
                       key='y_fit_index', default_value=default_inputs['y_fit_index'])],
             [sg.Text('x data label:'),
-             sg.Input(default_inputs['x_label'], key='x_label',
-                      do_not_clear=True, size=(20, 1))],
+             sg.Input(default_inputs['x_label'], key='x_label', size=(20, 1))],
             [sg.Text('y data label:'),
-             sg.Input(default_inputs['y_label'], key='y_label',
-                      do_not_clear=True, size=(20, 1))],
+             sg.Input(default_inputs['y_label'], key='y_label', size=(20, 1))],
             [sg.Text('Min and max values to use for fitting:')],
             [sg.Text('    x min:', size=(8, 1)),
-             sg.Input(key='x_min', do_not_clear=True, size=(5, 1),
-                      default_text=default_inputs['x_min'])],
+             sg.Input(default_inputs['x_min'], key='x_min', size=(5, 1))],
             [sg.Text('    x max:', size=(8, 1)),
-             sg.Input(key='x_max', do_not_clear=True, size=(5, 1),
-                      default_text=default_inputs['x_max'])],
+             sg.Input(default_inputs['x_max'], key='x_max', size=(5, 1))],
             [sg.Text('Fitting Options', relief='ridge', size=(60, 1),
                      pad=(5, (20, 10)), justification='center')],
             [sg.Text('Default peak model:'),
              sg.Combo(available_models, key='default_model', readonly=True,
                       default_value=default_inputs['default_model'], enable_events=True)],
-            [sg.Checkbox('Vary gamma parameter', key='vary_Voigt',
-                          disabled=disable_vary_Voigt,
-                          default=default_inputs['vary_Voigt'],
-                          tooltip='if True, will allow the gamma parameter in the Voigt model'\
-                          ' to be varied as an additional variable')],
+            [sg.Check('Vary gamma parameter', key='vary_Voigt', disabled=disable_vary_Voigt,
+                      default=default_inputs['vary_Voigt'],
+                      tooltip='if True, will allow the gamma parameter in the Voigt model'\
+                              ' to be varied as an additional variable')],
             [sg.Text('Peak width:', size=(11, 1)),
-             sg.Input(key='peak_width', do_not_clear=True, size=(5, 1),
-                      default_text=default_inputs['peak_width'])],
+             sg.Input(default_inputs['peak_width'], key='peak_width', size=(5, 1))],
             [sg.Text('Center offset:', size=(11, 1)),
-             sg.Input(key='center_offset', do_not_clear=True, size=(5, 1),
-                      default_text=default_inputs['center_offset'])],
+             sg.Input(default_inputs['center_offset'], key='center_offset', size=(5, 1))],
             [sg.Text('Maximum sigma value:'),
-             sg.Input(key='max_sigma', do_not_clear=True, size=(5, 1),
-                      default_text=default_inputs['max_sigma'])],
+             sg.Input(default_inputs['max_sigma'], key='max_sigma', size=(5, 1))],
             [sg.Text('Minimization method:'),
              sg.Combo(['least_squares','leastsq'], key='min_method', readonly=False,
                       default_value=default_inputs['min_method'])],
-            [sg.Checkbox('Fit residuals', key='fit_residuals', enable_events=True,
-                         default=default_inputs['fit_residuals'])],
+            [sg.Check('Fit residuals', key='fit_residuals', enable_events=True,
+                      default=default_inputs['fit_residuals'])],
             [sg.Text('Minimum residual height:'),
-             sg.Input(default_inputs['min_resid'], key='min_resid',
-                      do_not_clear=True, size=(5, 1), visible=False)],
+             sg.Input(default_inputs['min_resid'], key='min_resid', size=(5, 1),
+                      visible=default_inputs['fit_residuals'])],
             [sg.Text('Number of residual fits:'),
              sg.Input(default_inputs['num_resid_fits'], key='num_resid_fits',
-                      do_not_clear=True, size=(5, 1), visible=False)],
+                      size=(5, 1), visible=default_inputs['fit_residuals'])],
             [sg.Text('')],
-            [sg.Checkbox('Subtract background', key='subtract_bkg',
-                         enable_events=True,
-                         default=default_inputs['subtract_bkg']),
+            [sg.Check('Subtract background', key='subtract_bkg', enable_events=True,
+                      default=default_inputs['subtract_bkg']),
              sg.Text('('),
-             sg.Radio('Automatic', 'bkg_fitting',
-                      key='automatic_bkg', enable_events=True,
-                      default=default_inputs['automatic_bkg']),
-             sg.Radio('Manual', 'bkg_fitting',
-                      key='manual_bkg', enable_events=True,
-                      default=default_inputs['manual_bkg']),
+             sg.Radio('Automatic', 'bkg_fitting', key='automatic_bkg',
+                      enable_events=True, default=default_inputs['automatic_bkg']),
+             sg.Radio('Manual', 'bkg_fitting', key='manual_bkg',
+                      enable_events=True, default=default_inputs['manual_bkg']),
              sg.Text(')')],
             [bkg_layout],
             [sg.Text('Peak Finding Options', relief='ridge', size=(60, 1),
                      pad=(5, (20, 10)), justification='center')],
-            [sg.Radio('Automatic Peak Finding', 'peak_finding',
-                      key='automatic_peaks', enable_events=True,
-                      default=default_inputs['automatic_peaks']),
-             sg.Radio('Manual Peak Finding', 'peak_finding',
-                      key='manual_peaks', enable_events=True,
-                      default=default_inputs['manual_peaks'],
+            [sg.Radio('Automatic Peak Finding', 'peak_finding', key='automatic_peaks',
+                      enable_events=True, default=default_inputs['automatic_peaks']),
+             sg.Radio('Manual Peak Finding', 'peak_finding', key='manual_peaks',
+                      enable_events=True, default=default_inputs['manual_peaks'],
                       pad=((50, 10), 5))],
             [peak_finding_layout],
         ]
@@ -447,12 +433,12 @@ def fit_dataframe(dataframe, user_inputs=None):
                 [sg.Column(column_layout, scrollable=True,
                            vertical_scroll_only=True, size=(700, 500))]
             ])],
-            [sg.Checkbox('Show Plots After Fitting', key='show_plots',
-                         default=default_inputs['show_plots'])],
-            [sg.Checkbox('Batch Fit (will not show this window again)',
-                         key='batch_fit', default=default_inputs['batch_fit'])],
-            [sg.Checkbox('Debug Fitting Process', key='debug',
-                         default=default_inputs['debug'])],
+            [sg.Check('Show Plots After Fitting', key='show_plots',
+                      default=default_inputs['show_plots'])],
+            [sg.Check('Batch Fit (will not show this window again)',
+                      key='batch_fit', default=default_inputs['batch_fit'])],
+            [sg.Check('Debug Fitting Process', key='debug',
+                      default=default_inputs['debug'])],
             [sg.Text('')],
             [sg.Button('Fit', bind_return_key=True, size=(6, 1),
                        button_color=utils.PROCEED_COLOR),
@@ -491,6 +477,12 @@ def fit_dataframe(dataframe, user_inputs=None):
                 ['x_label', 'x label', utils.string_to_unicode, False, None],
                 ['y_label', 'y label', utils.string_to_unicode, False, None],
                 ['model_list', 'model list', str, True],
+            ],
+            'constraints': [
+                ['peak_width', 'peak width', '> 0'],
+                ['center_offset', 'center offset', '>= 0'],
+                ['max_sigma', 'maximum sigma', '> 0'],
+                ['num_resid_fits', 'number of residual fits', '> 0']
             ]
         }
 
@@ -503,6 +495,7 @@ def fit_dataframe(dataframe, user_inputs=None):
             'integers': validations['integers'][:3],
             'floats': validations['floats'][:5],
             'strings': validations['strings'][:1],
+            'constraints': validations['constraints'][:1]
         }
         bkg_selector_validations = {
             'integers': validations['integers'][:2],
@@ -618,7 +611,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                         window['vary_Voigt'].update(disabled=True, value=False)
 
                 window.un_hide()
-
+            # toggle auto/manual peak selection
             elif event in ('automatic_peaks', 'manual_peaks'):
                 if event == 'automatic_peaks':
                     window['automatic_tab'].update(visible=True)
@@ -629,7 +622,7 @@ def fit_dataframe(dataframe, user_inputs=None):
                     window['automatic_tab'].update(visible=False)
                     window['manual_tab'].update(visible=True)
                     window['manual_tab'].select()
-
+            # toggle auto/manual background selection
             elif event in ('automatic_bkg', 'manual_bkg'):
                 if event == 'automatic_bkg':
                     window['auto_bkg_tab'].update(visible=True)
@@ -921,10 +914,6 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             sheet_name = f'{sheet_base}_{num}'
             num += 1
 
-    param_names = dict.fromkeys([
-        '',
-        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
-    ])
     total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
                    + len(descriptors_dataframe.columns) + 1)
 
@@ -981,6 +970,11 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             cell.style = 'fitting_columns_' + next(suffix)
 
     # Formatting for params_dataframe
+    param_names = dict.fromkeys([
+        '',
+        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
+    ])
+
     for index, subheader in enumerate(param_names):
         style_suffix = next(suffix)
 

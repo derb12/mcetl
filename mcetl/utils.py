@@ -24,7 +24,6 @@ from pathlib import Path
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 import PySimpleGUI as sg
-import matplotlib.pyplot as plt
 
 
 DEFAULT_FITTING_FORMATS = {
@@ -483,9 +482,7 @@ def optimize_memory(dataframe, convert_objects=False):
         # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:
-            optimized_df[objects.columns] = objects.convert_dtypes(
-                convert_integer=False
-            )
+            optimized_df[objects.columns] = objects.convert_dtypes(convert_integer=False)
 
     ints = dataframe.select_dtypes(include=['int'])
     if len(ints.columns) > 0:

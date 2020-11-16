@@ -39,7 +39,7 @@ def peak_transformer():
 
     Notes
     -----
-    The equations for approximating the amplitude and sigma were gotten from:
+    The equations for approximating the amplitude and sigma were obtained from:
     http://openafox.com/science/peak-function-derivations.html
 
     Lognormal does not have equations for sigma and amplitude because the equations
@@ -48,14 +48,14 @@ def peak_transformer():
 
     """
 
-    # more peak models may work, but these are the ones I have tested
+    # more peak models may work, but these are the ones I have tested and implemented
     model_list = [
         'GaussianModel', 'LorentzianModel', 'VoigtModel', 'PseudoVoigtModel',
         'Pearson7Model', 'MoffatModel', 'SkewedGaussianModel',
         'SkewedVoigtModel', 'SplitLorentzianModel', 'LognormalModel'
     ]
 
-    models_dict = {model: [model.split('Model')[0]] for model in model_list}
+    models_dict = {model: [model.split('Model')[0]] for model in sorted(model_list)}
 
     # lambda expressions for sigma and amplitude, respectively, with inputs of height (h) and fwhm (w)
     models_dict['GaussianModel'].append([
@@ -841,14 +841,9 @@ def peak_fitting(
 
     if subtract_background:
         bkg_mask = (x >= bkg_min) & (x <= bkg_max)
+        bkg_kwargs = {'degree': poly_n} if background_type == 'PolynomialModel' else {}
 
-        if background_type == 'PolynomialModel':
-            background = getattr(
-                lmfit.models, background_type)(poly_n, prefix='background_')
-        else:
-            background = getattr(
-                lmfit.models, background_type)(prefix='background_')
-
+        background = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
         init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
         initial_bkrd = background.eval(init_bkrd_params, x=x)
 
@@ -967,13 +962,13 @@ def peak_fitting(
 
             if np.abs(last_chisq - current_chisq) < 1e-9 and not residual_peaks[1]:
                 print((
-                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
                 ))
                 break
             else:
                 print((
-                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     f'\nDelta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}'
                     ))
             if eval_num + 1 == num_resid_fits:
@@ -985,14 +980,16 @@ def peak_fitting(
         plt.pause(0.01)
 
     for fit_result in output['fit_results']:
-        #list of y-values for the inidividual models
+        # list of y-values for the inidividual models
         output['individual_peaks'].append(fit_result.eval_components(x=x))
-        if background_type == 'ConstantModel':
-            output['individual_peaks'][-1]['background_'] = np.array(
-                [output['individual_peaks'][-1]['background_'],] * len(y)
+        if 'ConstantModel' in background_type:
+            # ComplexConstantModel and ConstantModel output only a single value, so
+            # need to create an array for their output
+            output['individual_peaks'][-1]['background_'] = np.full(
+                y.size, output['individual_peaks'][-1]['background_']
             )
 
-        #Gets the parameters for each model and their standard errors, if available
+        # gets the parameters for each model and their standard errors, if available
         if None not in {fit_result.params[var].stderr for var in fit_result.var_names}:
             output['best_values'].append([
                 [var, fit_result.params[var].value,
@@ -1286,13 +1283,9 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
             self.background = np.zeros(x.size)
         else:
             bkg_mask = (self.x > bkg_min) & (self.x < bkg_max)
-            if background_type == 'PolynomialModel':
-                bkg_model = getattr(
-                    lmfit.models, background_type)(poly_n, prefix='background_')
-            else:
-                bkg_model = getattr(
-                    lmfit.models, background_type)(prefix='background_')
+            bkg_kwargs = {'degree': poly_n} if background_type == 'PolynomialModel' else {}
 
+            bkg_model = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
             bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
             self.background = bkg_model.eval(bkg_params, x=x)
 
@@ -1480,11 +1473,12 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
 
         if event.inaxes == self.axis:
             if event.dblclick: # a double click
-                # left click
-                if event.button == 1:
+                if event.button == 1: # left click
                     try:
                         peak_width = float(self.window['peak_width'].get())
-                    except:
+                        if peak_width <= 0:
+                            raise ValueError
+                    except ValueError:
                         self.window['peak_width'].update('')
                     else:
                         models_dict = peak_transformer()
