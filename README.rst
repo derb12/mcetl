@@ -13,7 +13,7 @@ mcetl
         :target: https://mcetl.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
+.. image:: https://img.shields.io/badge/license-BSD%203--Clause-blue.svg
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 

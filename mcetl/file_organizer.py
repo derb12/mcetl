@@ -173,13 +173,13 @@ def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
 
         elif event == 'Next':
             if validate_inputs(values, **validations):
-                if values['min_files'] > values['max_files']:
+                if values['min_files'] <= values['max_files']:
+                    break
+                else:
                     sg.popup(
                         'Minimum files must be less than or equal to maximum files.\n',
                         title='Error'
                     )
-                else:
-                    break
 
     window.close()
     del window
