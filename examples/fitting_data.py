@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Shows how to use peak_fitting_gui from mcetl.
+"""Shows how to use launch_fitting_gui from mcetl.
 
 Since no data is input into the function, it will launch a window
 that will prompt the user to select the data files to open and fit.
