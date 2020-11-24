@@ -131,9 +131,9 @@ This is a minor patch with new features, bug fixes, and documentation improvemen
 New Features
 ~~~~~~~~~~~~
 
-* Extended the Unicode conversion to cover any input with "\\" (backslash). This mainly helps with text
-  in the plotting GUI, allowing multiline text using "\\n" while still giving the correct behavior when
-  using mathtext with matplotlib.
+* Extended the Unicode conversion to cover any input with backslash. This mainly helps with text
+  in the plotting GUI, such as allowing multiline text using "\\n", while still giving the correct behavior
+  when using mathtext with matplotlib.
 
 Bug Fixes
 ~~~~~~~~~
