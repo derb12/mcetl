@@ -12,6 +12,8 @@ Created on Sat Aug 22 17:34:39 2020
 import matplotlib.pyplot as plt
 from mcetl.fitting import launch_fitting_gui
 
+#from mcetl import plot_utils
+#plot_utils.CANVAS_SIZE = (700, 700) # Changes the size of the figures within the GUIs.
 
 # changes some defaults for the plot formatting so it looks nice
 changes = {
