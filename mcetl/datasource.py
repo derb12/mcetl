@@ -141,11 +141,6 @@ class DataSource:
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
         self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
-
-        # Turns the separator into a raw string equivalent so that it properly displays in the GUIs
-        if separator is not None:
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                separator = separator.replace(*replacement)
         self.separator = separator
 
         # Ensures excel_row_offset and excel_column_offset are >= 0

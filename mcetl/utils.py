@@ -165,8 +165,9 @@ def string_to_unicode(input_list):
     correctly decoded; otherwise, it would translate incorrectly.
 
     If using mathtext in matplotlib and want to do something like $\nu$,
-    input $\\nu$ in the gui, which gets converted to $\\\\nu$ by PySimpleGUI,
-    and in turn will be converted back to $\nu$ by this fuction.
+    input $\\nu$ in the GUI, which gets converted to $\\\\nu$ by PySimpleGUI,
+    and in turn will be converted back to $\\nu$ by this fuction, which matplotlib
+    considers equivalent to $\nu$.
 
     """
 
@@ -183,6 +184,36 @@ def string_to_unicode(input_list):
         output.append(entry)
 
     return output if return_list else output[0]
+
+
+def stringify_backslash(input_string):
+    r"""
+    Fixes strings containing backslash, such as '\n', so that they display properly in GUIs.
+
+    Parameters
+    ----------
+    input_string : str
+        The string that potentially contains a backslash character.
+
+    Returns
+    -------
+    output_string : str
+        The string after replacing various backslash characters with their
+        double backslash versions.
+
+    Notes
+    -----
+    It is necessary to replace multiple characters because things like '\n' are
+    considered unique characters, so simply replacing the '\\' would not work.
+
+    """
+
+    output_string = input_string
+    replacements = (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r'))
+    for replacement in replacements:
+        output_string = output_string.replace(*replacement)
+
+    return output_string
 
 
 def validate_inputs(window_values, integers=None, floats=None,
@@ -631,7 +662,7 @@ def select_file_gui(data_source=None, file=None):
     default_inputs = {
         'row_start': 0 if data_source is None else data_source.start_row,
         'row_end': 0 if data_source is None else data_source.end_row,
-        'separator': '' if data_source is None else data_source.separator,
+        'separator': '' if data_source is None else stringify_backslash(data_source.separator),
         'columns': '0, 1' if data_source is None else ', '.join([
             str(elem) for elem in data_source.column_numbers
         ]),

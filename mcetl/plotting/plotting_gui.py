@@ -2405,15 +2405,12 @@ def _add_remove_annotations(axis, add_annotation):
                 annotations['arrows'].append(annotation)
 
         for i, annotation in enumerate(annotations['text']):
-            text = annotation.get_text()
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                text = text.replace(*replacement)
-
             annotations['text_layout'].extend([
                 [sg.Text(f'{i + 1})')],
                 [sg.Column([
                     [sg.Text('Text:', size=(8, 1)),
-                     sg.Input(text, key=f'text_{i}', size=(10, 1))],
+                     sg.Input(utils.stringify_backslash(annotation.get_text()),
+                              key=f'text_{i}', size=(10, 1))],
                     [sg.Text('x-position:', size=(8, 1)),
                      sg.Input(annotation.get_position()[0], key=f'x_{i}', size=(10, 1))],
                     [sg.Text('y-position:', size=(8, 1)),
@@ -2787,14 +2784,11 @@ def _add_remove_peaks(axis, add_peak):
 
         column_layout = []
         for i, peak in enumerate(peaks):
-            label_text = peak
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                label_text = label_text.replace(*replacement)
-
             column_layout.extend([
                 [sg.Text(f'Peak #{i + 1}', relief='ridge', justification='center')],
                 [sg.Text('Peak Label:'),
-                 sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
+                 sg.Input(utils.stringify_backslash(peak),
+                          key=f'label_{i}', size=(10, 1))],
                 [sg.Text('Positions:')]
             ])
 
@@ -2850,11 +2844,7 @@ def _add_remove_peaks(axis, add_peak):
                 )
 
             else: # a marker
-                marker = line.get_marker()
-                for replacement in (('\\', '\\\\'), ('\n', '\\n'),
-                                    ('\t', '\\t'), ('\r', '\\r')):
-                    marker = marker.replace(*replacement)
-
+                marker = utils.stringify_backslash(line.get_marker())
                 for j, mark in enumerate(MARKERS):
                     if mark[0] == marker:
                         marker = MARKERS[j]
@@ -2906,14 +2896,11 @@ def _add_remove_peaks(axis, add_peak):
 
         labels = {}
         for peak in peaks:
-            label_text = peak
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                label_text = label_text.replace(*replacement)
-            labels[label_text] = peak
+            labels[utils.stringify_backslash(peak)] = peak
 
         inner_layout = [
             [sg.Text('All markers and text for selected peaks will be deleted!\n')],
-            [sg.Listbox(list(labels), select_mode='multiple', size=(20, 5),
+            [sg.Listbox(list(labels.keys()), select_mode='multiple', size=(20, 5),
                         key='peak_listbox')]
         ]
 
