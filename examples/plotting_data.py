@@ -10,12 +10,12 @@ Created on Sat Aug 22 17:34:39 2020
 """
 
 from mcetl.plotting import launch_plotting_gui
-#from mcetl import utils, plotting_utils
+from mcetl import utils, plot_utils
 #import PySimpleGUI as sg
 
 #sg.theme('darkblue10') # Changes overall theme for all windows.
 #utils.PROCEED_COLOR = ('white', 'green') # Changes the color of the button used to move to the next window.
-#plotting_utils.CANVAS_SIZE = (500, 500) # Changes the size of the figure within the GUI.
+#plot_utils.CANVAS_SIZE = (500, 500) # Changes the size of the figure within the GUI.
 
 # changes for matploblib's rcParams to change the plot format
 changes = {

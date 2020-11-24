@@ -10,8 +10,9 @@ Created on Nov 11, 2020
 Attributes
 ----------
 CANVAS_SIZE : tuple(int, int)
-    A tuple specifying the size (in pixels) of the figure canvas in the GUI.
-    This can be modified if the user wishes a larger or smaller canvas.
+    A tuple specifying the size (in pixels) of the figure canvas used in
+    various GUIs for mcetl. This can be modified if the user wishes a
+    larger or smaller canvas.
 
 """
 
@@ -21,6 +22,8 @@ from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import numpy as np
 import PySimpleGUI as sg
+
+from . import utils
 
 
 CANVAS_SIZE = (800, 800)
@@ -106,6 +109,10 @@ class EmbeddedFigure:
         The y-values to be plotted.
     click_list : list, optional
         A list of selected points on the plot.
+    enable_events : bool, optional
+        If True, will connect self.events (defaults to self._on_click,
+        self._on_pick, and self._on_key) to the figure when it is drawn
+        on the canvas. If False, the figure will have no connected events.
 
     Attributes
     ----------
@@ -124,7 +131,7 @@ class EmbeddedFigure:
     toolbar_canvas : sg.Canvas
         The PySimpleGUI canvas element that contains the toolbar for the figure.
     picked_object : plt.Artist
-        The selected Artist objected on the figure.
+        The selected Artist objected on the figure. Useful for pick events.
     xaxis_limits : tuple
         The x axis limits when the figure is first created. The values
         are used to determine the size of the Ellipse place by the
@@ -132,9 +139,13 @@ class EmbeddedFigure:
         zooming on the figure does not change the size of the Ellipse.
     yaxis_limits : tuple
         The y axis limits when the figure is first created.
-    enable_events : bool
-        If True, will enable the embedded matplotlib figure to connect
-        events.
+    events : dict
+        A dictionary containing the events for the figure. The keys
+        are the matplotlib events, such as 'pick_event', and the values
+        are the functions to be executed for each event.
+    canvas_size : tuple(float, float)
+        The size, in pixels, of the figure to be created. Default is
+        (CANVAS_SIZE[0], CANVAS_SIZE[1] - 100), which is (800, 700).
     toolbar_class : NavigationToolbar2Tk
         The class of the toolbar to place in the window. The default
         is PeakFittingToolbar.
@@ -146,19 +157,37 @@ class EmbeddedFigure:
     This class allows easy subclassing to create simple windows with
     embedded matplotlib figures.
 
+    A typical __init__ for a subclass should create the figure and axes,
+    create the window, and then place the figure within the window's canvas.
+    For example:
+        def __init__(x, y, **kwargs):
+            super().__init__(x, y, **kwargs)
+            self.figure, self.axis = plt.subplots()
+            self.axis.plot(self.x, self.y)
+            self._create_window()
+            self._place_figure_on_canvas()
+
     The only function that should be publically available is the
     event_loop method, which should return the desired output.
 
-    To close the window, use the internal _close method, which ensures
+    To close the window, use the self._close() method, which ensures
     that both the window and the figure are correctly closed.
 
     """
 
-    def __init__(self, x, y, click_list=None):
+    def __init__(self, x, y, click_list=None, enable_events=True):
 
         self.x = np.array(x, float)
         self.y = np.array(y, float)
         self.click_list = click_list if click_list is not None else []
+
+        if enable_events:
+            # default events; can be edited/removed after initialization
+            self.events = {'button_press_event': self._on_click,
+                           'pick_event': self._on_pick,
+                           'key_press_event': self._on_key}
+        else:
+            self.events = {}
 
         self.toolbar_class = PeakFittingToolbar
         self.figure = None
@@ -166,18 +195,59 @@ class EmbeddedFigure:
         self.window = None
         self.canvas = None
         self.toolbar_canvas = None
+        self.canvas_size = (CANVAS_SIZE[0], CANVAS_SIZE[1] - 100)
         self.picked_object = None
         self.xaxis_limits = (0, 1)
         self.yaxis_limits = (0, 1)
-        self.enable_events = True
 
 
     def event_loop(self):
-        """Handles the event loop for the GUI."""
+        """
+        Handles the event loop for the GUI.
+
+        Notes
+        -----
+        This function should typically be overwritten by a subclass,
+        and should typically return any desired values from the
+        embedded figure.
+
+        This simple implementation makes the window visible, and closes the
+        window as soon as anything in the window is clicked.
+
+        """
+
+        self.window.reappear()
+        self.window.read()
+        self._close()
 
 
-    def _create_window(self):
-        """Creates the GUI."""
+    def _create_window(self, window_title='Plot', button_text='Back'):
+        """
+        Creates a very simple GUI with the figure canvas and a button.
+
+        This function should typically be overwritten by a subclass.
+
+        Parameters
+        ----------
+        window_title : str
+            The title of the window.
+        button_text : str
+            The text on the button within the window.
+
+        """
+
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
+                                        size=(self.canvas_size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
+
+        layout = [
+            [self.canvas],
+            [self.toolbar_canvas],
+            [sg.Button(button_text, key='close', button_color=utils.PROCEED_COLOR)]
+        ]
+
+        # alpha_channel=0 to make the window invisible until calling self.window.reappear()
+        self.window = sg.Window(window_title, layout, finalize=True, alpha_channel=0)
 
 
     def _update_plot(self):
@@ -204,8 +274,7 @@ class EmbeddedFigure:
         Notes
         -----
         If a circle is selected, its color will change from green to red.
-        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
-        which is just an easy way to keep the axis and the objects lumped together.
+        It assigns the circle artist as the attribute self.picked_object.
 
         """
 
@@ -229,8 +298,9 @@ class EmbeddedFigure:
 
         Notes
         -----
-        If the 'delete' key is pressed and a circle is selected, the circle
-        will be removed from self.axis and the plot will be updated.
+        If the 'delete' key is pressed and a self.picked_object is not None,
+        the selected artist will be removed from self.axis and the plot will
+        be updated.
 
         """
 
@@ -274,11 +344,10 @@ class EmbeddedFigure:
         draw_figure_on_canvas(self.canvas.TKCanvas, self.figure,
                               toolbar_canvas, self.toolbar_class)
 
-        if self.enable_events:
-            # create references (_cid#) to the connections so they are not garbage collected
-            self._cid1 = self.figure.canvas.mpl_connect('button_press_event', self._on_click)
-            self._cid2 = self.figure.canvas.mpl_connect('pick_event', self._on_pick)
-            self._cid3 = self.figure.canvas.mpl_connect('key_press_event', self._on_key)
+        # maintain references (_cids) to the connections so they are not garbage collected
+        self._cids = []
+        for event, function in self.events.items():
+            self._cids.append(self.figure.canvas.mpl_connect(event, function))
 
 
     def _close(self):
@@ -392,7 +461,7 @@ def get_dpi_correction(dpi):
     return dpi_correction
 
 
-def determine_dpi(fig_kwargs=None):
+def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
     """
     Gives the correct dpi to fit the figure within the GUI canvas.
 
@@ -400,27 +469,42 @@ def determine_dpi(fig_kwargs=None):
     ----------
     fig_kwargs : dict, optional
         Keyword arguments for creating the figure.
+    canvas_size : tuple(int, int), optional
+        The size of the canvas that the figure will be placed on.
 
     Returns
     -------
     float
         The correct dpi to fit the figure onto the GUI canvas.
 
+    Notes
+    -----
+    When not saving, the dpi needs to be scaled to fit the figure on
+    the GUI's canvas, and that scaling is called size_scale.
+    For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
+    the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
+    so the dpi would be changed to 150, with a size_scale of 0.5.
+
+    A dpi_scale correction is needed because the qt5Agg backend will change
+    the dpi to 2x the specified dpi when the display scaling in Windows is
+    not 100%. I am not sure how it works on non-Windows operating systems.
+
+    The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
+
     """
 
-    fig_kwargs = fig_kwargs if fig_kwargs is not None else {
-        'fig_width': plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi'],
-        'fig_height': plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi'],
-        'dpi': plt.rcParams['figure.dpi']
-    }
-    dpi_scale = get_dpi_correction(fig_kwargs['dpi'])
+    kwargs = fig_kwargs if fig_kwargs is not None else {}
 
-    if fig_kwargs['fig_width'] >= fig_kwargs['fig_height']:
-        size_scale = CANVAS_SIZE[0] / fig_kwargs['fig_width']
-    else:
-        size_scale = CANVAS_SIZE[1] / fig_kwargs['fig_height']
+    dpi = float(kwargs.get('dpi', plt.rcParams['figure.dpi']))
+    fig_width = float(kwargs.get('fig_width',
+                                 plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi']))
+    fig_height = float(kwargs.get('fig_height',
+                                  plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi']))
 
-    return fig_kwargs['dpi'] * dpi_scale * size_scale
+    dpi_scale = get_dpi_correction(dpi)
+    size_scale = min(canvas_size[0] / fig_width, canvas_size[1] / fig_height)
+
+    return dpi * dpi_scale * size_scale
 
 
 def scale_axis(axis_bounds, lower_scale=None, upper_scale=None):
