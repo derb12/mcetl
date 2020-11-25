@@ -1050,8 +1050,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         worksheet.add_chart(chart, 'D8')
 
 
-def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_excel=True,
-                       plot_excel=True, mpl_changes=None, save_when_done=True):
+def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
+                       save_excel=True, plot_excel=True, mpl_changes=None,
+                       save_when_done=True, excel_formats=None):
     """
     Convenience function to fit dataframe(s) and write their results to Excel.
 
@@ -1069,10 +1070,21 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_
         If True (default), then the fit results will be plotted in the
         Excel file (if saving).
     mpl_changes : dict, optional
-        A dictionary of changes to apply to matplotlib's rcParams file.
+        A dictionary of changes to apply to matplotlib's rcParams file, which
+        affects how plots look.
     save_when_done : bool, optional
         If True (default), then the Excel file will be saved once all dataframes
         are fit.
+    excel_formats : dict, optional
+        A dictionary of formats to use when writing to Excel. The dictionary must
+        have one of the following keys:
+            'fitting_header_even', 'fitting_header_odd', 'fitting_subheader_even',
+            'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
+            'fitting_descriptors_even', 'fitting_descriptors_odd'
+        The values for each key must be a dictionary, with keys in this internal
+        dictionary representing keyword arguments for openpyxl's NamedStyle. See
+        DEFAULT_FITTING_FORMATS in mcetl.utils as an example.
+
 
     Returns
     -------
@@ -1091,12 +1103,12 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_
 
     rc_params = mpl_changes.copy() if mpl_changes is not None else {}
     # Correctly scales the dpi to match the desired dpi.
-    dpi = rc_params.get('figure.dpi', plt.rcParams['figure.dpi'])
+    dpi = float(rc_params.get('figure.dpi', plt.rcParams['figure.dpi']))
     rc_params.update({
         'interactive': False,
         'figure.constrained_layout.use': False,
         'figure.autolayout': True,
-        'figure.dpi': dpi * plotting_utils.get_dpi_correction(dpi)
+        'figure.dpi': dpi * plot_utils.get_dpi_correction(dpi)
     })
 
     if dataframe is not None:
@@ -1132,16 +1144,16 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_
                 save_excel = False
                 writer = None
                 break
-            elif event == 'Submit':
-                if utils.validate_inputs(values, strings=[['file', 'Excel file']]):
-                    break
+            elif (event == 'Submit'
+                    and utils.validate_inputs(values, strings=[['file', 'Excel file']])):
+                break
 
         window.close()
         del window
 
         if save_excel:
             file_path = Path(values['file'])
-            if not file_path.suffix.lower() or file_path.suffix.lower() != '.xlsx':
+            if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
                 values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
 
             if not values['new_file'] and Path(values['file']).exists():
@@ -1152,7 +1164,11 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None, save_
             writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
 
     # Formatting styles for the Excel workbook
-    for style, kwargs in utils.DEFAULT_FITTING_FORMATS.items():
+    for style in utils.DEFAULT_FITTING_FORMATS.keys():
+        if excel_formats is not None and style in excel_formats:
+            kwargs = excel_formats[style]
+        else:
+            kwargs = utils.DEFAULT_FITTING_FORMATS[style]
         try:
             writer.book.add_named_style(NamedStyle(style, **kwargs))
         except AttributeError: # writer is None
