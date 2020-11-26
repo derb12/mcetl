@@ -1053,6 +1053,51 @@ def open_multiple_files():
     return dataframes
 
 
+def create_excel_writer(file_name, new_file=False):
+    """
+    Creates a pandas ExcelWriter and ensures the current file is closed.
+
+    Parameters
+    ----------
+    file_name : str or Path
+        The file name or path for the Excel file to be created.
+    new_file : bool, optional
+        If False (default), will append to an existing file. If True, or if
+        no file currently exists with the given file_name, a new file will
+        be created, even if a file with the same name currently exists.
+
+    Returns
+    -------
+    pd.ExcelWriter
+        The pandas ExcelWriter object for the desired file name.
+
+    Notes
+    -----
+    If appending to a file, makes the user close the file before proceeding
+    because any further changes to the file after creating the ExcelWriter
+    will be lost.
+
+    """
+
+    path = Path(file_name)
+    if new_file or not path.exists():
+        mode = 'w'
+    else:
+        mode = 'a'
+        while True:
+            try:
+                path.rename(path) # errors if file is currently open
+            except PermissionError:
+                sg.popup_ok(
+                    f'Trying to overwrite {path.name}.\nPlease close the file.\n',
+                    title='Close File'
+                )
+            else:
+                break
+
+    return pd.ExcelWriter(file_name, engine='openpyxl', mode=mode)
+
+
 def save_excel_file(excel_writer):
     """
     Handles saving the Excel file and the various exceptions that can occur.
@@ -1065,8 +1110,9 @@ def save_excel_file(excel_writer):
 
     """
 
+    path = Path(excel_writer.path)
     # Ensures that the folder destination exist
-    Path(excel_writer.path).parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     try_to_save = True
     while try_to_save:
@@ -1077,5 +1123,6 @@ def save_excel_file(excel_writer):
 
         except PermissionError:
             try_to_save = sg.popup_ok(
-                'Trying to overwrite Excel file. Please close the file.\n'
+                f'Trying to overwrite {path.name}.\nPlease close the file.\n',
+                title='Close File'
             )

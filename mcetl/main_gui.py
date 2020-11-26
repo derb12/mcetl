@@ -1196,15 +1196,8 @@ def launch_main_gui(data_sources):
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
-                if (processing_options['append_file']
-                        and Path(processing_options['file_name']).exists()):
-                    mode = 'a'
-                else:
-                    processing_options['append_file'] = False
-                    mode = 'w'
-
-                output['writer'] =  pd.ExcelWriter(
-                    processing_options['file_name'], engine='openpyxl', mode=mode
+                output['writer'] = utils.create_excel_writer(
+                    processing_options['file_name'], not processing_options['append_file']
                 )
                 # Formatting styles for the Excel workbook
                 for style, kwargs in data_source.excel_formats.items():
