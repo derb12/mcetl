@@ -331,7 +331,7 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
 
     bkg_layout = sg.TabGroup(
         [
-            [sg.Tab('Background Options', auto_bkg_layout, key='auto_bkg_tab',
+            [sg.Tab('Background Options', auto_bkg_layout, key='automatic_bkg_tab',
                     visible=default_inputs['automatic_bkg']),
                 sg.Tab('Background Options', [
                     [sg.Text('')],
@@ -428,7 +428,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'x_min': '-inf',
         'x_max': 'inf',
         'min_method': 'least_squares',
-        'show_plots': True,
+        'show_plots': False,
         'batch_fit': False,
         'peak_list': [],
         'prominence': 'inf',
@@ -452,7 +452,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'debug': False,
         'automatic_bkg': True,
         'manual_bkg': False,
-        'confirm_results': False,
+        'confirm_results': True,
         'selected_peaks': [],
         'selected_bkg': []
     }
@@ -600,7 +600,7 @@ def _process_fitting_kwargs(dataframe, values):
     std_err = defaultdict(dict)
     for term in best_values[-1]:
         if 'peak' in term[0]:
-            key = f'{term[0].split("_")[0]} {int(term[0].split("_")[1]) + 1}'
+            key = ' '.join(term[0].split('_')[:2])
             param_key = '_'.join(term[0].split('_')[2:])
         else:
             key = term[0].split('_')[0]
@@ -617,10 +617,8 @@ def _process_fitting_kwargs(dataframe, values):
     df_1 = df_1.fillna('-')
 
     model_names = [component._name for component in fit_result[-1].components]
-    if 'pvoigt' in model_names:
-        for i, name in enumerate(model_names):
-            if name == 'pvoigt':
-                model_names[i] = 'pseudovoigt'
+    while 'pvoigt' in model_names:
+        model_names[model_names.index('pvoigt')] = 'pseudovoigt'
     df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
     params_df = pd.concat([df_0, df_1], axis=1)
 
@@ -628,11 +626,11 @@ def _process_fitting_kwargs(dataframe, values):
     peaks_df = pd.DataFrame({x_label: fit_result[-1].userkws['x'],
                              y_label: fit_result[-1].data})
 
-    bkg_term = '+ background' if subtract_bkg else ''
+    bkg_term = ' + background' if subtract_bkg else ''
     bkg = individual_models[-1]['background_'] if subtract_bkg else 0
     for term in individual_models[-1]:
         if 'peak' in term:
-            key = f'{term.split("_")[0]} {int(term.split("_")[1]) + 1} {bkg_term}'
+            key = ' '.join(term.split('_')[:2]) + bkg_term
             peaks_df[key] = individual_models[-1][term] + bkg
         else:
             key = term.split('_')[0]
@@ -914,13 +912,13 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         # toggle auto/manual background selection
         elif event in ('automatic_bkg', 'manual_bkg'):
             if event == 'automatic_bkg':
-                window['auto_bkg_tab'].update(visible=True)
-                window['auto_bkg_tab'].select()
+                window['automatic_bkg_tab'].update(visible=True)
+                window['automatic_bkg_tab'].select()
                 window['manual_bkg_tab'].update(visible=False)
             else:
                 window['manual_bkg_tab'].update(visible=True)
                 window['manual_bkg_tab'].select()
-                window['auto_bkg_tab'].update(visible=False)
+                window['automatic_bkg_tab'].update(visible=False)
 
         elif event == 'subtract_bkg':
             if values['subtract_bkg']:
@@ -1284,12 +1282,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
                 values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
 
-            if not values['new_file'] and Path(values['file']).exists():
-                mode = 'a'
-            else:
-                mode = 'w'
-
-            writer = pd.ExcelWriter(values['file'], engine='openpyxl', mode=mode)
+            writer = utils.create_excel_writer(values['file'], values['new_file'])
 
     # Formatting styles for the Excel workbook
     for style in utils.DEFAULT_FITTING_FORMATS.keys():
