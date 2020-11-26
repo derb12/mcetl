@@ -6,9 +6,6 @@ Created on Jun 28, 2020
 
 Attributes
 ----------
-CANVAS_SIZE : tuple(int, int)
-    A tuple specifying the size (in pixels) of the figure canvas in the GUI.
-    This can be modified if the user wishes a larger or smaller canvas.
 COLORS : tuple(str)
     A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
@@ -50,10 +47,9 @@ import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
-from .. import plotting_utils, utils
+from .. import plot_utils, utils
 
 
-CANVAS_SIZE = plotting_utils.CANVAS_SIZE
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
     'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue'
@@ -649,7 +645,7 @@ def _create_figure_components(saving=False, **fig_kwargs):
     saving : bool
         If True, designate that the figure is being saved, so the figure dpi
         will not be adjusted. Otherwise, the figure dpi is adjusted so that
-        it fits on CANVAS_SIZE.
+        it fits on plot_utils.CANVAS_SIZE.
     fig_kwargs : dict
         Keyword arguments to pass on to the various functions. Unpacking
         is used so that the figure name can be easily specified without
@@ -688,7 +684,7 @@ def _create_figure(fig_kwargs, saving=False):
     saving : bool
         Designates whether the figure will be saved. If True, will use the input
         figure size and dpi. If False, will scale the dpi to fit the figure onto
-        the PySimpleGUI canvas with size = CANVAS_SIZE.
+        the PySimpleGUI canvas with size = plot_utils.CANVAS_SIZE.
 
     Returns
     -------
@@ -699,18 +695,6 @@ def _create_figure(fig_kwargs, saving=False):
     -----
     Uses different dpi if not saving. When saving, matplotlib
     saves the correct size and dpi, regardless of the backend.
-
-    When not saving, the dpi needs to be scaled to fit the figure on
-    the GUI's canvas, and the scaling is called size_scale.
-    For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
-    the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
-    and the dpi would be changed to 150, with a size_scale of 0.5.
-
-    A dpi_scale correction is needed because the qt5Agg backend will change
-    the dpi to 2x the specified dpi when the display scaling in Windows is
-    not 100%. I am not sure how it works on non-Windows operating systems.
-
-    The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
 
     """
 
@@ -728,7 +712,7 @@ def _create_figure(fig_kwargs, saving=False):
     if saving:
         dpi = fig_kwargs['dpi']
     else:
-        dpi = plotting_utils.determine_dpi(fig_kwargs)
+        dpi = plot_utils.determine_dpi(fig_kwargs)
 
     plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(
@@ -952,7 +936,7 @@ def _annotate_example_figure(axes, canvas, figure):
             ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
             ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 
-    plotting_utils.draw_figure_on_canvas(canvas, figure)
+    plot_utils.draw_figure_on_canvas(canvas, figure)
 
 
 def _create_advanced_layout(input_values, canvas, figure):
@@ -1282,8 +1266,9 @@ def _select_plot_type(user_inputs=None):
                        button_color=utils.PROCEED_COLOR)]
          ]),
          sg.Column([
-             [sg.Canvas(key='example_canvas', size=CANVAS_SIZE, pad=(0, 0))]
-         ], size=(CANVAS_SIZE[0] + 10, CANVAS_SIZE[1] + 10), pad=(20, 0))]
+             [sg.Canvas(key='example_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
+         ], size=(plot_utils.CANVAS_SIZE[0] + 10, plot_utils.CANVAS_SIZE[1] + 10),
+         pad=(20, 0))]
     ]
 
     fig = _create_figure(fig_kwargs)
@@ -1877,7 +1862,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                             [sg.Text('')],
                             *column_layout
                         ], scrollable=True, vertical_scroll_only=True,
-                        size=(CANVAS_SIZE[0] - 50, CANVAS_SIZE[1] - 100))
+                        size=(750, plot_utils.CANVAS_SIZE[1] - 100))
                     ]],
                     key=f'label_tab_{i}_{j}')]
             )
@@ -1907,17 +1892,19 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                        button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
-            [sg.Canvas(key='controls_canvas', pad=(0, 0), size=(CANVAS_SIZE[0], 10))],
-            [sg.Canvas(key='fig_canvas', size=CANVAS_SIZE, pad=(0, 0))]
-         ], size=(CANVAS_SIZE[0] + 40, CANVAS_SIZE[1] + 50), pad=(10, 0))
+            [sg.Canvas(key='controls_canvas', pad=(0, 0),
+                       size=(plot_utils.CANVAS_SIZE[0], 10))],
+            [sg.Canvas(key='fig_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
+         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 50),
+         pad=(10, 0))
         ]
     ]
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True,
                        finalize=True, location=location)
-    plotting_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
-                                         window['controls_canvas'].TKCanvas)
+    plot_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
+                                     window['controls_canvas'].TKCanvas)
     window['options_column'].expand(True, True) # expands the column when window changes size
 
     return window, validations
@@ -3229,7 +3216,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    plotting_utils.draw_figure_on_canvas(
+                    plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
                         window['controls_canvas'].TKCanvas
                     )
@@ -3255,7 +3242,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_peaks(axes[key][label], add_peak)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    plotting_utils.draw_figure_on_canvas(
+                    plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
                         window['controls_canvas'].TKCanvas
                     )
@@ -3289,7 +3276,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # update the figure
                 elif event == 'Update Figure':
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    plotting_utils.draw_figure_on_canvas(
+                    plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
                         window['controls_canvas'].TKCanvas
                     )
