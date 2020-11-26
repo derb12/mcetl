@@ -19,7 +19,8 @@ import numpy as np
 import PySimpleGUI as sg
 from scipy import signal
 
-from .. import plotting_utils, utils
+from . import fitting_utils
+from .. import plot_utils, utils
 
 
 def peak_transformer():
@@ -30,17 +31,18 @@ def peak_transformer():
     -------
     models_dict : dict
         A dictionary containing the string for lmfit models as keys, and
-        a list as the values. The list contains the equations to estimate sigma and
-        amplitude, respectively, using input heights, full-width-at-half-maximums,
-        and peak center. Only lognormal actually uses peak center, but the rest
-        of the models allow inputting peak center by using *args.
+        a list as the values. The list contains the equations to estimate sigma,
+        amplitude/height, and peak center respectively, using input heights,
+        full-width-at-half-maximums, and peak mode (x-position at max y).
 
     Notes
     -----
     The equations for approximating the amplitude and sigma were gotten from:
     http://openafox.com/science/peak-function-derivations.html
 
-
+    The equations for the Breit-Wigner-Fano model were derived personally, with the formula
+    for fwhm = 2 * sigma * (1 + q**2) / ((q**2) - 1 + 1e-19), where the 1e-19 is in
+    case q = 1 or q = -1, and the formula for height = maximum / (1 + 1 / q**2).
 
     """
 
@@ -48,56 +50,82 @@ def peak_transformer():
     model_list = [
         'GaussianModel', 'LorentzianModel', 'VoigtModel', 'PseudoVoigtModel',
         'Pearson7Model', 'MoffatModel', 'SkewedGaussianModel',
-        'SkewedVoigtModel', 'SplitLorentzianModel', 'LognormalModel'
+        'SkewedVoigtModel', 'SplitLorentzianModel', 'LognormalModel',
+        'BreitWignerModel'
     ]
 
-    models_dict = {model: [] for model in sorted(model_list)}
-
-    # lambda expressions for sigma and amplitude, respectively, with inputs of height (h) and fwhm (w)
-    models_dict['GaussianModel'].extend([
+    models_dict = {}
+    # lambda expressions for sigma, amplitude (height for BWF), and peak center, respectively,
+    # with inputs of max height (h), fwhm (w), and mode (x where y=max height)(m)
+    models_dict['Gaussian'] = (
+        lmfit.models.GaussianModel,
         lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
-        lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2
-    ])
-    models_dict['LorentzianModel'].extend([
+        lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Lorentzian'] = (
+        lmfit.models.LorentzianModel,
         lambda h, w, *args: w / 2,
-        lambda h, w, *args: (h * w * np.pi) / 2
-    ])
-    models_dict['VoigtModel'].extend([
+        lambda h, w, *args: (h * w * np.pi) / 2,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Voigt'] = (
+        lmfit.models.VoigtModel,
         lambda h, w, *args: w / 3.6013,
-        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi))
-    ])
-    models_dict['PseudoVoigtModel'].extend([
+        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+        lambda h, w, m, *args: m
+    )
+    models_dict['Pseudo-Voigt'] = (
+        lmfit.models.PseudoVoigtModel,
         lambda h, w, *args: w / 2,
-        lambda h, w, *args: h * w * 1.269
-    ])
-    models_dict['Pearson7Model'].extend([
+        lambda h, w, *args: h * w * 1.269,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Pearson7'] = (
+        lmfit.models.Pearson7Model,
         lambda h, w, *args: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
-        lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1))
-    ])
-    models_dict['MoffatModel'].extend([
+        lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
+        lambda h, w, m, *args: m
+    )
+    models_dict['Moffat'] = (
+        lmfit.models.MoffatModel,
         lambda h, w, *args: w / 2,
-        lambda h, w, *args: h
-    ])
-    models_dict['SkewedGaussianModel'].extend([
+        lambda h, w, *args: h,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Skewed Gaussian'] = (
+        lmfit.models.SkewedGaussianModel,
         lambda h, w, *args: w /(2 * np.sqrt(2 * np.log(2))),
-        lambda h, w, *args: (h * w * np.sqrt(np.pi/(np.log(2)))) / 2
-    ])
-    models_dict['SkewedVoigtModel'].extend([
+        lambda h, w, *args: (h * w * np.sqrt(np.pi/(np.log(2)))) / 2,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Skewed Voigt'] = (
+        lmfit.models.SkewedVoigtModel,
         lambda h, w, *args: w / 3.6013,
-        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi))
-    ])
-    models_dict['SplitLorentzianModel'].extend([
+        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+        lambda h, w, m, *args: m
+    )
+    models_dict['Split Lorentzian'] = (
+        lmfit.models.SplitLorentzianModel,
         lambda h, w, *args: w / 2,
-        lambda h, w, *args: (h * w * np.pi) / 2
-    ])
-    models_dict['LognormalModel'].extend([
-        _lognormal_sigma, _lognormal_amplitude
-    ])
+        lambda h, w, *args: (h * w * np.pi) / 2,
+        lambda h, w, m, *args: m
+    )
+    models_dict['Lognormal'] = (
+        lmfit.models.LognormalModel,
+        _lognormal_sigma, _lognormal_amplitude, _lognormal_center
+    )
+    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 5 at init
+        fitting_utils.ModifiedBWF,
+        lambda h, w, *args: 12 * w / 26,
+        lambda h, w, *args: h / (1 + 1 / 5**2),
+        lambda h, w, m, *args: m - (12 * w / 26) / 5
+    )
 
     return models_dict
 
 
-def _lognormal_center(peak_height, peak_width, mode):
+def _lognormal_center(peak_height, peak_width, mode, *args):
     """
     Estimates the center (mean) value of a lognormal distribution.
 
@@ -122,7 +150,7 @@ def _lognormal_center(peak_height, peak_width, mode):
     return np.log(max(1e-9, mode)) + sigma**2
 
 
-def _lognormal_sigma(peak_height, peak_width, mode):
+def _lognormal_sigma(peak_height, peak_width, mode, *args):
     """
     Estimates the sigma value of a lognormal distribution.
 
@@ -134,6 +162,9 @@ def _lognormal_sigma(peak_height, peak_width, mode):
         The estimated full-width-half-maximum of the peak.
     mode : float
         The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
 
     Returns
     -------
@@ -147,7 +178,7 @@ def _lognormal_sigma(peak_height, peak_width, mode):
     return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
 
 
-def _lognormal_amplitude(peak_height, peak_width, mode):
+def _lognormal_amplitude(peak_height, peak_width, mode, *args):
     """
     Estimates the amplitude value of a lognormal distribution.
 
@@ -159,6 +190,9 @@ def _lognormal_amplitude(peak_height, peak_width, mode):
         The estimated full-width-half-maximum of the peak.
     mode : float
         The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
 
     Returns
     -------
@@ -290,11 +324,11 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         y2[y2 < 0] = 0
         y = y2 + (0 - np.min(y))
         use_middles = False
-        j = len(params_dict)
+        start_num = len(params_dict)
 
     else:
         params_dict = {}
-        j = 0
+        start_num = 0
         use_middles = True
 
     # finds the position between peak centers
@@ -311,8 +345,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         ax2.plot(x, y, label='data')
 
     models_dict = peak_transformer()
-    for i, peak_center in enumerate(peak_centers):
-        prefix = f'peak_{i + j}_'
+    for i, peak_center in enumerate(peak_centers, start_num):
+        prefix = f'peak_{i + 1}_'
         peak_width = peak_widths[i]
         peak_type = next(peak_list)
 
@@ -321,7 +355,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 f'"{peak_model}" is not implemented in the peak_transformer function.'
             )
 
-        peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
+        peak_model = models_dict[peak_type][0](prefix=prefix)
+        amplitude_key = 'amplitude' if peak_type != 'Breit-Wigner-Fano' else 'height'
 
         if use_middles:
             peak_mask = (x >= middles[i]) & (x <= middles[i + 1])
@@ -336,12 +371,11 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         else:
             peak_height = peak_heights[i]
 
-        negative_peak = peak_height < 0
-        param_kwargs = {'amplitude': {'min': -np.inf if negative_peak else 0,
-                                      'max': 0 if negative_peak else np.inf},
+        param_kwargs = {'amplitude': {'min': -np.inf if peak_height < 0 else 0,
+                                      'max': 0 if peak_height < 0 else np.inf},
                         'sigma': {'min': min_sigma, 'max': max_sigma}}
 
-        if peak_type != 'LognormalModel':
+        if peak_type != 'Lognormal':
             param_kwargs['center'] = {'value': peak_center,
                                       'min': peak_center - center_offset,
                                       'max': peak_center + center_offset}
@@ -349,21 +383,28 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             # estimate the values because lmfit's guess is bad for lognormal
             sigma = _lognormal_sigma(peak_height, peak_width, peak_center)
             # cannot set min, max for center for lognormal since it depends on sigma
+            # TODO could create an expression for a parameter called mode, and set the
+            # min and max for mode, which would constrain center
             param_kwargs['center'] = {'value': np.log(max(1e-19, peak_center)) + sigma**2}
             param_kwargs['sigma']['value'] = sigma
             param_kwargs['amplitude']['value'] = _lognormal_amplitude(peak_height, peak_width,
                                                                       peak_center)
+            param_kwargs['x_mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
+                                      'min': peak_center - center_offset,
+                                      'max': peak_center + center_offset}
+            # TODO setting mode doesn't seem to constrain center and sigma...
+            peak_model.set_param_hint('x_mode', **param_kwargs['x_mode'])
 
         peak_model.set_param_hint('center', **param_kwargs['center'])
-        peak_model.set_param_hint('amplitude', **param_kwargs['amplitude'])
+        peak_model.set_param_hint(amplitude_key, **param_kwargs['amplitude'])
         peak_model.set_param_hint('sigma', **param_kwargs['sigma'])
 
-        if peak_type == 'VoigtModel' and vary_Voigt:
+        if peak_type in ('Voigt', 'Skewed Voigt') and vary_Voigt:
             peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
                                       vary=True, expr='')
 
-        if peak_type != 'LognormalModel':
-            default_params = peak_model.guess(y_peak, x_peak, negative=negative_peak)
+        if peak_type != 'Lognormal':
+            default_params = peak_model.guess(y_peak, x_peak, negative=peak_height < 0)
         else:
             default_params = {}
         peak_params = peak_model.make_params(**default_params)
@@ -371,7 +412,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         if debug:
             ax1.plot(x_peak, peak_model.eval(peak_params, x=x_peak))
 
-        lone_peak = False if peak_type != 'LognormalModel' else True
+        lone_peak = False if peak_type != 'Lognormal' else True
         # peak_width < middles checks whether the peak is isolated or near other peaks
         if peak_heights is None and peak_width < (middles[i + 1] - middles[i]):
             temp_fit = peak_model.fit(y_peak, peak_params, x=x_peak,
@@ -395,13 +436,16 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 peak_params[f'{prefix}center'].value = param_kwargs['center']['value']
 
         if not lone_peak:
-            sigma_eq = models_dict[peak_type][0]
-            amplitude_eq = models_dict[peak_type][1]
+            sigma_eq = models_dict[peak_type][1]
+            amplitude_eq = models_dict[peak_type][2]
 
             peak_params[f'{prefix}sigma'].value = sigma_eq(peak_height, peak_width)
-            peak_params[f'{prefix}amplitude'].value = amplitude_eq(peak_height, peak_width)
-            if peak_type == 'SplitLorentzianModel':
+            peak_params[f'{prefix}{amplitude_key}'].value = amplitude_eq(peak_height, peak_width)
+
+            if peak_type == 'Split Lorentzian':
                 peak_params[f'{prefix}sigma_r'].value = sigma_eq(peak_height, peak_width)
+            elif peak_type in ('Voigt', 'Skewed Voigt') and vary_Voigt:
+                peak_params[f'{prefix}gamma'].value = sigma_eq(peak_height, peak_width)
 
         if debug:
             ax2.plot(x_peak, peak_model.eval(peak_params, x=x_peak), label=f'{prefix}model')
@@ -416,7 +460,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     return params_dict
 
 
-def _generate_lmfit_model(params_dict):
+def _generate_composite_model(params_dict):
     """
     Creates an lmfit composite model using the input dictionary of parameters.
 
@@ -433,14 +477,20 @@ def _generate_lmfit_model(params_dict):
     params : lmfit.Parameters
         An lmfit Parameters object containing the parameters for all peaks.
 
+    Notes
+    -----
+    This function is separated from the _initialize_peaks function so that peaks
+    can be reordered according to their center without having to reinitialize
+    each peak, only the composite model.
+
     """
+
+    models_dict = peak_transformer()
 
     params = None
     composite_model = None
     for prefix in params_dict:
-
-        peak_type = params_dict[prefix][0]
-        peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
+        peak_model = models_dict[params_dict[prefix][0]][0](prefix=prefix)
         for param in params_dict[prefix][1]:
             hint_dict = {
                 'value' : params_dict[prefix][1][param].value,
@@ -681,7 +731,7 @@ def _re_sort_prefixes(params_dict):
 
     centers = []
     for prefix in params_dict:
-        if params_dict[prefix][0] != 'LognormalModel':
+        if params_dict[prefix][0] != 'Lognormal':
             centers.append([prefix, params_dict[prefix][1][f'{prefix}center'].value])
         else:
             mean = params_dict[prefix][1][f'{prefix}center'].value
@@ -692,7 +742,7 @@ def _re_sort_prefixes(params_dict):
     sorted_prefixes = [prefix for prefix, center in sorted(centers, key=lambda x: x[1])]
 
     new_params_dict = {}
-    for index, old_prefix in enumerate(sorted_prefixes):
+    for index, old_prefix in enumerate(sorted_prefixes, 1):
         new_prefix = f'peak_{index}_'
         new_params = lmfit.Parameters()
 
@@ -741,7 +791,7 @@ def _check_background(background_model, background_value, y):
 
     """
 
-    if background_model in ('ConstantModel', 'ComplexConstantModel'):
+    if 'Constant' in background_model:
         output = np.full(y.size, background_value)
     else:
         output = background_value
@@ -956,7 +1006,7 @@ def fit_peaks(
             debug=debug, peak_heights=peak_heights
         )
 
-        model, params = _generate_lmfit_model(params_dict)
+        model, params = _generate_composite_model(params_dict)
         fit_wo_bkg = model.eval(params, x=x)
         bkg_params = background.guess(y - fit_wo_bkg, x=x)
 
@@ -979,7 +1029,7 @@ def fit_peaks(
             max_sigma=max_sigma, debug=debug, peak_heights=peak_heights
         )
 
-        composite_model, composite_params = _generate_lmfit_model(params_dict)
+        composite_model, composite_params = _generate_composite_model(params_dict)
 
     if debug:
         tot_ax.plot(x, composite_model.eval(composite_params, x=x),
@@ -1036,7 +1086,7 @@ def fit_peaks(
 
                 params_dict = _re_sort_prefixes(params_dict)
 
-            model, params = _generate_lmfit_model(params_dict)
+            model, params = _generate_composite_model(params_dict)
 
             if subtract_background:
                 fit_wo_bkg = model.eval(params, x=x)
@@ -1058,7 +1108,7 @@ def fit_peaks(
 
             if debug:
                 tot_ax.plot(x, composite_model.eval(composite_params, x=x),
-                            label=f'initial fit_{eval_num+2}')
+                            label=f'initial fit_{eval_num + 2}')
 
             output['initial_fits'].append(composite_model.eval(composite_params, x=x))
             output['fit_results'].append(
@@ -1141,7 +1191,7 @@ def r_squared(y, y_calc, num_variables=1):
     return r_sq, r_sq_adj
 
 
-class BackgroundSelector(plotting_utils.EmbeddedFigure):
+class BackgroundSelector(plot_utils.EmbeddedFigure):
     """
     A window for selecting points to define the background of data.
 
@@ -1164,11 +1214,16 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
     def __init__(self, x, y, click_list=None):
 
         super().__init__(x, y, click_list)
+        desired_dpi = 150
+        dpi = plot_utils.determine_dpi(
+            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+             'dpi': desired_dpi}, canvas_size=self.canvas_size
+        )
 
         self.figure, (self.axis, self.axis_2) = plt.subplots(
             2, num='Background Selector', sharex=True, tight_layout=True,
-            gridspec_kw={'height_ratios':[1.5, 1], 'hspace': 0},
-            dpi=plotting_utils.determine_dpi()
+            gridspec_kw={'height_ratios': [1.5, 1], 'hspace': 0},
+            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
         )
 
         self.axis.plot(self.x, self.y, 'o-', color='dodgerblue', ms=2, label='raw data')
@@ -1199,9 +1254,9 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
     def _create_window(self):
         """Creates the GUI."""
 
-        size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
-        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)), size=(size[0], 10))
-        self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
+                                        size=(self.canvas_size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         layout = [
             [sg.Column([
@@ -1325,7 +1380,7 @@ class BackgroundSelector(plotting_utils.EmbeddedFigure):
                 self.figure.canvas.draw_idle()
 
 
-class PeakSelector(plotting_utils.EmbeddedFigure):
+class PeakSelector(plot_utils.EmbeddedFigure):
     """
     A window for selecting peaks on a plot, along with peak width and type.
 
@@ -1371,13 +1426,21 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
                  poly_n=4, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
 
         super().__init__(x, y, click_list)
-
         nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
         self.x = self.x[nan_mask]
         self.y = self.y[nan_mask]
 
+        # reduce canvas size a little since the gui has buttons under the figure
+        self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
+        desired_dpi = 150
+        dpi = plot_utils.determine_dpi(
+            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+             'dpi': desired_dpi}, canvas_size=self.canvas_size
+        )
+
         self.figure, self.axis = plt.subplots(
-            num='Peak Selector', tight_layout=True, dpi=plotting_utils.determine_dpi()
+            num='Peak Selector', tight_layout=True,
+            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
         )
 
         self.axis.plot(self.x, self.y, 'o-', color='dodgerblue',
@@ -1409,18 +1472,17 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
         if self.click_list:
             self._update_plot()
             for peak in self.click_list:
-                center = peak[1][0]
-                height = peak[1][1] + self.background[np.argmin(np.abs(center - self.x))]
+                center = peak[3]
+                height = peak[1] + self.background[np.argmin(np.abs(center - self.x))]
                 self._create_circle(center, height)
 
 
     def _create_window(self, peak_width, peak_model):
         """Creates the GUI."""
 
-        size = tuple(self.figure.get_size_inches() * self.figure.get_dpi())
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
-                                        size=(size[0], 10))
-        self.canvas = sg.Canvas(key='fig_canvas', size=size, pad=(0, 0))
+                                        size=(self.canvas_size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         models_dict = peak_transformer()
         display_models = [model.replace('Model', '') for model in models_dict.keys()]
@@ -1439,7 +1501,7 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
             [sg.Text('Peak model:'),
              sg.Combo(display_models, key='peak_model', readonly=True,
                       default_value=initial_model),
-             sg.Text('    Peak width:', size=(11, 1)),
+             sg.Text('    Peak FWHM:'),
              sg.Input(peak_width, key='peak_width', size=(10, 1))],
             [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
                        bind_return_key=True, pad=(5, (15, 0))),
@@ -1458,8 +1520,8 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
         list
             A nested list, with each entry corresponding to a peak. Each entry
             has the following layout:
-            [[lmfit model, sigma function, aplitude function], [peak center, peak height, peak width]]
-            where lmfit model is something like 'GaussianModel'. The first entry
+            [model, peak center, peak height, peak width]
+            where model is something like 'Gaussian'. The first entry
             in the list comes directly from the mcetl.peak_fitting.peak_transformer function.
 
         """
@@ -1491,25 +1553,23 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
             # resets the color cycle to start at 0
             self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
 
+            models_dict = peak_transformer()
             y_tot = 0 * self.x
-            for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[1][0])):
-                center = peak[1][0]
-                height = peak[1][1]
-                width = peak[1][2]
+            for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[3])):
+                height = peak[1]
+                width = peak[2]
+                center = peak[3]
                 prefix = f'peak_{i + 1}'
+                amplitude_key = 'amplitude' if peak[0] != 'Breit-Wigner-Fano' else 'height'
 
-                peak_model = getattr(lmfit.models, peak[0][0])(prefix=prefix)
-                peak_model.set_param_hint('amplitude',
-                                          value=peak[0][1][1](height, width, center))
-                peak_model.set_param_hint('sigma', value=peak[0][1][0](height, width, center))
+                peak_model = models_dict[peak[0]][0](prefix=prefix)
+                peak_model.set_param_hint(amplitude_key,
+                                          value=models_dict[peak[0]][2](height, width, center))
+                peak_model.set_param_hint('sigma', value=models_dict[peak[0]][1](height, width, center))
+                peak_model.set_param_hint('center', value=models_dict[peak[0]][3](height, width, center))
 
-                if peak[0][0] != 'LognormalModel':
-                    peak_model.set_param_hint('center', value=center)
-                else:
-                    peak_model.set_param_hint('center', value=_lognormal_center(height, width, center))
-
-                if peak[0][0] == 'SplitLorentzianModel':
-                    peak_model.set_param_hint('sigma_r', value=peak[0][1][0](height, width))
+                if peak[0] == 'Split Lorentzian':
+                    peak_model.set_param_hint('sigma_r', value=models_dict[peak[0]][1](height, width))
 
                 peak_params = peak_model.make_params()
                 peak = peak_model.eval(peak_params, x=self.x)
@@ -1530,7 +1590,7 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
         center, height = self.picked_object.get_center()
         bkrd_height = self.background[np.argmin(np.abs(center - self.x))]
         for i, value in enumerate(self.click_list):
-            if all(np.isclose(value[1][:2], [center, height - bkrd_height])):
+            if all(np.isclose([value[3], value[1]], [center, height - bkrd_height])):
                 del self.click_list[i]
                 break
 
@@ -1568,14 +1628,12 @@ class PeakSelector(plotting_utils.EmbeddedFigure):
                     except ValueError:
                         self.window['peak_width'].update('')
                     else:
-                        models_dict = peak_transformer()
-                        selected_model = self.window['peak_model'].get() + 'Model'
-                        model = [selected_model, models_dict[selected_model]]
+                        selected_model = self.window['peak_model'].get()
 
-                        #[[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
+                        #[lmfit model, peak height, peak width, peak center]
                         peak_center = event.xdata
                         peak_height = event.ydata - self.background[np.argmin(np.abs(peak_center - self.x))]
-                        self.click_list.append([model, [peak_center, peak_height, peak_width]])
+                        self.click_list.append([selected_model, peak_height, peak_width, peak_center])
 
                         self._create_circle(event.xdata, event.ydata)
                         self._update_plot()
@@ -1684,7 +1742,7 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
                  transform=ax.transAxes)
         plt.hlines(0.95, 0.02 + 0.35 * i, 0.08 + 0.35 * i, color=colors[i],
                    linestyle='--', transform=ax.transAxes)
-    ax.set_ylim(plotting_utils.scale_axis(ax.get_ylim(), None, 0.1))
+    ax.set_ylim(plot_utils.scale_axis(ax.get_ylim(), None, 0.1))
     plt.show(block=False)
 
 
@@ -1732,19 +1790,20 @@ def plot_fit_results(fit_result, label_rsq=False, plot_initial=False, return_fig
     if plot_initial:
         ax_main.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
     ax_main.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
-    ax_resid.plot(x, -fit_result[-1].residual, 'o', color='green',
+    # don't plot fit_result.residual because it equals inf when there is a bad fit
+    ax_resid.plot(x, y - fit_result[-1].best_fit, 'o', color='green',
                   ms=1, label='residuals')
     ax_resid.axhline(0, color='k', linestyle='-')
 
-    ax_main.set_ylim(plotting_utils.scale_axis(ax_main.get_ylim(), 0.05, 0.05))
-    ax_resid.set_ylim(plotting_utils.scale_axis(ax_resid.get_ylim(), 0.05, 0.05))
+    ax_main.set_ylim(plot_utils.scale_axis(ax_main.get_ylim(), 0.05, 0.05))
+    ax_resid.set_ylim(plot_utils.scale_axis(ax_resid.get_ylim(), 0.05, 0.05))
     ax_main.legend()
     ax_main.set_ylabel('y')
 
     if label_rsq:
         ax_main.text(
-            plotting_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
-            plotting_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
+            plot_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
+            plot_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
             f'R$^2$= {r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
             ha='left', va='top'
         )
