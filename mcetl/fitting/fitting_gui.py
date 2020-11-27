@@ -588,13 +588,6 @@ def _process_fitting_kwargs(dataframe, values):
     individual_models = fitting_results['individual_peaks']
     best_values = fitting_results['best_values']
 
-    # Renames amplitude to area for peaks to be more clear; lmfit has amplitude==area
-    # by the way the module defines the peaks
-    for result in best_values:
-        for param in result:
-            if 'peak' in param[0] and 'amplitude' in param[0]:
-                param[0] = '_'.join([*param[0].split('_')[0:2], 'area'])
-
     # Creation of dataframe for best values of all peak parameters
     vals = defaultdict(dict)
     std_err = defaultdict(dict)

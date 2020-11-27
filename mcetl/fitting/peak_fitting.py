@@ -1165,14 +1165,17 @@ def fit_peaks(
             )
 
         # gets the parameters for each model and their standard errors, if available
-        if not any(param.stderr is None for param in fit_result.params.values()):
-            output['best_values'].append([
-                [param.name, param.value, param.stderr] for param in fit_result.params.values()
-            ])
-        else:
-            output['best_values'].append([
-                [param.name, param.value, 'N/A'] for param in fit_result.params.values()
-            ])
+        output['best_values'].append([])
+        for param in fit_result.params.values():
+            output['best_values'][-1].append(
+                [param.name, param.value, param.stderr if param.stderr is not None else 'N/A']
+            )
+        # perform numerical integration for each peak
+        for model, values in output['individual_peaks'][-1].items():
+            if 'peak' in model:
+                output['best_values'][-1].append(
+                    [model + 'integrated_area', np.trapz(values, fit_result.userkws['x']), 'N/A']
+                )
 
     return output
 
