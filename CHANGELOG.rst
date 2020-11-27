@@ -119,8 +119,8 @@ This is a minor patch with a critical bug fix.
 Bug Fixes
 ~~~~~~~~~
 
-* Fixed issue using sorted() with a dictionary causing the plotting GUI to fail with python 3.7.
-  Used sorted(list(dictionary.keys())) instead.
+* Fixed issue using reversed() with a dictionary causing the plotting GUI to fail with python 3.7.
+  Used reversed(list(dictionary.keys())) instead.
 
 
 0.1.1 (2020-09-14)
