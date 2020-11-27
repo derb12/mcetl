@@ -55,71 +55,97 @@ def peak_transformer():
     ]
 
     models_dict = {}
-    # lambda expressions for sigma, amplitude (height for BWF), and peak center, respectively,
-    # with inputs of max height (h), fwhm (w), and mode (x where y=max height)(m)
+    # inputs are max height (h), fwhm (w), and mode (x where y=max height)(m)
     models_dict['Gaussian'] = (
         lmfit.models.GaussianModel,
-        lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
-        lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
+            'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Lorentzian'] = (
         lmfit.models.LorentzianModel,
-        lambda h, w, *args: w / 2,
-        lambda h, w, *args: (h * w * np.pi) / 2,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Voigt'] = (
         lmfit.models.VoigtModel,
-        lambda h, w, *args: w / 3.6013,
-        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 3.6013,
+            'gamma': lambda h, w, *args: w / 3.6013,
+            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Pseudo-Voigt'] = (
         lmfit.models.PseudoVoigtModel,
-        lambda h, w, *args: w / 2,
-        lambda h, w, *args: h * w * 1.269,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: h * w * 1.269,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Pearson7'] = (
         lmfit.models.Pearson7Model,
-        lambda h, w, *args: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
-        lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
+            'amplitude': lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Moffat'] = (
         lmfit.models.MoffatModel,
-        lambda h, w, *args: w / 2,
-        lambda h, w, *args: h,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: h,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Skewed Gaussian'] = (
         lmfit.models.SkewedGaussianModel,
-        lambda h, w, *args: w /(2 * np.sqrt(2 * np.log(2))),
-        lambda h, w, *args: (h * w * np.sqrt(np.pi/(np.log(2)))) / 2,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
+            'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Skewed Voigt'] = (
         lmfit.models.SkewedVoigtModel,
-        lambda h, w, *args: w / 3.6013,
-        lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 3.6013,
+            'gamma': lambda h, w, *args: w / 3.6013,
+            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Split Lorentzian'] = (
         lmfit.models.SplitLorentzianModel,
-        lambda h, w, *args: w / 2,
-        lambda h, w, *args: (h * w * np.pi) / 2,
-        lambda h, w, m, *args: m
+        {
+            'sigma': lambda h, w, *args: w / 2,
+            'sigma_r': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
+            'center': lambda h, w, m, *args: m
+        }
     )
     models_dict['Lognormal'] = (
         lmfit.models.LognormalModel,
-        _lognormal_sigma, _lognormal_amplitude, _lognormal_center
+        {
+            'sigma': _lognormal_sigma,
+            'amplitude': _lognormal_amplitude,
+            'center': _lognormal_center
+        }
     )
-    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 5 at init
+    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 2 at init
         fitting_utils.ModifiedBWF,
-        lambda h, w, *args: 12 * w / 26,
-        lambda h, w, *args: h / (1 + 1 / 5**2),
-        lambda h, w, m, *args: m - (12 * w / 26) / 5
+        {
+            'sigma': lambda h, w, *args: w * 3 / 10,
+            'height': lambda h, w, *args: h / (1 + 1 / 2**2),
+            'center': lambda h, w, m, *args: m - (w * 3 / 10) / 2
+        }
     )
 
     return models_dict
@@ -352,7 +378,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
 
         if peak_type not in models_dict:
             raise NotImplementedError(
-                f'"{peak_model}" is not implemented in the peak_transformer function.'
+                f'"{peak_type}" is not implemented in the peak_transformer function.'
             )
 
         peak_model = models_dict[peak_type][0](prefix=prefix)
@@ -435,17 +461,10 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 # do not allow peak centers to shift during initialization
                 peak_params[f'{prefix}center'].value = param_kwargs['center']['value']
 
-        if not lone_peak:
-            sigma_eq = models_dict[peak_type][1]
-            amplitude_eq = models_dict[peak_type][2]
-
-            peak_params[f'{prefix}sigma'].value = sigma_eq(peak_height, peak_width)
-            peak_params[f'{prefix}{amplitude_key}'].value = amplitude_eq(peak_height, peak_width)
-
-            if peak_type == 'Split Lorentzian':
-                peak_params[f'{prefix}sigma_r'].value = sigma_eq(peak_height, peak_width)
-            elif peak_type in ('Voigt', 'Skewed Voigt') and vary_Voigt:
-                peak_params[f'{prefix}gamma'].value = sigma_eq(peak_height, peak_width)
+        if not lone_peak: # calculates parameters using equations from peak_transformer
+            for parameter, equation in models_dict[peak_type][1].items():
+                peak_params[f'{prefix}{parameter}'].value = equation(peak_height, peak_width,
+                                                                     peak_center)
 
         if debug:
             ax2.plot(x_peak, peak_model.eval(peak_params, x=x_peak), label=f'{prefix}model')
@@ -1559,17 +1578,9 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                 height = peak[1]
                 width = peak[2]
                 center = peak[3]
-                prefix = f'peak_{i + 1}'
-                amplitude_key = 'amplitude' if peak[0] != 'Breit-Wigner-Fano' else 'height'
-
-                peak_model = models_dict[peak[0]][0](prefix=prefix)
-                peak_model.set_param_hint(amplitude_key,
-                                          value=models_dict[peak[0]][2](height, width, center))
-                peak_model.set_param_hint('sigma', value=models_dict[peak[0]][1](height, width, center))
-                peak_model.set_param_hint('center', value=models_dict[peak[0]][3](height, width, center))
-
-                if peak[0] == 'Split Lorentzian':
-                    peak_model.set_param_hint('sigma_r', value=models_dict[peak[0]][1](height, width))
+                peak_model = models_dict[peak[0]][0](prefix=f'peak_{i + 1}')
+                for param, equation in models_dict[peak[0]][1].items():
+                    peak_model.set_param_hint(param, value=equation(height, width, center))
 
                 peak_params = peak_model.make_params()
                 peak = peak_model.eval(peak_params, x=self.x)

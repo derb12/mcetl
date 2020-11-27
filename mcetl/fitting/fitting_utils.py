@@ -13,12 +13,12 @@ Created on Nov 18, 2020
 import lmfit
 
 
-def alternate_BWF(x, height=1.0, center=0.0, sigma=1.0, q=5.0):
+def breit_wigner_fano(x, height=1.0, center=0.0, sigma=1.0, q=2.0):
     """
     An alternate Breit-Wigner-Fano lineshape that uses height rather than amplitude.
 
-    alternate_BWF(x, height, center, width, q) =
-        height*(1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
+    breit_wigner_fano(x, height, center, sigma, q) =
+        height * (1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
 
     """
 
@@ -27,20 +27,22 @@ def alternate_BWF(x, height=1.0, center=0.0, sigma=1.0, q=5.0):
 
 class ModifiedBWF(lmfit.Model):
     """
-    A modified version of lmfit's BreitWignerFano model.
+    A modified version of lmfit's BreitWignerModel.
 
-    Initializes with q=5 rather than q=1, which gives a better peak.
+    Initializes with q=2 rather than q=1, which gives a better peak.
     Also defines terms for fwhm, height, x_mode, and maximum that were
     not included in lmfit's implementation, where x_mode is the x position
-    at the maximum y-value, and maximum is the maximum y-value.
+    at the maximum y-value, and maximum is the maximum y-value. Further,
+    the lmfit implementation uses amplitude as value for bwf as abs(x)
+    approaches infinity, which is different than for other peaks where
+    amplitude is defined as the peak area.
 
     """
 
-    def __init__(self, independent_vars=['x'], prefix='', nan_policy='raise',
-                 **kwargs):
+    def __init__(self, independent_vars=['x'], prefix='', nan_policy='raise', **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
-        super().__init__(alternate_BWF, **kwargs)
+        super().__init__(breit_wigner_fano, **kwargs)
         self._set_paramhints_prefix()
 
 
@@ -54,30 +56,19 @@ class ModifiedBWF(lmfit.Model):
 
 
     def guess(self, data, x=None, negative=False, **kwargs):
-        """
-        Estimate initial model parameter values from data.
-
-        Notes
-        -----
-        For most lmfit models, amplitude is the peak area; for lmfit's
-        BreitWigner model, however, aplitude is the baseline of the distribution
-        (the y-value as abs(x) approaches infinity), so need
-
-        """
+        """Estimate initial model parameter values from data."""
 
         pars = lmfit.models.guess_from_peak(self, data, x, negative)
-        pars[f'{self.prefix}q'].set(value=5.0)
+        q = -2 if abs(data[0]) > abs(data[-1]) else 2
+        center = pars[f'{self.prefix}center'].value - pars[f'{self.prefix}sigma'].value / q
+        pars[f'{self.prefix}center'].set(value=center)
+        pars[f'{self.prefix}q'].set(value=q)
         pars[f'{self.prefix}height'].set(value=min(data) if negative else max(data))
 
         return lmfit.models.update_param_vals(pars, self.prefix, **kwargs)
 
 
-class ModifiedLognormal(lmfit.models.LognormalModel):
-    """
-    """
-
-
-def peak_directory():
+def model_directory():
     """
     [summary]
 
