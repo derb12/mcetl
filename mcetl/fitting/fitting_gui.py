@@ -684,7 +684,7 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     """
 
-    if user_inputs is not None and user_inputs['batch_fit']:
+    if user_inputs is not None and user_inputs.get('batch_fit', False):
         gui_values = user_inputs.copy()
     else:
         gui_values = _fitting_gui_event_loop(dataframe, user_inputs)
