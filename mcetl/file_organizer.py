@@ -339,9 +339,13 @@ def _get_keywords(num_keyword_values):
         ])
 
     file_directory = Path(num_keyword_values['folder'])
-    file_type = num_keyword_values['file_type'].replace('.', '')
     min_files = num_keyword_values['min_files']
     max_files = num_keyword_values['max_files']
+    # only take out the preceeding '.', so that multiple suffixes (eg. 'tar.gz') remain intact
+    if num_keyword_values['file_type'].startswith('.'):
+        file_type = num_keyword_values['file_type'][1:]
+    else:
+        file_type = num_keyword_values['file_type']
 
     return file_directory, shared_keywords, unique_keywords, file_type, min_files, max_files
 
