@@ -689,13 +689,13 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         'initial_total_indices': None if data_source is None else [''] * len(data_source.column_numbers),
     }
 
-    if user_inputs is not None:
+    if previous_inputs is not None:
         unwanted_keys = ('file', 'sheets', 'sheet', 'excel_columns',
                          'first_column', 'last_column', 'repeat_unit')
         for key in unwanted_keys:
-            user_inputs.pop(key, None)
-        user_inputs['columns'] = ', '.join(str(num) for num in user_inputs['columns'])
-        default_inputs.update(user_inputs)
+            previous_inputs.pop(key, None)
+        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs['columns'])
+        default_inputs.update(previous_inputs)
 
     validations = {
         'integers': [['row_start', 'start row'], ['row_end', 'end row']],
