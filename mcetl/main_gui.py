@@ -278,8 +278,8 @@ def _select_processing_options(data_sources):
                  justification='center', size=(40, 1))],
         [sg.Check('Process Data', key='process_data', default=True,
                   enable_events=True)],
-        [sg.Check('Fit Peaks', key='fit_peaks', enable_events=True)],
-        [sg.Check('Save to Excel', key='save_fitting', pad=((40, 0), (1, 0)),
+        [sg.Check('Fit Data', key='fit_data', enable_events=True)],
+        [sg.Check('Save Results to Excel', key='save_fitting', pad=((40, 0), (1, 0)),
                   enable_events=True, disabled=True)],
         [sg.Check('Plot in Python', key='plot_python')],
         [sg.Check('Move File(s)', key='move_files', default=False)],
@@ -327,15 +327,15 @@ def _select_processing_options(data_sources):
             utils.safely_close_window(window)
 
         elif event == 'Next':
-            if any((values['fit_peaks'], values['plot_python'],
+            if any((values['fit_data'], values['plot_python'],
                     values['save_excel'], values['move_files'],
                     values['process_data'])):
 
-                close_window = False
-                for source in data_sources:
-                    if values[f'source_{source.name}']:
-                        close_window = True
-                        break
+                if any(values[f'source_{source.name}'] for source in data_sources):
+                    close_window = True
+                else:
+                    close_window = False
+
                 if close_window:
                     if not values['save_excel'] or values['file_name']:
                         break
@@ -345,8 +345,7 @@ def _select_processing_options(data_sources):
                             title='Error'
                         )
                 else:
-                    sg.popup('Please select a data source.\n',
-                             title='Error')
+                    sg.popup('Please select a data source.\n', title='Error')
 
             elif values['move_files']:
                 break
@@ -362,8 +361,8 @@ def _select_processing_options(data_sources):
         elif event == 'single_file':
             window['use_last_search'].update(value=False, disabled=True)
 
-        elif event == 'fit_peaks':
-            if values['fit_peaks'] and values['save_excel']:
+        elif event == 'fit_data':
+            if values['fit_data'] and values['save_excel']:
                 window['save_fitting'].update(value=True, disabled=False)
                 window['plot_fit_excel'].update(disabled=False)
             else:
@@ -381,7 +380,7 @@ def _select_processing_options(data_sources):
                 window['append_file'].update(readonly=True)
                 window['plot_data_excel'].update(disabled=False)
 
-                if values['fit_peaks']:
+                if values['fit_data']:
                     window['save_fitting'].update(value=True, disabled=False)
                     window['plot_fit_excel'].update(disabled=False)
             else:
@@ -774,7 +773,7 @@ def _collect_column_labels(dataframes, data_source, labels, options):
 
 def _fit_data(datasets, data_source, labels, excel_writer, options):
     """
-    Handles peak fitting and any exceptions that occur during peak fitting.
+    Handles fitting the data and any exceptions that occur during fitting.
 
     Parameters
     ----------
@@ -1085,49 +1084,33 @@ def launch_main_gui(data_sources):
             # Imports the raw data from the files
             if any((processing_options['process_data'],
                     processing_options['save_excel'],
-                    processing_options['fit_peaks'],
+                    processing_options['fit_data'],
                     processing_options['plot_python'])):
 
                 output['dataframes'] = [[[] for sample in dataset] for dataset in files]
                 import_vals = [[[] for sample in dataset] for dataset in files]
-                if files[0][0][0].endswith('.xlsx'):
-                    for i, dataset in enumerate(files):
-                        for j, sample in enumerate(dataset):
-                            for entry in sample:
-                                #disable_blank_col = not (i == 0 and j == 0) #TODO use this later to lock out changing the number of columns
-                                import_values = utils.select_file_gui(
-                                    data_source, sample
-                                )
-                                added_dataframes = utils.raw_data_import(
-                                    import_values, sample, False
-                                )
-                                output['dataframes'][i][j].extend(added_dataframes)
-                                import_vals[i][j].extend(
-                                    [import_values] * len(added_dataframes)
-                                )
-
-                else:
-                    import_values = utils.select_file_gui(data_source, files[0][0][0])
-                    for i, dataset in enumerate(files):
-                        for j, sample in enumerate(dataset):
-                            for entry in sample:
-                                output['dataframes'][i][j].extend(
-                                    utils.raw_data_import(import_values, entry, False)
-                                )
-                                import_vals[i][j].append(import_values)
+                import_values = None
+                for i, dataset in enumerate(files):
+                    for j, sample in enumerate(dataset):
+                        for entry in sample:
+                            if import_values is None or not import_values['same_values']:
+                                import_values = utils.select_file_gui(data_source, entry,
+                                                                      import_values)
+                            added_dataframes = utils.raw_data_import(import_values, entry, False)
+                            output['dataframes'][i][j].extend(added_dataframes)
+                            import_vals[i][j].extend([import_values] * len(added_dataframes))
 
         else:
             import_values = utils.select_file_gui(data_source)
-            output['dataframes'] = [[
-                utils.raw_data_import(import_values, import_values['file'], False)
-            ]]
+            output['dataframes'] = [[utils.raw_data_import(import_values, import_values['file'],
+                                                           False)]]
             files = [[[import_values['file']]]]
             import_vals = [[[import_values] * len(output['dataframes'][0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'],
                 processing_options['save_excel'],
-                processing_options['fit_peaks'],
+                processing_options['fit_data'],
                 processing_options['plot_python'])):
 
             label_values = _select_column_labels(
@@ -1172,7 +1155,8 @@ def launch_main_gui(data_sources):
                         'y_log_scale': values['y_log_scale']
                     })
 
-            if not processing_options['process_data']: # Otherwise, will assign labels after Separation functions
+            if not processing_options['process_data']:
+                # Otherwise, will assign labels after Separation functions
                 _collect_column_labels(output['dataframes'], data_source,
                                        labels, processing_options)
 
@@ -1220,7 +1204,7 @@ def launch_main_gui(data_sources):
 
         # Assigns column names to the dataframes
         if any((processing_options['process_data'],
-                processing_options['fit_peaks'],
+                processing_options['fit_data'],
                 processing_options['plot_python'])):
 
             pass #TODO later assign column headers for all dfs based on labels['total_columns']
@@ -1228,7 +1212,7 @@ def launch_main_gui(data_sources):
         """
         #renames dataframe columns if there are repeated terms,
         #since it causes issues for plotting and fitting
-        if any((plot_python, fit_peaks)):
+        if any((plot_python, fit_data)):
 
             for k, dataframe in enumerate(dataframes):
                 header_list = dataframe.columns.tolist()
@@ -1243,7 +1227,7 @@ def launch_main_gui(data_sources):
         """
 
         # Handles peak fitting
-        if processing_options['fit_peaks']:
+        if processing_options['fit_data']:
             output['fit_results'] = _fit_data(
                 output['dataframes'], data_source, labels, output['writer'], processing_options
             )
