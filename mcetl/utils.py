@@ -637,7 +637,7 @@ def raw_data_import(window_values, file, show_popup=True):
         sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
 
 
-def select_file_gui(data_source=None, file=None):
+def select_file_gui(data_source=None, file=None, previous_inputs=None):
     """
     GUI to select a file and input the necessary options to import its data.
 
@@ -647,6 +647,10 @@ def select_file_gui(data_source=None, file=None):
         The DataSource object used for opening the file.
     file: str, optional
         A string containing the path to the file to be imported.
+    previous_inputs : dict, optional
+        A dictionary containing the values from a previous usage of this
+        function, that will be used to overwrite the defaults. Note, if
+        opening Excel files, the previous_inputs will have no effect.
 
     Returns
     -------
@@ -677,12 +681,21 @@ def select_file_gui(data_source=None, file=None):
         'first_column': '',
         'last_column': '',
         'repeat_unit': '',
+        'same_values': True if file is not None else False,
         'initial_separator': '',
         'initial_columns': '',
         'initial_row_start': '',
         'initial_row_end': '',
         'initial_total_indices': None if data_source is None else [''] * len(data_source.column_numbers),
     }
+
+    if user_inputs is not None:
+        unwanted_keys = ('file', 'sheets', 'sheet', 'excel_columns',
+                         'first_column', 'last_column', 'repeat_unit')
+        for key in unwanted_keys:
+            user_inputs.pop(key, None)
+        user_inputs['columns'] = ', '.join(str(num) for num in user_inputs['columns'])
+        default_inputs.update(user_inputs)
 
     validations = {
         'integers': [['row_start', 'start row'], ['row_end', 'end row']],
@@ -695,7 +708,7 @@ def select_file_gui(data_source=None, file=None):
     disable_other = True
     disable_bottom = True
 
-    if file is not None:
+    if file is not None: # data_source would also not be None
         disable_bottom = False
 
         if not Path(file).suffix in excel_formats:
@@ -718,8 +731,11 @@ def select_file_gui(data_source=None, file=None):
                 'columns': ', '.join(str(num) for num in range(sheet_0_len)),
                 'row_start': 0,
                 'row_end': 0,
+                'same_values': False,
                 'total_indices': list(range(sheet_0_len)),
             })
+            if any(index >= sheet_0_len for index in default_inputs['variable_indices'].values()):
+                default_inputs['variable_indices'] = {key: 0 for key in default_inputs['variable_indices'].keys()}
 
             validations['integers'].append(
                 ['repeat_unit', 'number of columns per dataset']
@@ -800,6 +816,8 @@ def select_file_gui(data_source=None, file=None):
                           size=(3, 1), readonly=True,
                           key=f'index_{variable}', disabled=disable_bottom)]
             ])
+        layout.append([sg.Check('Same options for all files', default_inputs['same_values'],
+                                key='same_values', disabled=disable_other)])
 
     layout.extend([
         [sg.Button('Test Import', pad=(5, (15, 5))),
@@ -1041,13 +1059,14 @@ def open_multiple_files():
 
     dataframes = []
     if num_files:
+        import_values = None
         try:
             for _ in range(num_files):
-                import_values = select_file_gui()
+                import_values = select_file_gui(previous_inputs=import_values)
                 dataframes.extend(
                     raw_data_import(import_values, import_values['file'], False)
                 )
-        except (WindowCloseError, KeyboardInterrupt):
+        except WindowCloseError:
             pass
 
     return dataframes
