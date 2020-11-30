@@ -597,7 +597,7 @@ def _process_fitting_kwargs(dataframe, values):
             param_key = '_'.join(term[0].split('_')[2:])
         else:
             key = term[0].split('_')[0]
-            param_key = term[0].split('_')[-1]
+            param_key = '_'.join(term[0].split('_')[1:])
         vals[key][param_key] = term[1]
         std_err[key][param_key] = term[2]
     vals_df = pd.DataFrame(vals).transpose()
@@ -631,16 +631,18 @@ def _process_fitting_kwargs(dataframe, values):
     peaks_df['total fit'] = fit_result[-1].best_fit
 
     # Creation of dataframe for descriptions of the fitting
-    adj_r_sq = peak_fitting.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
-                                      fit_result[-1].nvarys)[1]
-    red_chi_sq = fit_result[-1].redchi
-    bayesian_info_criteria = fit_result[-1].bic
-    akaike_info_criteria = fit_result[-1].aic
-
+    r_sq, adj_r_sq = peak_fitting.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
+                                            fit_result[-1].nvarys)
+    # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
+    # set to 1 ;same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
-        [adj_r_sq, red_chi_sq, akaike_info_criteria, bayesian_info_criteria,
-         min_method], index=['adjusted R\u00B2', 'reduced \u03c7\u00B2',
-                             'A.I.C.',  'B.I.C.', 'minimization method']
+        [fit_result[-1].success, r_sq, adj_r_sq, fit_result[-1].chisqr,
+         fit_result[-1].redchi, fit_result[-1].aic, fit_result[-1].bic, min_method,
+         fit_result[-1].data.size, fit_result[-1].nvarys,
+         fit_result[-1].data.size - fit_result[-1].nvarys],
+        index=['Fit converged', 'R\u00B2', 'adjusted R\u00B2', '\u03c7\u00B2',
+               'reduced \u03c7\u00B2', 'A.I.C.',  'B.I.C.', 'Minimization method',
+               'Data points', 'Independant variables', 'Degrees of freedom']
     )
 
     return individual_models, fit_result, peaks_df, params_df, descriptors_df
@@ -694,7 +696,7 @@ def fit_dataframe(dataframe, user_inputs=None):
         try:
             individual_models, *fit_results = _process_fitting_kwargs(dataframe, gui_values)
         except Exception as e: # error during fitting
-            sg.popup(f'Error during fitting:\n    {repr(e)}')
+            sg.popup(f'Error during fitting:\n    {repr(e)}\n')
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
             if gui_values['confirm_results'] and not ResultsPlot(fit_results[0][-1]).event_loop():
