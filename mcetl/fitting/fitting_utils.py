@@ -11,16 +11,127 @@ Created on Nov 18, 2020
 
 
 import lmfit
+import numpy as np
 
+
+def numerical_extrema(y):
+    """
+    Computes the numerical maximum or minimum for a peak.
+
+    Parameters
+    ----------
+    y : array-like
+        The y-values for the peak model.
+
+    Returns
+    -------
+    extrema : float
+        The extrema with the highest absolute value from the input y data.
+        Assumes the peak is negative if abs(min(y)) > abs(max(y)).
+
+    Notes
+    -----
+    Use np.nanmin and np.nanmax instead of min and max in order to convert
+    the output to a numpy dtype. This way, all of the numerical calculations
+    using the output of this function will work, even if y is a list or tuple.
 
     """
 
+    # use np.nanmin/max to convert the values to numpy
+    min_y, max_y = np.nanmin(y), np.nanmax(y)
+    if abs(min_y) > abs(max_y):
+        extrema = min_y
+    else:
+        extrema = max_y
+
+    return extrema
+
+
+def numerical_mode(x, y):
+    """
+    Computes the numerical mode (x-value at which the extrema occurs) of a peak.
+
+    Parameters
+    ----------
+    x : array-like
+        The x-values for the peak model.
+    y : array-like
+        The y-values for the peak model.
+
+    Returns
+    -------
+    float
+        The x-value at which the extrema in y occurs.
 
     """
 
+    return x[np.where(y == numerical_extrema(y))[0][0]]
 
+
+def numerical_area(x, y):
+    """
+    Computes the numerical area of a peak using the trapezoidal method.
+
+    Parameters
+    ----------
+    x : array-like
+        The x-values for the peak model.
+    y : array-like
+        The y-values for the peak model.
+
+    Returns
+    -------
+    float
+        The integrated area of the peak, using the trapezoidal method.
 
     """
+
+    return np.trapz(y, x)
+
+
+def numerical_fwhm(x, y):
+    """
+    Computes the numerical full-width-at-half-maximum of a peak.
+
+    Parameters
+    ----------
+    x : array-like
+        The x-values for the peak model.
+    y : array-like
+        The y-values for the peak model.
+
+    Returns
+    -------
+    float or None
+        The calculated full-width-at-half-max of the peak. If there are
+        not at least two x-values at which y = extrema_y / 2, then None
+        is returned.
+
+    Notes
+    -----
+    First finds the x-values where y - extrema_y / 2 changes signs, and
+    then uses linear interpolation to approximate the x-values at which
+    y - extrema_y / 2 = 0
+
+    """
+
+    # use ravel to ensure pandas Series work
+    diff = np.ravel(y - numerical_extrema(y) / 2)
+    roots = np.where(np.sign(diff[:-1]) != np.sign(diff[1:]))[0]
+
+    if roots.size < 2:
+        fwhm = None
+    else:
+        x_intercepts = []
+        for root in ([roots[0], roots[0] + 1], [roots[-1], roots[-1] + 1]):
+            # uses linear interpolation to find the x-value where y - ymax/2 = 0
+            y0, y1 = (diff[root[0]], diff[root[1]])
+            x0, x1 = (x[root[0]], x[root[1]])
+            x_intercepts.append(x0 - ((y0 * (x1 - x0)) / (y1 - y0)))
+
+        fwhm = abs(x_intercepts[1] - x_intercepts[0])
+
+    return fwhm
 
 
     """

@@ -19,7 +19,7 @@ import numpy as np
 import PySimpleGUI as sg
 from scipy import signal
 
-from . import fitting_utils
+from . import fitting_utils, models
 from .. import plot_utils, utils
 
 
@@ -29,7 +29,7 @@ def peak_transformer():
 
     Returns
     -------
-    models_dict : dict
+    dict
         A dictionary containing the string for lmfit models as keys, and
         a list as the values. The list contains the equations to estimate sigma,
         amplitude/height, and peak center respectively, using input heights,
@@ -37,25 +37,23 @@ def peak_transformer():
 
     Notes
     -----
-    The equations for approximating the amplitude and sigma were gotten from:
+    More peak models are available from lmfit, but these are the ones I have
+    tested and implemented currently.
+
+    Inputs are max height (h), fwhm (w), and mode (x where y=max height)(m).
+
+    Most equations for approximating the amplitude and sigma were gotten from:
     http://openafox.com/science/peak-function-derivations.html
 
-    The equations for the Breit-Wigner-Fano model were derived personally, with the formula
+    The equations for the Breit-Wigner-Fano and Breit-Wigner-Fano_alt models were
+    derived personally, with the formulas for BWF_alt
     for fwhm = 2 * sigma * (1 + q**2) / ((q**2) - 1 + 1e-19), where the 1e-19 is in
     case q = 1 or q = -1, and the formula for height = maximum / (1 + 1 / q**2).
 
     """
 
-    # more peak models may work, but these are the ones I have tested and implemented
-    model_list = [
-        'GaussianModel', 'LorentzianModel', 'VoigtModel', 'PseudoVoigtModel',
-        'Pearson7Model', 'MoffatModel', 'SkewedGaussianModel',
-        'SkewedVoigtModel', 'SplitLorentzianModel', 'LognormalModel',
-        'BreitWignerModel'
-    ]
-
     models_dict = {}
-    # inputs are max height (h), fwhm (w), and mode (x where y=max height)(m)
+    #
     models_dict['Gaussian'] = (
         lmfit.models.GaussianModel,
         {
@@ -131,7 +129,7 @@ def peak_transformer():
             'center': lambda h, w, m, *args: m
         }
     )
-    models_dict['Lognormal'] = (
+    models_dict['Log-normal'] = (
         lmfit.models.LognormalModel,
         {
             'sigma': _lognormal_sigma,
@@ -139,16 +137,25 @@ def peak_transformer():
             'center': _lognormal_center
         }
     )
-    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 2 at init
-        fitting_utils.ModifiedBWF,
+    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 1 at init
+        lmfit.models.BreitWignerModel,
         {
-            'sigma': lambda h, w, *args: w * 3 / 10,
-            'height': lambda h, w, *args: h / (1 + 1 / 2**2),
-            'center': lambda h, w, m, *args: m - (w * 3 / 10) / 2
+            'sigma': lambda h, w, *args: w, # leave alone since fwhm=inf for q=1
+            'amplitude': lambda h, w, *args: h / 2,
+            'center': lambda h, w, m, *args: m - w / 2,
+        }
+    )
+    models_dict['Breit-Wigner-Fano_alt'] = ( # assumes q = -3 at init
+        models.BreitWignerFanoModel,
+        {
+            'sigma': lambda h, w, *args: w * 4 / 10,
+            'height': lambda h, w, *args: h / (1 + 1 / 3**2),
+            'center': lambda h, w, m, *args: m - (w * 4 / 10) / (-3),
         }
     )
 
-    return models_dict
+    # sort the keys alphabetically before returning
+    return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
 
 def _lognormal_center(peak_height, peak_width, mode, *args):
@@ -163,6 +170,9 @@ def _lognormal_center(peak_height, peak_width, mode, *args):
         The estimated full-width-half-maximum of the peak.
     mode : float
         The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
 
     Returns
     -------
@@ -382,7 +392,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             )
 
         peak_model = models_dict[peak_type][0](prefix=prefix)
-        amplitude_key = 'amplitude' if peak_type != 'Breit-Wigner-Fano' else 'height'
+        amplitude_key = 'amplitude' if peak_type != 'Breit-Wigner-Fano_alt' else 'height'
 
         if use_middles:
             peak_mask = (x >= middles[i]) & (x <= middles[i + 1])
@@ -401,7 +411,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                                       'max': 0 if peak_height < 0 else np.inf},
                         'sigma': {'min': min_sigma, 'max': max_sigma}}
 
-        if peak_type != 'Lognormal':
+        if peak_type != 'Log-normal':
             param_kwargs['center'] = {'value': peak_center,
                                       'min': peak_center - center_offset,
                                       'max': peak_center + center_offset}
@@ -429,7 +439,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
                                       vary=True, expr='')
 
-        if peak_type != 'Lognormal':
+        if peak_type != 'Log-normal':
             default_params = peak_model.guess(y_peak, x_peak, negative=peak_height < 0)
         else:
             default_params = {}
@@ -438,7 +448,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         if debug:
             ax1.plot(x_peak, peak_model.eval(peak_params, x=x_peak))
 
-        lone_peak = False if peak_type != 'Lognormal' else True
+        lone_peak = False if peak_type != 'Log-normal' else True
         # peak_width < middles checks whether the peak is isolated or near other peaks
         if peak_heights is None and peak_width < (middles[i + 1] - middles[i]):
             temp_fit = peak_model.fit(y_peak, peak_params, x=x_peak,
@@ -1168,14 +1178,24 @@ def fit_peaks(
         output['best_values'].append([])
         for param in fit_result.params.values():
             output['best_values'][-1].append(
-                [param.name, param.value, param.stderr if param.stderr is not None else 'N/A']
+                [param.name, param.value, param.stderr if param.stderr not in (None, np.nan) else 'N/A']
             )
-        # perform numerical integration for each peak
+        # perform numeric calculations for each peak
         for model, values in output['individual_peaks'][-1].items():
             if 'peak' in model:
-                output['best_values'][-1].append(
-                    [model + 'integrated_area', np.trapz(values, fit_result.userkws['x']), 'N/A']
-                )
+                numeric_calcs = {
+                    'numeric area': fitting_utils.numerical_area(fit_result.userkws['x'],
+                                                                 values),
+                    'numeric fwhm': fitting_utils.numerical_fwhm(fit_result.userkws['x'],
+                                                                 values),
+                    'numeric extrema': fitting_utils.numerical_extrema(values),
+                    'numeric x-at-extrema': fitting_utils.numerical_mode(fit_result.userkws['x'],
+                                                                         values)
+                }
+                for calc, value in numeric_calcs.items():
+                    output['best_values'][-1].append(
+                        [model + calc, value if value is not None else 'N/A', 'None']
+                    )
 
     return output
 
