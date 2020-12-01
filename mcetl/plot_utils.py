@@ -17,6 +17,9 @@ CANVAS_SIZE : tuple(int, int)
 """
 
 
+import functools
+
+from matplotlib.backend_bases import key_press_handler
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
@@ -27,38 +30,6 @@ from . import utils
 
 
 CANVAS_SIZE = (800, 800)
-
-
-class PeakFittingToolbar(NavigationToolbar2Tk):
-    """
-    Custom toolbar without the subplots button.
-
-    The subplots button is removed so that the user does not mess with the
-    plot layout since it is handled by using matplotlib's tight layout.
-
-    Parameters
-    ----------
-    fig_canvas : matplotlib.FigureCanvas
-        The figure canvas on which to operate.
-    canvas : tkinter.Canvas
-        The Canvas element which owns this toolbar.
-
-    """
-
-    def __init__(self, fig_canvas, canvas):
-
-        self.toolitems = (
-            ('Home', 'Reset original view', 'home', 'home'),
-            ('Back', 'Back to previous view', 'back', 'back'),
-            ('Forward', 'Forward to next view', 'forward', 'forward'),
-            (None, None, None, None),
-            ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
-            ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
-            (None, None, None, None),
-            ('Save', 'Save the figure', 'filesave', 'save_figure')
-        )
-
-        super().__init__(fig_canvas, canvas)
 
 
 class PlotToolbar(NavigationToolbar2Tk):
@@ -80,17 +51,9 @@ class PlotToolbar(NavigationToolbar2Tk):
 
     """
 
+    toolitems = tuple(ti for ti in NavigationToolbar2Tk.toolitems if ti[0] not in ('Subplots', 'Save'))
+
     def __init__(self, fig_canvas, canvas):
-
-        self.toolitems = (
-            ('Home', 'Reset original view', 'home', 'home'),
-            ('Back', 'Back to previous view', 'back', 'back'),
-            ('Forward', 'Forward to next view', 'forward', 'forward'),
-            (None, None, None, None),
-            ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
-            ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
-        )
-
         super().__init__(fig_canvas, canvas)
 
 
@@ -110,9 +73,12 @@ class EmbeddedFigure:
     click_list : list, optional
         A list of selected points on the plot.
     enable_events : bool, optional
-        If True, will connect self.events (defaults to self._on_click,
+        If True (default), will connect self.events (defaults to self._on_click,
         self._on_pick, and self._on_key) to the figure when it is drawn
         on the canvas. If False, the figure will have no connected events.
+    enable_keybinds : bool, optional
+        If True (default), will connect the matplotlib keybind events to
+        the figure.
 
     Attributes
     ----------
@@ -148,9 +114,12 @@ class EmbeddedFigure:
         (CANVAS_SIZE[0], CANVAS_SIZE[1] - 100), which is (800, 700).
     toolbar_class : NavigationToolbar2Tk
         The class of the toolbar to place in the window. The default
-        is PeakFittingToolbar.
+        is NavigationToolbar2Tk.
     window : sg.Window
         The PySimpleGUI window containing the figure.
+    enable_keybinds : bool
+        If True, will allow using matplotlib's keybinds to trigger
+        events on the figure.
 
     Notes
     -----
@@ -175,21 +144,15 @@ class EmbeddedFigure:
 
     """
 
-    def __init__(self, x, y, click_list=None, enable_events=True):
+    def __init__(self, x, y, click_list=None, enable_events=True,
+                 enable_keybinds=True):
 
         self.x = np.array(x, float)
         self.y = np.array(y, float)
         self.click_list = click_list if click_list is not None else []
+        self.enable_keybinds = enable_keybinds
 
-        if enable_events:
-            # default events; can be edited/removed after initialization
-            self.events = {'button_press_event': self._on_click,
-                           'pick_event': self._on_pick,
-                           'key_press_event': self._on_key}
-        else:
-            self.events = {}
-
-        self.toolbar_class = PeakFittingToolbar
+        self.toolbar_class = NavigationToolbar2Tk
         self.figure = None
         self.axis = None
         self.window = None
@@ -199,6 +162,14 @@ class EmbeddedFigure:
         self.picked_object = None
         self.xaxis_limits = (0, 1)
         self.yaxis_limits = (0, 1)
+
+        if enable_events:
+            # default events; can be edited/removed after initialization
+            self.events = [('button_press_event', self._on_click),
+                           ('pick_event', self._on_pick),
+                           ('key_press_event', self._on_key)]
+        else:
+            self.events = []
 
 
     def event_loop(self):
@@ -341,13 +312,20 @@ class EmbeddedFigure:
         else:
             toolbar_canvas = None
 
-        draw_figure_on_canvas(self.canvas.TKCanvas, self.figure,
-                              toolbar_canvas, self.toolbar_class)
+        figure_canvas, toolbar = draw_figure_on_canvas(self.canvas.TKCanvas, self.figure,
+                                                       toolbar_canvas, self.toolbar_class)
 
         # maintain references (_cids) to the connections so they are not garbage collected
         self._cids = []
-        for event, function in self.events.items():
-            self._cids.append(self.figure.canvas.mpl_connect(event, function))
+        for event in self.events:
+            # event is a tuple like (event_key, function)
+            self._cids.append(figure_canvas.mpl_connect(*event))
+
+        if self.enable_keybinds:
+            self._cids.append(figure_canvas.mpl_connect(
+                'key_press_event',
+                functools.partial(key_press_handler, canvas=figure_canvas, toolbar=toolbar)
+            ))
 
 
     def _close(self):
@@ -368,7 +346,7 @@ class EmbeddedFigure:
 
 
 def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
-                          toolbar_class=PlotToolbar, kwargs=None):
+                          toolbar_class=NavigationToolbar2Tk, kwargs=None):
     """
     Places the figure and toolbar onto the PySimpleGUI canvas.
 
@@ -382,9 +360,16 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
         The tkinter Canvas element for the toolbar.
     toolbar_class : NavigationToolbar2Tk, optional
         The toolbar class used to create the toolbar for the figure. The
-        default is PlotToolbar.
+        default is NavigationToolbar2Tk.
     kwargs : dict, optional
         Keyword arguments designating how to pack the figure into the window.
+
+    Returns
+    -------
+    figure_canvas : FigureCanvasTkAgg
+        The canvas containing the figure.
+    toolbar : NavigationToolbar2Tk or None
+        The created toolbar. Is None if toolbar_canvas is None.
 
     Notes
     -----
@@ -413,16 +398,18 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
         for child in canvas.winfo_children()[:-1]:
             child.destroy()
 
-    if toolbar_canvas is not None:
+    if toolbar_canvas is None:
+        toolbar = None
+    else:
         if create_toolbar:
             toolbar = toolbar_class(figure_canvas, toolbar_canvas)
             toolbar.update()
             last_index = -1 if toolbar_canvas is not canvas else -2
-        else:
-            last_index = None
 
         for child in toolbar_canvas.winfo_children()[:last_index]:
             child.destroy()
+
+    return figure_canvas, toolbar
 
 
 def get_dpi_correction(dpi):
@@ -468,7 +455,8 @@ def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
     Parameters
     ----------
     fig_kwargs : dict, optional
-        Keyword arguments for creating the figure.
+        Keyword arguments for creating the figure. Relevant keys
+        are 'fig_width', 'fig_height', and 'dpi'.
     canvas_size : tuple(int, int), optional
         The size of the canvas that the figure will be placed on.
 
