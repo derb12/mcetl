@@ -327,16 +327,10 @@ def _select_processing_options(data_sources):
             utils.safely_close_window(window)
 
         elif event == 'Next':
-            if any((values['fit_data'], values['plot_python'],
-                    values['save_excel'], values['move_files'],
-                    values['process_data'])):
+            if any((values['fit_data'], values['plot_python'], values['save_excel'],
+                    values['move_files'], values['process_data'])):
 
                 if any(values[f'source_{source.name}'] for source in data_sources):
-                    close_window = True
-                else:
-                    close_window = False
-
-                if close_window:
                     if not values['save_excel'] or values['file_name']:
                         break
                     else:
@@ -349,7 +343,6 @@ def _select_processing_options(data_sources):
 
             elif values['move_files']:
                 break
-
             else:
                 sg.popup('Please select a data processing option.\n',
                          title='Error')
@@ -479,8 +472,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
     if options['process_data'] and data_source.dataset_summary_functions:
         default_inputs.update({'summary_name': 'Summary'})
         validations['user_inputs'].append([
-            'summary_name', 'summary name',
-            utils.string_to_unicode, True, None
+            'summary_name', 'summary name', utils.string_to_unicode, True, None
         ])
 
     keys = ('data_label', 'calculation_label',
@@ -505,7 +497,9 @@ def _create_column_labels_window(dataset, data_source, options, index,
         header = f'Dataset {index + 1}'
         header_visible = False
 
-    column_width = 32
+    column_width = 38
+    input_width = 25
+    label_expr = '    {:<10}' # ensures all columns line up regardless of number up to 99
     labels_layout = [
         [sg.Text(header, visible=header_visible),
          sg.Input(default_inputs['sheet_name'], key='sheet_name',
@@ -516,16 +510,16 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
     for i in range(len(dataset)):
         labels_layout.append(
-            [sg.Text(f'    Sample {i + 1}'),
-             sg.Input(default_inputs[f'sample_name_{i}'], size=(20, 1),
-                      key=f'sample_name_{i}')]
+            [sg.Text(label_expr.format(f'Sample {i + 1}')),
+             sg.Input(default_inputs[f'sample_name_{i}'],
+                      size=(input_width, 1), key=f'sample_name_{i}')]
         )
 
     if options['process_data'] and data_source.dataset_summary_functions:
         labels_layout.append(
-            [sg.Text('    Summary'),
-             sg.Input(default_inputs['summary_name'], size=(20, 1),
-                      key='summary_name')]
+            [sg.Text('    Summary  '),
+             sg.Input(default_inputs['summary_name'],
+                      size=(input_width, 1), key='summary_name')]
         )
 
     labels_layout.extend([
@@ -539,8 +533,8 @@ def _create_column_labels_window(dataset, data_source, options, index,
             f'{keys[0]}_{i}', f'raw data label {i}', utils.string_to_unicode, True, None
         ])
         labels_layout.append(
-            [sg.Text(f'    Column {i}'),
-             sg.Input(default_inputs[f'{keys[0]}_{i}'], size=(20, 1),
+            [sg.Text(label_expr.format(f'Column {i}')),
+             sg.Input(default_inputs[f'{keys[0]}_{i}'], size=(input_width, 1),
                       key=f'{keys[0]}_{i}')]
         )
 
@@ -553,9 +547,9 @@ def _create_column_labels_window(dataset, data_source, options, index,
                 for k in range(len(label_list)):
                     col_num = i + 1 + k if j == 0 else k # continue column numbering for Calculations
                     labels_layout.append(
-                        [sg.Text(f'    Column {col_num}'),
-                         sg.Input(default_inputs[f'{keys[j + 1]}_{k}'], size=(20, 1),
-                                  key=f'{keys[j + 1]}_{k}')]
+                        [sg.Text(label_expr.format(f'Column {col_num}')),
+                         sg.Input(default_inputs[f'{keys[j + 1]}_{k}'],
+                                  size=(input_width, 1), key=f'{keys[j + 1]}_{k}')]
                     )
                     validations['user_inputs'].append([
                         f'{keys[j + 1]}_{k}', f'{calc_labels[j].lower()} label {col_num}',
@@ -564,7 +558,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
     labels_column = [
         sg.Column(labels_layout, scrollable=True,
-                  vertical_scroll_only=True, size=(404, 400))
+                  vertical_scroll_only=True, size=(460, 400))
     ]
 
     if not options['plot_data_excel']:
@@ -586,19 +580,18 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
         plot_layout = [
             [sg.Text('Chart title:'),
-             sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],
+             sg.Input(default_inputs['chart_title'], key='chart_title',
+                      size=(input_width, 1))],
             [sg.Text('Column of x data for plotting:'),
-             sg.Combo(list(range(len(available_cols))),
-                      key='x_plot_index', readonly=True, size=(3, 1),
-                      default_value=default_inputs['x_plot_index'])],
+             sg.Combo(list(range(len(available_cols))), default_inputs['x_plot_index'],
+                      key='x_plot_index', readonly=True, size=(4, 1), enable_events=True)],
             [sg.Text('Column of y data for plotting:'),
-             sg.Combo(list(range(len(available_cols))),
-                      key='y_plot_index', readonly=True, size=(3, 1),
-                      default_value=default_inputs['y_plot_index'])],
+             sg.Combo(list(range(len(available_cols))), default_inputs['y_plot_index'],
+                      key='y_plot_index', readonly=True, size=(4, 1), enable_events=True)],
             [sg.Text('X axis label:'),
-             sg.Input(default_inputs['x_label'], key='x_label', size=(20, 1))],
+             sg.Input(default_inputs['x_label'], key='x_label', size=(input_width, 1))],
             [sg.Text('Y axis label:'),
-             sg.Input(default_inputs['y_label'], key='y_label', size=(20, 1))],
+             sg.Input(default_inputs['y_label'], key='y_label', size=(input_width, 1))],
             [sg.Text(("Min and max values to show on the plot\n"
                       "(leave blank to use Excel's default):"))],
             [sg.Text('    X min:', size=(8, 1)),
@@ -632,8 +625,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    return validations, sg.Window(f'Dataset {index + 1} Options',
-                                  layout, location=location)
+    return validations, sg.Window(f'Dataset {index + 1} Options', layout, location=location)
 
 
 def _select_column_labels(dataframes, data_source, processing_options):
@@ -675,7 +667,6 @@ def _select_column_labels(dataframes, data_source, processing_options):
 
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
-
             elif event == 'Unicode Help':
                 sg.popup(
                     ('"\\u00B2": \u00B2 \n"\\u03B8": \u03B8 \n"'
@@ -684,7 +675,12 @@ def _select_column_labels(dataframes, data_source, processing_options):
                      ' (m/s\\u00B2) creates Acceleration (m/s\u00B2).\n'),
                     title='Example Unicode'
                 )
-
+            elif event in ('x_plot_index', 'y_plot_index'):
+                column_keys = [
+                    *[values[key] for key in values if key.startswith('data_label')],
+                    *[values[key] for key in values if key.startswith('calculation_label')]
+                ]
+                window[f'{event.split("_")[0]}_label'].update(column_keys[int(values[event])])
             elif event in ('Back', 'Next', 'Finish'):
                 if utils.validate_inputs(values, **validations):
                     label_values[j].update(values)
