@@ -594,7 +594,7 @@ def raw_data_import(window_values, file, show_popup=True):
                 pd.read_csv(
                     file, skiprows=row_start, skipfooter=row_end, header=None,
                     sep=separator, usecols=column_numbers, engine='python'
-                )
+                )[column_numbers]
             ]
 
         if not show_popup:
@@ -661,6 +661,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
     """
 
     excel_formats = ('.xls', '.xlsx', '.xlsm')
+    lock_columns = False # used to lock total number of columns
 
     # Default values for if there is no file specified
     default_inputs = {
@@ -694,6 +695,11 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                          'first_column', 'last_column', 'repeat_unit')
         for key in unwanted_keys:
             previous_inputs.pop(key, None)
+
+        if data_source is not None:
+            lock_columns = True # TODO will need to rethink how to implement for excel files
+            num_columns = len(previous_inputs['columns'])
+
         previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs['columns'])
         default_inputs.update(previous_inputs)
 
@@ -968,18 +974,19 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 if event == 'Test Import':
                     test_file = file if file is not None else values['file']
                     raw_data_import(values, test_file)
+                elif lock_columns and len(values['columns']) != num_columns:
+                    sg.popup(f'Number of columns must be equal to {num_columns}.\n',
+                             title='Error')
                 else:
                     break
 
     window.close()
     del window
 
-    if data_source is not None: # converts column numbers back to indices
-        for key in (key for key in values if key.startswith('index_')):
-            for i, col_num in enumerate(values['columns']):
-                if int(values[key]) == col_num:
-                    values[key] = i
-                    break
+    if data_source is not None:
+        # converts column numbers back to indices
+        for key in data_source.unique_variables:
+            values[f'index_{key}'] = values['columns'].index(int(values[f'index_{key}']))
 
     return values
 
@@ -1108,7 +1115,9 @@ def create_excel_writer(file_name, new_file=False):
                 path.rename(path) # errors if file is currently open
             except PermissionError:
                 sg.popup_ok(
-                    f'Trying to overwrite {path.name}.\nPlease close the file.\n',
+                    (f'Please close {path.name} so it can be opened in python.\n'
+                     'Until the file is saved in python, any additional\n'
+                     'changes made by the user will be lost.\n'),
                     title='Close File'
                 )
             else:
