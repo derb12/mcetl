@@ -192,7 +192,8 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
             try:
                 self.axis.plot(x, model_values, label=label)
             except Exception as e:
-                print(f'Error creating results plot:\n    {repr(e)}')
+                print(f'Error plotting individual model results:\n    {repr(e)}')
+
         self.axis.plot(x, fit_result.best_fit, 'k--', label='best fit')
         self.axis.legend()
         self._create_window()

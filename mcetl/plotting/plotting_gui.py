@@ -1904,7 +1904,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
     window = sg.Window('Plot Options', layout, resizable=True,
                        finalize=True, location=location)
     plot_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
-                                     window['controls_canvas'].TKCanvas)
+                                     window['controls_canvas'].TKCanvas, plot_utils.PlotToolbar)
     window['options_column'].expand(True, True) # expands the column when window changes size
 
     return window, validations
@@ -3218,7 +3218,8 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
-                        window['controls_canvas'].TKCanvas
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
                     )
 
                     window[f'edit_annotation_{index[0]}_{index[1]}'].update(
@@ -3244,7 +3245,8 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
-                        window['controls_canvas'].TKCanvas
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
                     )
 
                     window[f'edit_peak_{index[0]}_{index[1]}'].update(
@@ -3278,7 +3280,8 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
                     plot_utils.draw_figure_on_canvas(
                         window['fig_canvas'].TKCanvas, fig,
-                        window['controls_canvas'].TKCanvas
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
                     )
                 # resets all options to their defaults
                 elif event == 'Reset to Defaults':

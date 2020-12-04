@@ -349,7 +349,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     """
 
     model_list = model_list if model_list is not None else []
-    peak_list = iter(model_list + [default_model] * (len(peak_centers) - len(model_list)))
+    peak_list = itertools.chain(model_list, itertools.cycle([default_model]))
     peak_widths = peak_width if isinstance(peak_width, (list, tuple)) else [peak_width] * len(peak_centers)
 
     y = y.copy() - background_y
@@ -1569,7 +1569,6 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         """
 
         self.window.reappear()
-
         while True:
             event = self.window.read()[0]
             if event in ('close', sg.WIN_CLOSED):
