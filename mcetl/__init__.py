@@ -28,7 +28,7 @@ __version__ = '0.3.0'
 
 
 from .datasource import DataSource
-from .functions import SeparationFunction, CalculationFunction, SummaryFunction
+from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 from .main_gui import launch_main_gui
 
 
