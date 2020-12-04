@@ -126,7 +126,7 @@ def _write_to_excel(dataframes, data_source, labels,
 
         # Subheader values and formatting
         flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
-        subheaders = iter(labels[i]['total_labels'])
+        subheaders = itertools.chain(labels[i]['total_labels'], itertools.cycle(['']))
         for j, entry in enumerate(flattened_lengths):
             suffix = 'even' if j % 2 == 0 else 'odd'
             for col_index in range(entry):
@@ -739,16 +739,14 @@ def _collect_column_labels(dataframes, data_source, labels, options):
         labels[i]['total_labels'] = []
 
         for j in range(len(labels[i]['sample_names'])):
-            index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
-
-            for entry_num in range(1, len(dataset[j]) + 1 + index_modifier):
+            for entry_num in range(1, len(dataset[j]) + 1):
                 for label in labels[i]['column_labels']:
                     if data_source.label_entries and len(dataset[j]) > 1 and label:
                         labels[i]['total_labels'].append(f'{label} {entry_num}')
                     else:
                         labels[i]['total_labels'].append(label)
 
-                if options['process_data'] and entry_num != len(dataset[j]) + index_modifier:
+                if options['process_data'] and entry_num != len(dataset[j]):
                     labels[i]['total_labels'].extend([
                         '' for _ in range(data_source.entry_separation)
                     ])
@@ -1054,7 +1052,7 @@ def launch_main_gui(data_sources):
     if not isinstance(data_sources, (list, tuple)):
         data_sources = [data_sources]
     if any(not isinstance(data_source, DataSource) for data_source in data_sources):
-        raise TypeError("Only DataSource objects can be used in the main gui.")
+        raise TypeError("Only mcetl.DataSource objects can be used in mcetl's main gui.")
 
     try:
         processing_options = _select_processing_options(data_sources)
@@ -1064,6 +1062,9 @@ def launch_main_gui(data_sources):
             if processing_options[f'source_{source.name}']:
                 data_source = source
                 break
+        # Removes unique variables that are only used in preprocessing
+        if not processing_options['process_data']:
+            data_source.remove_unneeded_variables()
 
         # Selection of raw data files
         if processing_options['multiple_files']:
@@ -1096,22 +1097,35 @@ def launch_main_gui(data_sources):
                             if import_values is None or not import_values['same_values']:
                                 import_values = utils.select_file_gui(data_source, entry,
                                                                       import_values)
+
                             added_dataframes = utils.raw_data_import(import_values, entry, False)
                             output['dataframes'][i][j].extend(added_dataframes)
-                            import_vals[i][j].extend([import_values] * len(added_dataframes))
+                            references = {}
+                            for var in data_source.unique_variables:
+                                references[var] = import_values.get(f'index_{var}')
+                            import_vals[i][j].extend([references] * len(added_dataframes))
 
         else:
             import_values = utils.select_file_gui(data_source)
             output['dataframes'] = [[utils.raw_data_import(import_values, import_values['file'],
                                                            False)]]
             files = [[[import_values['file']]]]
-            import_vals = [[[import_values] * len(output['dataframes'][0][0])]]
+            references = {}
+            for var in data_source.unique_variables:
+                references[var] = import_values.get(f'index_{var}')
+            import_vals = [[[references] * len(output['dataframes'][0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'],
                 processing_options['save_excel'],
                 processing_options['fit_data'],
                 processing_options['plot_python'])):
+
+            if processing_options['process_data']:
+                # Perform preprocessing functions
+                output['dataframes'], import_vals = data_source.do_preprocessing(
+                    output['dataframes'], import_vals
+                )
 
             label_values = _select_column_labels(
                 output['dataframes'], data_source, processing_options
@@ -1155,22 +1169,13 @@ def launch_main_gui(data_sources):
                         'y_log_scale': values['y_log_scale']
                     })
 
-            if not processing_options['process_data']:
-                # Otherwise, will assign labels after Separation functions
-                _collect_column_labels(output['dataframes'], data_source,
-                                       labels, processing_options)
+            _collect_column_labels(output['dataframes'], data_source,
+                                   labels, processing_options)
 
         if processing_options['save_excel'] or processing_options['process_data']:
-
             if processing_options['process_data']:
-                # Perform separation functions
-                output['dataframes'], import_vals = data_source.do_separation_functions(
-                    output['dataframes'], import_vals
-                )
                 # Assign reference indices for all relevant columns
                 data_source.set_references(output['dataframes'], import_vals)
-
-                _collect_column_labels(output['dataframes'], data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
             merged_dataframes = data_source.merge_datasets(output['dataframes'])

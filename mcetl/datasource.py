@@ -15,7 +15,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 
 from . import utils
-from .functions import SeparationFunction, CalculationFunction, SummaryFunction
+from .functions import PreprocessFunction, CalculationFunction, SummaryFunction
 
 
 class DataSource:
@@ -155,7 +155,7 @@ class DataSource:
         elif isinstance(unique_variables, str):
             self.unique_variables = [unique_variables]
         else:
-            self.unique_variables = unique_variables
+            self.unique_variables = list(unique_variables)
 
         if column_numbers is not None:
             self.column_numbers = column_numbers
@@ -165,12 +165,12 @@ class DataSource:
         # ensures the number of imported columns can accomodate all variables
         if len(self.column_numbers) < len(self.unique_variables):
             raise IndexError((
-                f'The number of columns specified for mcetl.DataSource "{self.name}" must '
-                'be greater or equal to the number of unique variables, not less than.'
+                f'The number of columns specified for mcetl.DataSource "{self.name}" '
+                'must be greater or equal to the number of unique variables.'
             ))
 
         # sorts the functions by their usage
-        self.separation_functions = []
+        self.preprocess_functions = []
         self.calculation_functions = []
         self.sample_summary_functions = []
         self.dataset_summary_functions = []
@@ -185,12 +185,18 @@ class DataSource:
                         self.dataset_summary_functions.append(function)
                 elif isinstance(function, CalculationFunction):
                     self.calculation_functions.append(function)
-                elif isinstance(function, SeparationFunction):
-                    self.separation_functions.append(function)
+                elif isinstance(function, PreprocessFunction):
+                    self.preprocess_functions.append(function)
                 else:
                     raise TypeError(f'{function} is not a valid Function object.')
 
         self._validate_target_columns()
+
+        # self._deleted_columns tracks how many columns will be deleted after
+        # preprocessing so the number of needed column labels can be adjusted
+        self._deleted_columns = sum(
+            len(cols) for func in self.preprocess_functions for cols in func.deleted_columns
+        )
 
         # indices for each unique variable for data processing
         if unique_variable_indices is None:
@@ -216,11 +222,7 @@ class DataSource:
 
 
     def __str__(self):
-        return f'{self.__module__}.{self.__class__.__name__} {self.name}'
-
-
-    def __repr__(self):
-        return f'<{str(self)}>'
+        return f'{self.__class__.__name__}(name={self.name})'
 
 
     def _create_excel_writer_formats(self, format_kwargs):
@@ -312,9 +314,12 @@ class DataSource:
 
         """
 
-        unique_keys = [*self.unique_variables]
+        target_error = ('"{target}" is not an available column for {function} to modify. '
+                        'Check that {self} a) has the correct function order and/or b) has '
+                        'the correct unique_variables specified.')
 
-        for function in (self.separation_functions + self.calculation_functions
+        unique_keys = set(self.unique_variables)
+        for function in (self.preprocess_functions + self.calculation_functions
                          + self.sample_summary_functions
                          + self.dataset_summary_functions):
             # ensure function names are unique
@@ -326,20 +331,24 @@ class DataSource:
             # ensure targets exist
             for target in function.target_columns:
                 if target not in unique_keys:
-                    raise ValueError((
-                        f'"{target}" is not an available target for Function '
-                        f'"{function.name}". Check that the function order is correct.'
-                    ))
-            # ensure columns exist if function modifies columns
-            if (not isinstance(function, SeparationFunction)
-                    and not isinstance(function.added_columns, int)):
+                    raise ValueError(target_error.format(target=target, self=self,
+                                                         function=function))
 
+            # remove keys for columns removed by PreprocessFunction
+            if isinstance(function, PreprocessFunction):
+                for key in function.deleted_columns:
+                    if key in unique_keys:
+                        unique_keys.remove(key)
+                    else:
+                        raise ValueError(target_error.format(target=key, self=self,
+                                                             function=function))
+
+            # ensure columns exist if function modifies columns
+            elif not isinstance(function.added_columns, int):
                 for target in function.added_columns:
                     if target not in unique_keys:
-                        raise ValueError((
-                            f'"{target}" is not an available column for Function '\
-                            f'"{function.name}" to modify. Check that the function order is correct.'
-                        ))
+                        raise ValueError(target_error.format(target=target, self=self,
+                                                             function=function))
             # ensure summary functions either add columns or modify other summary columns
             if (isinstance(function, SummaryFunction)
                     and not isinstance(function.added_columns, int)):
@@ -351,11 +360,11 @@ class DataSource:
 
                 if any(column not in sum_funcs for column in function.added_columns):
                     raise ValueError((
-                        f'Error with "{function.name}". SummaryFunctions can only modify '
+                        f'Error with {function}. SummaryFunctions can only modify '
                         'other SummaryFunction columns.'
                     ))
 
-            unique_keys.append(function.name)
+            unique_keys.add(function.name)
 
 
     def _create_references(self, dataset, import_values):
@@ -364,9 +373,7 @@ class DataSource:
         references = [[] for sample in dataset]
         for i, sample in enumerate(dataset):
             for j, dataframe in enumerate(sample):
-                reference = {
-                    variable: [import_values[i][j][f'index_{variable}']] for variable in self.unique_variables
-                }
+                reference = {key: [value] for key, value in import_values[i][j].items()}
                 start_index = len(dataframe.columns)
 
                 for function in self.calculation_functions:
@@ -401,9 +408,7 @@ class DataSource:
                 for function in self.sample_summary_functions:
                     if isinstance(function.added_columns, int):
                         end_index = start_index + function.added_columns
-                        references[i][-1][function.name] = list(
-                            range(start_index, end_index)
-                        )
+                        references[i][-1][function.name] = list(range(start_index, end_index))
                         for num in range(start_index, end_index):
                             data[num] = np.nan
                         start_index = end_index
@@ -455,17 +460,14 @@ class DataSource:
         for i, dataset in enumerate(dataframes):
             start_index = 0
             merged_reference = {
-                key: [] for key in (self.unique_variables
-                                    + [func.name for func in functions])
+                key: [] for key in (self.unique_variables + [func.name for func in functions])
             }
             for j, sample in enumerate(dataset):
                 for key in merged_reference:
                     merged_reference[key].append([])
                 for k, entry in enumerate(sample):
-                    for key in references[i][j][k]:
-                        merged_reference[key][j].extend([
-                            index + start_index for index in references[i][j][k][key]
-                        ])
+                    for key, value in references[i][j][k].items():
+                        merged_reference[key][j].extend([index + start_index for index in value])
 
                     start_index += len(entry.columns)
 
@@ -518,9 +520,9 @@ class DataSource:
         self.references = self._merge_references(dataframes, references)
 
 
-    def do_separation_functions(self, dataframes, import_values):
+    def do_preprocessing(self, dataframes, import_values):
         """
-        Performs the function for all SeparationFunctions.
+        Performs the function for all PreprocessFunctions.
 
         Parameters
         ----------
@@ -534,25 +536,45 @@ class DataSource:
         -------
         new_dataframes : list
             The list of lists of lists of dataframes, after performing the
-            separation calculations.
+            preprocessing.
         new_import_values : list
             The list of lists of dictionaries containing the values used to
             import the data from files, after performing the
-            separation calculations.
+            preprocessing.
 
         """
 
         new_dataframes = []
         new_import_values = []
         for i, dataset in enumerate(dataframes):
-            for function in self.separation_functions:
-                dataset, import_values[i] = function.separate_dataframes(
+            for function in self.preprocess_functions:
+                dataset, import_values[i] = function.preprocess_data(
                     dataset, import_values[i]
                 )
             new_dataframes.append(dataset)
             new_import_values.append(import_values[i])
 
+        self.remove_unneeded_variables()
+
         return new_dataframes, new_import_values
+
+
+    def remove_unneeded_variables(self):
+        """Removes unique variables that are not needed for processing."""
+
+        for function in self.preprocess_functions:
+            for variable in function.deleted_columns:
+                if variable in self.unique_variables:
+                    variable_index = self.unique_variables.index(variable)
+                    column_index = self.unique_variable_indices[variable_index]
+                    for i, col_num in enumerate(self.unique_variable_indices):
+                        if col_num > column_index:
+                            self.unique_variable_indices[i] -= 1
+                    self.unique_variables.pop(variable_index)
+                    self.unique_variable_indices.pop(variable_index)
+                    self.column_numbers.pop(column_index)
+
+        self._deleted_columns = 0
 
 
     def merge_datasets(self, dataframes):
@@ -614,7 +636,7 @@ class DataSource:
         Notes
         -----
         The start row is set to self.excel_row_offset + 3 since openpyxl is 1-based
-        and there are two header rows. The start column is set to
+        and there are two header rows. The start column is also set to
         self.excel_column_offset + 1 since openpyxl is 1-based.
 
         """
@@ -752,7 +774,7 @@ class DataSource:
         """
 
         total_labels = [[], [], [], []]
-        total_labels[0].extend('' for _ in range(len(self.column_numbers)))
+        total_labels[0].extend('' for _ in range(len(self.column_numbers) - self._deleted_columns))
 
         for function in self.calculation_functions:
             if isinstance(function.added_columns, int):
