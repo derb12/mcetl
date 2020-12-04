@@ -16,7 +16,7 @@ from scipy import optimize
 
 
 def offset_data(df, target_indices, calc_indices, excel_columns,
-                start_row, offset=None):
+                start_row, offset=None, *args, **kwargs):
     """Example CalculationFunction with named kwargs"""
 
     for i, sample in enumerate(calc_indices):
@@ -38,7 +38,7 @@ def offset_data(df, target_indices, calc_indices, excel_columns,
 
 
 def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
-                           start_row, offset=None):
+                           start_row, offset=None, *args, **kwargs):
     """Adds an offset to normalized data"""
 
     for i, sample in enumerate(calc_indices):
@@ -53,7 +53,7 @@ def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
     return df
 
 
-def normalize(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def normalize(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """Performs a min-max normalization to bound values between 0 and 1."""
 
     for i, sample in enumerate(calc_indices):
@@ -78,8 +78,8 @@ def normalize(df, target_indices, calc_indices, excel_columns, start, **kwargs):
     return df
 
 
-def split(df, target_indices, **kwargs):
-    """Separation function that separates each entry once delta-x changes sign."""
+def split(df, target_indices, *args, **kwargs):
+    """Preprocess function that separates each entry where delta-x changes sign."""
 
     x_col = df[df.columns[target_indices[0]]].to_numpy()
     diff = np.diff(x_col)
@@ -91,7 +91,28 @@ def split(df, target_indices, **kwargs):
     return np.array_split(df, mask)
 
 
-def derivative(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def split_segments(df, target_indices, *args, **kwargs):
+    """
+    Preprocess function that separates each entry based on the segment number.
+
+    Also removes the segment column after processing since it is not needed
+    in the final output.
+
+    """
+
+    segment_index = target_indices[0]
+    segment_col = df[df.columns[segment_index]].to_numpy()
+    mask = np.where(segment_col[:-1] != segment_col[1:])[0] + 1 # + 1 since mask loses is one index
+
+    output_dataframes = np.array_split(df, mask)
+
+    for dataframe in output_dataframes:
+        dataframe.drop(segment_index, 1, inplace=True)
+
+    return output_dataframes
+
+
+def derivative(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """Calculates the derivative."""
 
     for i, sample in enumerate(calc_indices):
@@ -118,7 +139,19 @@ def derivative(df, target_indices, calc_indices, excel_columns, start, **kwargs)
     return df
 
 
-def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def pore_preprocessor(df, target_indices, *args, **kwargs):
+    """
+    Sorts the dataframe according to the diameter.
+
+    Easier to do for each individual data file rather than when each
+    dataset is combined together.
+
+    """
+
+    return [df.sort_values(target_indices[0])]
+
+
+def pore_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Creates a histogram of pore sizes weighted by the pore area for each entry.
 
@@ -128,6 +161,8 @@ def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwar
 
     if excel_columns is None and kwargs['processed'][0]:
         return df # to prevent processing twice
+    elif excel_columns is not None:
+        kwargs['processed'][0] = True
 
     max_pore_size = df[itertools.chain.from_iterable(target_indices[0])].max(numeric_only=True).max()
     pore_bins = np.arange(-kwargs['bin_size'][0], max_pore_size + kwargs['bin_size'][0],
@@ -166,20 +201,10 @@ def pore_analysis(df, target_indices, calc_indices, excel_columns, start, **kwar
                                        weights=df[a_index][nan_mask]))
             ))
 
-            if excel_columns is not None or not kwargs['processed'][0]:
-                # sort the values by the measured diameter
-                df[[d_index, a_index]] = df[[d_index, a_index]].sort_values(d_index, ignore_index=True)
-                # switches measured area and diameter columns so that diameter is first
-                df[[d_index, a_index]] = df[[a_index, d_index]]
-
-    # prevents reswitching the diameter and area columns if doing
-    # the python functions after performing the excel functions
-    kwargs['processed'][0] = True if excel_columns is not None else False
-
     return df
 
 
-def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Creates a histogram of pore sizes weighted by the pore area for each sample.
 
@@ -190,8 +215,7 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
     if excel_columns is None and kwargs['processed'][0]:
         return df # to prevent processing twice
 
-    # diameter is index 1 and area is index 0 since their indices were switched in pore_analysis
-    max_pore_size = df[itertools.chain.from_iterable(target_indices[1])].max(numeric_only=True).max()
+    max_pore_size = df[itertools.chain.from_iterable(target_indices[0])].max(numeric_only=True).max()
     pore_bins = np.arange(-kwargs['bin_size'][0], max_pore_size + kwargs['bin_size'][0],
                           kwargs['bin_size'][0])
 
@@ -199,8 +223,8 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
         if not sample: # skip empty lists
             continue
 
-        diameters = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[1][i]])
-        areas = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[0][i]])
+        diameters = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[0][i]])
+        areas = np.hstack([df[num][~np.isnan(df[num])] for num in target_indices[1][i]])
 
         avg_pore_size = np.average(diameters, weights=areas)
         area_histogram = np.histogram(diameters, pore_bins, weights=areas)[0]
@@ -214,19 +238,15 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
         df[sample[4]] = df[sample[3]] / kwargs['bin_size'][0]
         df[sample[5]] = pd.Series(np.cumsum(norm_area_histogram))
         df[sample[6]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
-        df[sample[7]] = pd.Series((
-            'non-weighted', np.average(diameters),
-            'Area-weighted', avg_pore_size
-        ))
-        df[sample[8]] = pd.Series((
-            '', np.std(diameters),
-            '', np.sqrt(np.average((diameters - avg_pore_size)**2, weights=areas))
-        ))
+        df[sample[7]] = pd.Series(('non-weighted', np.average(diameters),
+                                   'Area-weighted', avg_pore_size))
+        df[sample[8]] = pd.Series(('', np.std(diameters),
+                                   '', np.sqrt(np.average((diameters - avg_pore_size)**2, weights=areas))))
 
     return df
 
 
-def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Summarizes the average pore size for each sample and its standard deviation.
 
@@ -269,7 +289,7 @@ def stress_model(strain, modulus):
     return strain * modulus * 1e9
 
 
-def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Calculates the mechanical properties from the stress-strain curve for each entry.
 
@@ -328,7 +348,7 @@ def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, star
     return df
 
 
-def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Summarizes the mechanical properties for each sample.
 
@@ -358,7 +378,7 @@ def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, star
     return df
 
 
-def tensile_dataset_summary(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def tensile_dataset_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Summarizes the mechanical properties for each dataset.
 
@@ -421,7 +441,7 @@ def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
     return mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
 
 
-def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, **kwargs):
+def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
     """
     Fits each data entry to the Carreau model and tabulates the results.
 
@@ -466,7 +486,6 @@ def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, *
     return df
 
 
-
 if __name__ == '__main__':
 
     # the kwargs for some functions; make a variable so it can be shared between Function objects;
@@ -483,8 +502,11 @@ if __name__ == '__main__':
     offset_normalized = mcetl.CalculationFunction(
         'offset_normalized', 'normalize', offset_normalized_data, 'normalize', {'offset': 1}
     )
-    delta_x_separator = mcetl.SeparationFunction('delta_x_sep', 'temperature', split, None)
+    delta_x_separator = mcetl.PreprocessFunction('delta_x_sep', 'temperature', split)
+    segment_separator = mcetl.PreprocessFunction('segment_sep', 'segment', split_segments,
+                                                 deleted_columns=['segment'])
     derivative_calc = mcetl.CalculationFunction('derivative', ['time', 'mass'], derivative, 1)
+    pore_preprocess = mcetl.PreprocessFunction('pore_preprocess', 'diameter', pore_preprocessor)
     pore_histogram = mcetl.CalculationFunction(
         'pore_hist', ['diameter', 'area'], pore_analysis, 10, pore_kwargs
     )
@@ -579,15 +601,16 @@ if __name__ == '__main__':
     dsc = mcetl.DataSource(
         name='DSC',
         column_labels=['Temperature (\u00B0C)', 'Time (min)', 'Heat Flow, exo up (mW/mg)'],
-        functions=[delta_x_separator],
-        column_numbers=[0, 1, 2],
+        functions=[segment_separator],
+        column_numbers=[0, 1, 2, 3],
         start_row=34,
         end_row=0,
         separator=';',
-        xy_plot_indices=[0, 2],
+        xy_plot_indices=[1, 2],
         file_type='txt',
         num_files=1,
-        unique_variables=['temperature'],
+        unique_variables=['segment'],
+        unique_variable_indices=[3],
         entry_separation=1,
         sample_separation=2
     )
@@ -614,7 +637,7 @@ if __name__ == '__main__':
 
     tensile = mcetl.DataSource(
         name='Tensile Test',
-        column_labels=['Time (s)', 'Extension (mm)', 'Load (kN)', 'Stress (MPa)', 'Strain (%)',
+        column_labels=['Strain (%)', 'Stress (MPa)', 'Time (s)', 'Extension (mm)', 'Load (kN)',
                        'True Strain (%)', 'True Stress (MPa)',
                        '', 'Elastic Modulus (GPa)', 'Offset Yield Stress (MPa)',
                        'Ultimate Tensile Strength (MPa)', 'Fracture Strain (%)',
@@ -624,15 +647,15 @@ if __name__ == '__main__':
                        'Ultimate Tensile Strength (MPa)', '',
                        'Fracture Strain (%)', ''],
         functions=[stress_analysis, stress_sample_summary, stress_dataset_summary],
-        column_numbers=[0, 1, 2, 3, 4],
-        start_row=7,
+        column_numbers=[4, 3, 0, 1, 2],
+        start_row=6,
         end_row=0,
         separator=',',
-        xy_plot_indices=[4, 3],
+        xy_plot_indices=[0, 1],
         file_type='txt',
         num_files=3,
         unique_variables=['stress', 'strain'],
-        unique_variable_indices=[3, 4],
+        unique_variable_indices=[1, 0],
         entry_separation=2,
         sample_separation=3
     )
@@ -660,8 +683,9 @@ if __name__ == '__main__':
                        'Diameter Standard Deviation, non-weighted (\u03bcm)',
                        'Average Diameter, area-weighted (\u03bcm)',
                        'Diameter Standard Deviation, area-weighted (\u03bcm)'],
-        functions=[pore_histogram, pore_sample_summation, pore_dataset_summation],
-        column_numbers=[1, 4],
+        functions=[pore_preprocess, pore_histogram,
+                   pore_sample_summation, pore_dataset_summation],
+        column_numbers=[4, 1],
         start_row=1,
         end_row=0,
         separator=',',
@@ -669,7 +693,7 @@ if __name__ == '__main__':
         file_type='csv',
         num_files=3,
         unique_variables=['diameter', 'area'],
-        unique_variable_indices=[1, 0],
+        unique_variable_indices=[0, 1],
         entry_separation=1,
         sample_separation=2
     )
