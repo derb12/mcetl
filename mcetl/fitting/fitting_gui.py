@@ -20,7 +20,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
 import PySimpleGUI as sg
 
-from . import peak_fitting
+from . import fitting_utils, peak_fitting
 from .. import plot_utils, utils
 
 
@@ -39,10 +39,8 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
     def __init__(self, dataframe, gui_values):
 
-        headers = dataframe.columns
-        x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
-        y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
-
+        x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
+        y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
         super().__init__(x_data, y_data, enable_events=False)
 
         x_min = max(gui_values['x_min'], min(x_data))
@@ -255,9 +253,8 @@ def _find_peaks(dataframe, gui_values):
 
     """
 
-    headers = dataframe.columns
-    x_data = dataframe[headers[gui_values['x_fit_index']]].astype(float) #TODO should change this to .loc since could be duplicate column names
-    y_data = dataframe[headers[gui_values['y_fit_index']]].astype(float)
+    x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
+    y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
     nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
     x_min = max(gui_values['x_min'], min(x_data))
     x_max = min(gui_values['x_max'], max(x_data))
@@ -527,9 +524,8 @@ def _process_fitting_kwargs(dataframe, values):
 
     x_label = values['x_label']
     y_label = values['y_label'] if values['y_label'] != x_label else values['y_label'] + '_1'
-    headers = dataframe.columns
-    x_data = dataframe[headers[values['x_fit_index']]] # TODO need to use .iloc instead of column indices
-    y_data = dataframe[headers[values['y_fit_index']]]
+    x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
+    y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
     x_min = values['x_min']
     x_max = values['x_max']
     default_model = values['default_model']
@@ -632,8 +628,8 @@ def _process_fitting_kwargs(dataframe, values):
     peaks_df['total fit'] = fit_result[-1].best_fit
 
     # Creation of dataframe for descriptions of the fitting
-    r_sq, adj_r_sq = peak_fitting.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
-                                            fit_result[-1].nvarys)
+    r_sq, adj_r_sq = fitting_utils.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
+                                             fit_result[-1].nvarys)
     # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
     # set to 1 ;same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
@@ -789,7 +785,6 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'integers': validations['peak_fitting']['integers'][:2],
     }
 
-    headers = dataframe.columns
     available_models = peak_fitting.peak_transformer()
 
     window, default_inputs = _create_fitting_gui(dataframe, user_inputs)
@@ -832,8 +827,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['bkg_selector'])):
             window.hide()
 
-            x_data = dataframe[headers[values['x_fit_index']]].astype(float)
-            y_data = dataframe[headers[values['y_fit_index']]].astype(float)
+            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
+            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
             bkg_points = peak_fitting.BackgroundSelector(
                 x_data, y_data, bkg_points).event_loop()
 
@@ -843,9 +838,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['peak_selector'])):
             window.hide()
 
-            headers = dataframe.columns
-            x_data = dataframe[headers[values['x_fit_index']]].astype(float)
-            y_data = dataframe[headers[values['y_fit_index']]].astype(float)
+            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
+            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
             x_min = values['x_min']
             x_max = values['x_max']
             bkg_min = values['bkg_x_min']
