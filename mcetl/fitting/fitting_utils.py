@@ -14,6 +14,42 @@ import lmfit
 import numpy as np
 
 
+def r_squared(y, y_calc, num_variables=1):
+    """
+    Calculates r^2 and adjusted r^2 for the fitting.
+
+    Parameters
+    ----------
+    y : array-like
+        The experimental y data.
+    y_calc : array-like
+        The calculated y from fitting.
+    num_variables : int, optional
+        The number of variables used by the fitting model.
+
+    Returns
+    -------
+    r_sq : float
+        The r squared value for the fitting.
+    r_sq_adj : float
+        The adjusted r squared value for the fitting, which takes into
+        account the number of variables in the fitting model.
+
+    """
+
+    y = np.asarray(y)
+    y_calc = np.asarray(y_calc)
+
+    n = y.shape[0]
+    SS_tot = np.sum((y - np.mean(y))**2)
+    SS_res = np.sum((y - y_calc)**2)
+
+    r_sq = 1 - (SS_res / SS_tot)
+    r_sq_adj = 1 - (SS_res / (n - num_variables - 1)) / (SS_tot / (n - 1))
+
+    return r_sq, r_sq_adj
+
+
 def numerical_extrema(y):
     """
     Computes the numerical maximum or minimum for a peak.
