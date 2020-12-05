@@ -569,9 +569,6 @@ def raw_data_import(window_values, file, show_popup=True):
         else:
             separator = None
 
-        #if separator is not None: #TODO check whether this is needed since tkinter gives a raw string from the input; regex should work automatically
-        #    separator = string_to_unicode(separator)
-
         if Path(file).suffix in excel_formats:
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1

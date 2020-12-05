@@ -235,7 +235,7 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
         df[sample[1]] = pd.Series(np.histogram(diameters, pore_bins)[0])
         df[sample[2]] = pd.Series(area_histogram)
         df[sample[3]] = pd.Series(np.cumsum(area_histogram))
-        df[sample[4]] = df[sample[3]] / kwargs['bin_size'][0]
+        df[sample[4]] = df[sample[2]] / kwargs['bin_size'][0]
         df[sample[5]] = pd.Series(np.cumsum(norm_area_histogram))
         df[sample[6]] = pd.Series(norm_area_histogram / kwargs['bin_size'][0])
         df[sample[7]] = pd.Series(('non-weighted', np.average(diameters),

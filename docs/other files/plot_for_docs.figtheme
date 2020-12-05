@@ -1,8 +1,8 @@
 {
   "FIGURE KEYWORD ARGUMENTS": {
-    "fig_width": "1200",
-    "fig_height": "900",
-    "dpi": "300",
+    "fig_width": 1200,
+    "fig_height": 900,
+    "dpi": 300,
     "scatter": false,
     "line": false,
     "line_scatter": true,
@@ -12,8 +12,8 @@
     "share_y": false,
     "Single Plot": true,
     "Multiple Plots": false,
-    "width_0": "1",
-    "height_0": "1",
+    "width_0": 1,
+    "height_0": 1,
     "gridspec_0_0": "a",
     "twin_x_0_0": false,
     "twin_y_0_0": false
