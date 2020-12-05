@@ -742,7 +742,7 @@ class DataSource:
         for i, dataset in enumerate(split_dataframes):
             for sample in dataset:
                 for j, entry in enumerate(sample):
-                    entry.columns = [*range(len(entry.columns))] #TODO later assign column names to the dataframes here
+                    entry.columns = list(range(len(entry.columns))) #TODO later assign column names to the dataframes here
                     dtypes = {
                         col: next(dataset_dtypes[i]) for col in entry.columns
                     }

@@ -147,8 +147,8 @@ class EmbeddedFigure:
     def __init__(self, x, y, click_list=None, enable_events=True,
                  enable_keybinds=True):
 
-        self.x = np.array(x, float)
-        self.y = np.array(y, float)
+        self.x = np.asarray(x, float)
+        self.y = np.asarray(y, float)
         self.click_list = click_list if click_list is not None else []
         self.enable_keybinds = enable_keybinds
 
@@ -317,29 +317,28 @@ class EmbeddedFigure:
 
         # maintain references (_cids) to the connections so they are not garbage collected
         self._cids = []
-        for event in self.events:
-            # event is a tuple like (event_key, function)
-            self._cids.append(figure_canvas.mpl_connect(*event))
+        if figure_canvas is not None:
+            for event in self.events:
+                # event is a tuple like (event_key, function)
+                self._cids.append(figure_canvas.mpl_connect(*event))
 
-        if self.enable_keybinds:
-            self._cids.append(figure_canvas.mpl_connect(
-                'key_press_event',
-                functools.partial(key_press_handler, canvas=figure_canvas, toolbar=toolbar)
-            ))
+            if self.enable_keybinds:
+                self._cids.append(figure_canvas.mpl_connect(
+                    'key_press_event',
+                    functools.partial(key_press_handler, canvas=figure_canvas, toolbar=toolbar)
+                ))
 
 
     def _close(self):
         """Safely stops the event loop and closes the window and figure."""
 
-        if self.window is not None:
-            try:
-                self.window.TKroot.quit() # exits GUI's event loop first
-            except AttributeError:
-                pass # window's root was already destroyed
-            else:
-                self.window.close()
-            finally:
-                self.window = None
+        try:
+            self.window.TKroot.quit() # exits GUI's event loop first
+            self.window.close()
+        except AttributeError:
+            pass # window or window's root was already destroyed
+        finally:
+            self.window = None
 
         plt.close(self.figure)
         self.figure = None

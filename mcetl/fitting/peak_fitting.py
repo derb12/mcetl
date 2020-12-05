@@ -988,8 +988,8 @@ def fit_peaks(
     output['resid_peaks_found']
     output['resid_peaks_accepted']
 
-    x_array = np.array(x, dtype=float)
-    y_array = np.array(y, dtype=float)
+    x_array = np.asarray(x, dtype=float)
+    y_array = np.asarray(y, dtype=float)
 
     # ensures no nan values in the arrays; ~ equivalent to np.logical_not
     nan_mask = (~np.isnan(x_array)) & (~np.isnan(y_array))
