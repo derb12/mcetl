@@ -1958,8 +1958,8 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                         x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
                         y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
-                        x_data = dataset[dataset.columns[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
-                        y_data = dataset[dataset.columns[y_index]].astype(float)
+                        x_data = dataset.iloc[:, x_index].astype(float).to_numpy()
+                        y_data = dataset.iloc[:, y_index].astype(float).to_numpy()
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
