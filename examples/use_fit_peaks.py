@@ -14,6 +14,7 @@ import time
 import lmfit
 import matplotlib.pyplot as plt
 from mcetl import fitting
+from mcetl.fitting import peak_fitting
 import numpy as np
 
 
@@ -37,7 +38,7 @@ model_list = []
 min_method = 'least_squares'
 background_type = 'PolynomialModel'
 poly_n = 1
-default_model='GaussianModel'
+default_model='Gaussian'
 fit_kws = {}
 vary_Voigt=False
 fit_residuals=True
@@ -84,8 +85,8 @@ y_array = y_array[domain_mask]
 
 #Plot the peaks found or added, as well as if they were used in the fitting
 if plot_peaks:
-    fitting.plot_peaks_for_model(x_array, y_array, x_min, x_max, peaks_found,
-                                 peaks_accept, additional_peaks)
+    peak_fitting.plot_peaks_for_model(x_array, y_array, x_min, x_max, peaks_found,
+                                      peaks_accept, additional_peaks)
 
 #Plot the initial model used for fitting
 if plot_initial:
@@ -99,7 +100,7 @@ if plot_fit_result:
     fitting.plot_fit_results(fit_results, True, True)
 
 #Plots individual peaks from the fitting
-fitting.plot_individual_peaks(
+peak_fitting.plot_individual_peaks(
     fit_result, individual_peaks, subtract_background,
     plot_data_wo_background, plot_data_separatebackground,
     plot_data_w_background

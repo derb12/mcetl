@@ -1200,39 +1200,6 @@ def fit_peaks(
     return output
 
 
-def r_squared(y, y_calc, num_variables=1):
-    """
-    Calculates r^2 and adjusted r^2 for the fitting.
-
-    Parameters
-    ----------
-    y : array-like
-        The experimental y data.
-    y_calc : array-like
-        The calculated y from fitting.
-    num_variables : int, optional
-        The number of variables used by the fitting model.
-
-    Returns
-    -------
-    r_sq : float
-        The r squared value for the fitting.
-    r_sq_adj : float
-        The adjusted r squared value for the fitting, which takes into
-        account the number of variables in the fitting model.
-
-    """
-
-    n = len(y)
-    SS_tot = np.sum((y - np.mean(y))**2)
-    SS_res = np.sum((y - y_calc)**2)
-
-    r_sq = 1 - (SS_res / SS_tot)
-    r_sq_adj = 1 - (SS_res / (n - num_variables - 1)) / (SS_tot / (n - 1))
-
-    return r_sq, r_sq_adj
-
-
 class BackgroundSelector(plot_utils.EmbeddedFigure):
     """
     A window for selecting points to define the background of data.
@@ -1837,7 +1804,7 @@ def plot_fit_results(fit_result, label_rsq=False, plot_initial=False, return_fig
         ax_main.text(
             plot_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
             plot_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
-            f'R$^2$= {r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
+            f'R$^2$= {fitting_utils.r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
             ha='left', va='top'
         )
     ax_resid.tick_params(labelbottom=False, bottom=False, which='both')
