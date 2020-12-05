@@ -765,7 +765,8 @@ def _collect_column_labels(dataframes, data_source, labels, options):
             ])
 
 
-def _fit_data(datasets, data_source, labels, excel_writer, options):
+def _fit_data(datasets, data_source, labels,
+              excel_writer, options, rc_params=None):
     """
     Handles fitting the data and any exceptions that occur during fitting.
 
@@ -786,6 +787,8 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
         'plot_fit_excel' which determine whether the fit results
         will be saved to Excel and whether the results will be plotted,
         respectively.
+    rc_params : dict, optional
+        A dictionary of changes to matplotlib's rcparams.
 
     Returns
     -------
@@ -804,31 +807,34 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
     from .fitting import launch_fitting_gui
 
 
-    # Changes some defaults for the plot formatting to look nice.
-    mpl_changes = { #TODO maybe allow this to be an input into the main gui function
-        'font.serif': 'Times New Roman',
-        'font.family': 'serif',
-        'font.size': 12,
-        'mathtext.default': 'regular',
-        'xtick.direction': 'in',
-        'ytick.direction': 'in',
-        'xtick.minor.visible': True,
-        'ytick.minor.visible': True,
-        'xtick.major.size': 5,
-        'xtick.major.width': 0.6,
-        'xtick.minor.size': 2.5,
-        'xtick.minor.width': 0.6,
-        'ytick.major.size': 5,
-        'ytick.major.width': 0.6,
-        'ytick.minor.size': 2.5,
-        'ytick.minor.width': 0.6,
-        'lines.linewidth': 2,
-        'lines.markersize': 5,
-        'axes.linewidth': 0.6,
-        'legend.frameon': False,
-        'figure.dpi': 150,
-        'figure.figsize': (6, 4.5)
-    }
+    if rc_params is not None:
+        mpl_changes = rc_params.copy()
+    else:
+        # Changes some defaults for the plot formatting to look nice.
+        mpl_changes = {
+            'font.serif': 'Times New Roman',
+            'font.family': 'serif',
+            'font.size': 12,
+            'mathtext.default': 'regular',
+            'xtick.direction': 'in',
+            'ytick.direction': 'in',
+            'xtick.minor.visible': True,
+            'ytick.minor.visible': True,
+            'xtick.major.size': 5,
+            'xtick.major.width': 0.6,
+            'xtick.minor.size': 2.5,
+            'xtick.minor.width': 0.6,
+            'ytick.major.size': 5,
+            'ytick.major.width': 0.6,
+            'ytick.minor.size': 2.5,
+            'ytick.minor.width': 0.6,
+            'lines.linewidth': 2,
+            'lines.markersize': 5,
+            'axes.linewidth': 0.6,
+            'legend.frameon': False,
+            'figure.dpi': 150,
+            'figure.figsize': (6, 4.5)
+        }
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
@@ -994,14 +1000,17 @@ def _move_files(files):
             print('Moving on with program.')
 
 
-def launch_main_gui(data_sources):
+def launch_main_gui(data_sources, fitting_mpl_params=None):
     """
-    Goes through all of the windows to find files, process/plot/fit data, and save to Excel.
+    Goes through all steps to find files, process/fit/plot the data, and save to Excel.
 
     Parameters
     ----------
     data_sources : list(DataSource) or tuple(DataSource)
         A container (list, tuple) of mcetl.DataSource objects.
+    fitting_mpl_params : dict, optional
+        A dictionary of changes for matplotlib's rcparams to use
+        during fitting.
 
     Returns
     -------
@@ -1230,7 +1239,8 @@ def launch_main_gui(data_sources):
         # Handles peak fitting
         if processing_options['fit_data']:
             output['fit_results'] = _fit_data(
-                output['dataframes'], data_source, labels, output['writer'], processing_options
+                output['dataframes'], data_source, labels, output['writer'],
+                processing_options, fitting_mpl_params
             )
 
         # Handles saving the Excel file
