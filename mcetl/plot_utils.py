@@ -345,10 +345,31 @@ class EmbeddedFigure:
         self.figure = None
 
 
+def _clean_canvas(canvas, first_index=None, last_index=None):
+    """
+    Removes all elements from a canvas widget.
+
+    Parameters
+    ----------
+    canvas : tkinter.Canvas
+        The tkinter Canvas containing the elements to be removed.
+    first_index : int or None, optional
+        The first index of the canvas's children to be removed.
+        Default is None (starts at first index).
+    last_index : int or None, optional
+        The last index of the canvas's children to be removed.
+        Default is None (ends at last index).
+
+    """
+
+    for child in canvas.winfo_children()[first_index:last_index]:
+        child.destroy()
+
+
 def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
                           toolbar_class=NavigationToolbar2Tk, kwargs=None):
     """
-    Places the figure and toolbar onto the PySimpleGUI canvas.
+    Places the figure and toolbar onto the canvas.
 
     Parameters
     ----------
@@ -363,51 +384,59 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
         default is NavigationToolbar2Tk.
     kwargs : dict, optional
         Keyword arguments designating how to pack the figure into the window.
+        Relevant keys are 'canvas' and 'toolbar', with values being
+        dictionaries containing keyword arguments to pass to pack.
 
     Returns
     -------
-    figure_canvas : FigureCanvasTkAgg
-        The canvas containing the figure.
+    figure_canvas : FigureCanvasTkAgg or None
+        The canvas containing the figure. Is None if drawing
+        the canvas caused an exception.
     toolbar : NavigationToolbar2Tk or None
-        The created toolbar. Is None if toolbar_canvas is None.
+        The created toolbar. Is None if toolbar_canvas is None,
+        or if there was an error when drawing figure_canvas.
 
     Notes
     -----
-    The canvas children are destroyed after drawing the canvas so that
-    there is a seamless transition from the old canvas to the new canvas.
+    The canvas children are destroyed after drawing the figure canvas so
+    that there is a seamless transition from the old canvas to the new canvas.
+
+    The toolbar is packed before the figure canvas because the figure canvas
+    shoulud be more flexible to resizing if they are on the same canvas.
 
     """
 
-    if kwargs is None:
-        kwargs = {'side': 'top', 'anchor': 'nw'}
+    toolbar = None
+    packing_kwargs = {'canvas': {'side': 'top', 'anchor': 'nw'},
+                      'toolbar': {'side': 'top', 'anchor': 'nw'}}
+    if kwargs is not None:
+        packing_kwargs.update(kwargs)
 
     figure_canvas = FigureCanvasTkAgg(figure, master=canvas)
     try:
         figure_canvas.draw()
-        figure_canvas.get_tk_widget().pack(**kwargs)
     except Exception as e:
-        create_toolbar = False
+        figure_canvas = None
         sg.popup(
             ('Exception occurred during figure creation. Could be due to '
              f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
             title='Plotting Error'
         )
+        _clean_canvas(canvas)
+        if toolbar_canvas not in (None, canvas):
+            _clean_canvas(toolbar_canvas)
     else:
-        create_toolbar = True
-    finally:
-        for child in canvas.winfo_children()[:-1]:
-            child.destroy()
-
-    if toolbar_canvas is None:
-        toolbar = None
-    else:
-        if create_toolbar:
+        if toolbar_canvas is not None:
+            # temporarily keep the old figure (index=0) and newly created
+            # figure(index=-1) if canvas and toolbar_canvas are the same
+            _clean_canvas(toolbar_canvas,
+                          first_index=1 if canvas is toolbar_canvas else 0,
+                          last_index=-1 if canvas is toolbar_canvas else None)
             toolbar = toolbar_class(figure_canvas, toolbar_canvas)
-            toolbar.update()
-            last_index = -1 if toolbar_canvas is not canvas else -2
+            toolbar.pack(**packing_kwargs['toolbar'])
 
-        for child in toolbar_canvas.winfo_children()[:last_index]:
-            child.destroy()
+        figure_canvas.get_tk_widget().pack(**packing_kwargs['canvas'])
+        _clean_canvas(canvas, last_index=-2 if canvas is toolbar_canvas else -1)
 
     return figure_canvas, toolbar
 
