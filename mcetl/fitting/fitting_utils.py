@@ -14,9 +14,28 @@ import lmfit
 import numpy as np
 
 
+def r_squared_model_result(fit_result):
+    """
+    Calculates r^2 and adjusted r^2 for a fit, given an lmfit.ModelResult.
+
+    Parameters
+    ----------
+    fit_result : lmfit.ModelResult
+        The ModelResult object from a fit.
+
+    Returns
+    -------
+    tuple(float, float)
+        The r^2 and adjusted r^2 values for the fitting.
+
+    """
+
+    return r_squared(fit_result.data, fit_result.best_fit, fit_result.nvarys)
+
+
 def r_squared(y, y_calc, num_variables=1):
     """
-    Calculates r^2 and adjusted r^2 for the fitting.
+    Calculates r^2 and adjusted r^2 for a fit.
 
     Parameters
     ----------

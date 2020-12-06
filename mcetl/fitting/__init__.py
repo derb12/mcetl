@@ -9,7 +9,7 @@ Created on Nov 15, 2020
 
 
 from .fitting_gui import launch_fitting_gui
-from .fitting_utils import r_squared
+from .fitting_utils import r_squared, r_squared_model_result
 from .peak_fitting import (
     fit_peaks, plot_confidence_intervals, plot_fit_results
 )
