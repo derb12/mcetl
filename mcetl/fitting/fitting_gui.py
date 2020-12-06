@@ -170,51 +170,112 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         x = fit_result.userkws['x']
         y = fit_result.data
         super().__init__(x, y, enable_events=False)
+        self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
             {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
              'dpi': desired_dpi}, canvas_size=self.canvas_size
         )
-        self.figure, self.axis = plt.subplots(
-            num='Fit Results', tight_layout=True,
-            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
+        self.figure, (self.axis, residual_ax) = plt.subplots(
+            2, sharex=True, num='Fit Results', tight_layout=True,
+            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi,
+            gridspec_kw={'height_ratios':[5, 1], 'hspace': 0}
         )
+
         self.axis.plot(x, y, 'o', color='dodgerblue', label='data')
+        self.axis.plot([np.nan], [np.nan], 'ro', ms=1.5, label='residuals')
+        self.axis.plot(self.x, fit_result.best_fit, 'k--', label='best fit', zorder=3)
+        # don't plot fit_result.residual because it equals inf when there is a bad fit
+        residual_ax.plot(x, y - fit_result.best_fit, 'ro', ms=1.5)
+        residual_ax.axhline(0, color='k', linestyle='-', lw=1)
+        residual_ax.set_ylim(plot_utils.scale_axis(residual_ax.get_ylim(), 0.05, 0.05))
+
         individual_models = fit_result.eval_components(x=x)
+        if 'background_' in individual_models:
+            background = individual_models.pop('background_')
+            if isinstance(background, float):
+                background = np.full(x.size, background)
+        else:
+            background = 0
+        # Creates a color cycle to override matplotlib's to prevent color clashing
+        self.axis.set_prop_cycle(color=['#ff7f0e', '#2ca02c', '#d62728', '#8c564b',
+                                        '#e377c2', '#bcbd22', '#17becf'])
         for label, values in individual_models.items():
             if isinstance(values, float):
-                model_values = np.full(x.size, values)
+                model_values = np.full(self.x.size, values)
             else:
                 model_values = values
-            try:
-                self.axis.plot(x, model_values, label=label)
-            except Exception as e:
-                print(f'Error plotting individual model results:\n    {repr(e)}')
+            _plot_model_component(self.axis, self.x, model_values + background, label)
 
-        self.axis.plot(x, fit_result.best_fit, 'k--', label='best fit')
-        self.axis.legend()
-        self._create_window()
+        if isinstance(background, np.ndarray) or background != 0:
+            try:
+                self.axis.plot(self.x, background, 'k-', label='background_')
+            except:
+                self.background = None
+            else:
+                self.background = background
+        else:
+            self.background = None
+
+        self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+        self._create_window(fit_result)
         self._place_figure_on_canvas()
 
 
-    def _create_window(self):
+    def _create_window(self, fit_result):
         """Creates a GUI with the figure canvas and two buttons."""
 
-        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
+        # measures the font size in order to estimate the dimensions for the results element
+        try:
+            temp = sg.Window('temp', [[sg.Text('')]], alpha_channel=0, finalize=True)
+            font = sg.tk.font.Font(font=sg.DEFAULT_FONT)
+        except:
+            width = 15
+            height = 25
+        else:
+            width = font.measure('A')
+            height = font.metrics('linespace')
+        finally:
+            temp.close()
+            del temp
+
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
                                         size=(self.canvas_size[0], 10))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
+        plot_tab = sg.Tab(
+            'Plot', [
+                [self.canvas],
+                [self.toolbar_canvas],
+                [sg.Check('Preview without background', key='subtract_bkg',
+                          enable_events=True, visible=self.background is not None),
+                 sg.Check('Hide legend', key='hide_legend', enable_events=True)]
+            ]
+        )
+
+        r_sq, r_sq_adj = fitting_utils.r_squared_model_result(fit_result)
+        results_text = (f'Fit Converged: {fit_result.success}\nR\u00B2: {r_sq:.5f}\n'
+                        f'adjusted R\u00B2: {r_sq_adj:.5f}\n\n{fit_result.fit_report()}')
+
+        results_tab = sg.Tab(
+            'Results', [[sg.Multiline(results_text, disabled=True, pad=(0, 0),
+                                      size=(self.canvas_size[0] // width,
+                                            (self.canvas_size[1] + 20) // height))]]
+        )
 
         layout = [
-            [self.canvas],
-            [self.toolbar_canvas],
-            [sg.Text('Accept fit results?')],
-            [sg.Button('No'),
-             sg.Button('Yes', button_color=utils.PROCEED_COLOR)]
+            [sg.TabGroup([[plot_tab, results_tab]],
+                         tab_background_color=sg.theme_background_color())],
+            [sg.Column([
+                [sg.Text('Accept fit results? '),
+                 sg.Button('No'),
+                 sg.Button('Yes', button_color=utils.PROCEED_COLOR)]
+            ], element_justification='right', justification='right')]
         ]
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
         self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0)
+
 
     def event_loop(self):
         """
@@ -228,10 +289,63 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         """
 
         self.window.reappear()
-        event = self.window.read()[0]
+        while True:
+            event, values = self.window.read()
+            if event in (sg.WIN_CLOSED, 'Yes', 'No'):
+                break
+            elif event == 'hide_legend':
+                if values[event]:
+                    self.axis.get_legend().set_visible(False)
+                else:
+                    self.axis.get_legend().set_visible(True)
+                self.figure.canvas.draw_idle()
+            elif event == 'subtract_bkg':
+                if values[event]:
+                    for line in self.axis.get_lines():
+                        line.set_ydata(line.get_ydata() - self.background)
+                    line.remove() # removes last line, which is the background
+                else:
+                    for line in self.axis.get_lines():
+                        line.set_ydata(line.get_ydata() + self.background)
+                    self.axis.plot(self.x, self.background, 'k-', label='background_')
+
+                if not values['hide_legend']:
+                    self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+                self.axis.relim()
+                self.axis.autoscale()
+                self.figure.canvas.draw_idle()
+
         self._close()
 
         return event == 'Yes'
+
+
+def _plot_model_component(axis, x, y, label):
+    """
+    Used to wrap the plotting of components in a try-except loop.
+
+    Some models may not have the same size and the x-values, and
+    thus would cause issues when plotting, so this function is used
+    to avoid completely losing the results.
+
+    Parameters
+    ----------
+    axis : plt.Axes
+        The axis to plot the values on.
+    x : array-like
+        The x-values of the fit
+    y : array-like
+        The y-value(s) for the model.
+    label : str
+        The label to place on the plot for the
+
+    """
+
+    try:
+        axis.plot(x, y, label=label)
+    except:
+        print((f'Issue plotting the model result for component {label},'
+               ' so it was not placed onto the figure.'))
 
 
 def _find_peaks(dataframe, gui_values):
@@ -628,10 +742,9 @@ def _process_fitting_kwargs(dataframe, values):
     peaks_df['total fit'] = fit_result[-1].best_fit
 
     # Creation of dataframe for descriptions of the fitting
-    r_sq, adj_r_sq = fitting_utils.r_squared(fit_result[-1].data, fit_result[-1].best_fit,
-                                             fit_result[-1].nvarys)
+    r_sq, adj_r_sq = fitting_utils.r_squared_model_result(fit_result[-1])
     # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
-    # set to 1 ;same reason the degrees of freedom is not set to fit_result.nfree
+    # set to 1; same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
         [fit_result[-1].success, r_sq, adj_r_sq, fit_result[-1].chisqr,
          fit_result[-1].redchi, fit_result[-1].aic, fit_result[-1].bic, min_method,
