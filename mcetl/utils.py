@@ -586,6 +586,14 @@ def raw_data_import(window_values, file, show_popup=True):
                 indices = [(num * repeat_unit) + elem for elem in column_indices]
                 dataframes.append(total_dataframe[indices])
 
+        elif window_values['fixed_width_file']:
+            dataframes = [
+                pd.read_fwf(
+                    file, skiprows=row_start, skipfooter=row_end, header=None,
+                    sep=separator, usecols=column_numbers, engine='python',
+                    widths=window_values['fixed_width_columns']
+                )[column_numbers]
+            ]
         else:
             dataframes = [
                 pd.read_csv(
@@ -679,9 +687,13 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         'first_column': '',
         'last_column': '',
         'repeat_unit': '',
+        'fixed_width_file': False,
+        'fixed_width_columns': '',
         'same_values': True if file is not None else False,
         'initial_separator': '',
         'initial_columns': '',
+        'initial_fixed_width_file': False,
+        'initial_fixed_width_columns': '',
         'initial_row_start': '',
         'initial_row_end': '',
         'initial_total_indices': None if data_source is None else [''] * len(data_source.column_numbers),
@@ -698,6 +710,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
             num_columns = len(previous_inputs['columns'])
 
         previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs['columns'])
+        previous_inputs['fixed_width_columns'] = ', '.join(str(num) for num in previous_inputs['fixed_width_columns'])
         default_inputs.update(previous_inputs)
 
     validations = {
@@ -706,6 +719,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         'constraints': [['row_start', 'start row', '>= 0'],
                         ['row_end', 'end row', '>= 0']]
     }
+    if default_inputs['fixed_width_file']:
+        validations['user_inputs'].append(['fixed_width_columns', 'fixed width columns', int])
 
     disable_excel = True
     disable_other = True
@@ -749,6 +764,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
 
         default_inputs.update({
             'initial_separator': default_inputs['separator'],
+            'initial_fixed_width_file': default_inputs['fixed_width_file'],
+            'initial_fixed_width_columns': default_inputs['fixed_width_columns'],
             'initial_columns': default_inputs['columns'],
             'initial_row_start': default_inputs['row_start'],
             'initial_row_end': default_inputs['row_end'],
@@ -772,14 +789,19 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                   readonly=True, default_value=default_inputs['last_column'],
                   disabled=disable_excel, enable_events=True)],
         [sg.Text('Number of columns per dataset:'),
-         sg.Input(default_inputs['repeat_unit'], key='repeat_unit',
-                  do_not_clear=True, disabled=disable_excel,
-                  size=(3, 1), enable_events=True)],
+         sg.Input(default_inputs['repeat_unit'], key='repeat_unit', size=(3, 1),
+                  disabled=disable_excel, enable_events=True)],
         [sg.Text('Other Filetype Options', relief='ridge', size=(38, 1),
                  justification='center', pad=(5, (25, 10)))],
         [sg.Text('Separator (eg. , or ;)', size=(20, 1)),
          sg.Input(default_inputs['initial_separator'], key='separator',
-                  disabled=disable_other, do_not_clear=True, size=(5, 1))],
+                  disabled=disable_other, size=(5, 1))],
+        [sg.Check('Fixed-width file', default_inputs['initial_fixed_width_file'],
+                  key='fixed_width_file', enable_events=True, pad=(5, (5, 0)),
+                  disabled=disable_bottom)],
+        [sg.Text('   Column widths,\n    separated by commas:'),
+         sg.Input(default_inputs['initial_fixed_width_columns'], size=(10, 1),
+                  key='fixed_width_columns', disabled=disable_other)],
         [sg.Text('=' * 34, pad=(5, (10, 10)))],
         [sg.Text('Enter data columns,\n separated by commas:',
                  tooltip='Starts at 0'),
@@ -793,7 +815,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         [sg.Text('End row: ', tooltip='Counts up from bottom. Starts at 0',
                  size=(8, 1)),
          sg.Input(default_inputs['initial_row_end'], key='row_end',
-                  do_not_clear=True, size=(5, 1), disabled=disable_bottom,
+                  size=(5, 1), disabled=disable_bottom,
                   tooltip='Counts up from bottom. Starts at 0')]
     ]
 
@@ -860,6 +882,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 )
                 window['row_start'].update(value='0', disabled=False)
                 window['row_end'].update(value='0', disabled=False)
+                window['fixed_width_columns'].update(value='', disabled=True)
+                window['fixed_width_file'].update(value=False, disabled=True)
 
                 if not any('repeat_unit' in entry for entry in validations['integers']):
                     validations['integers'].append(
@@ -869,10 +893,14 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                         ['repeat_unit', 'number of columns per dataset', '> 0']
                     )
 
+                for i, entry in enumerate(validations['user_inputs']):
+                    if 'fixed_width_columns' in entry:
+                        del validations['user_inputs'][i]
+                        break
+
                 if data_source is not None:
                     _assign_indices(
-                        window, list(range(sheet_0_len)),
-                        default_inputs['variable_indices']
+                        window, list(range(sheet_0_len)), default_inputs['variable_indices']
                     )
 
             else:
@@ -888,6 +916,18 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                                            disabled=False)
                 window['row_end'].update(value=default_inputs['row_end'],
                                          disabled=False)
+                window['fixed_width_columns'].update(
+                    value=default_inputs['fixed_width_columns'],
+                    disabled=not default_inputs['fixed_width_file']
+                )
+                window['fixed_width_file'].update(
+                    value=default_inputs['fixed_width_file'], disabled=False
+                )
+                if (default_inputs['fixed_width_file'] and
+                        not any('fixed_width_columns' in entry for entry in validations['user_inputs'])):
+                    validations['user_inputs'].append(
+                        ['fixed_width_columns', 'fixed width columns', int]
+                    )
 
                 for i, entry in enumerate(validations['integers']):
                     if 'repeat_unit' in entry:
@@ -920,6 +960,20 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                     window, [num for num in range(len(dataframe.columns))],
                     default_inputs['variable_indices']
                 )
+
+        elif event == 'fixed_width_file':
+            if values['fixed_width_file']:
+                window['fixed_width_columns'].update(disabled=False)
+                if not any('fixed_width_columns' in entry for entry in validations['user_inputs']):
+                    validations['user_inputs'].append(
+                        ['fixed_width_columns', 'fixed width columns', int]
+                    )
+            else:
+                window['fixed_width_columns'].update(value='', disabled=True)
+                for i, entry in enumerate(validations['user_inputs']):
+                    if 'fixed_width_columns' in entry:
+                        del validations['user_inputs'][i]
+                        break
 
         elif event in ('first_col', 'last_col'):
             first_col = int(values['first_col'].split(' ')[-1])
