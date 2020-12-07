@@ -190,14 +190,12 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 )
             else:
                 saved_data = []
-                # creates separator columns
-                for i, dataframe in enumerate(data):
+                # inserts separator columns between datasets
+                for dataframe in data[:-1]:
                     df = dataframe.copy()
-                    df.columns = [f'{col}_{i}' for col in df.columns]
-                    if i != len(data) - 1:
-                        df[f'{_FILLER_COLUMN_NAME}_{i}'] = pd.Series(np.nan,
-                                                                     dtype=np.float16)
+                    df[_FILLER_COLUMN_NAME] = pd.Series(np.nan, dtype=np.float16)
                     saved_data.append(df)
+                saved_data.append(data[-1])
 
                 filename = str(Path(filename).with_suffix('.csv'))
                 try:
@@ -266,10 +264,16 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         # try standard utf-8 encoding first; will throw an error only if there is
         # unicode previously saved by this module using 'raw_unicode_escape' encoding.
         try:
-            dataframe = pd.read_csv(filename, header=0, index_col=False)
+            dataframe = pd.read_csv(filename, header=None, index_col=False)
         except UnicodeDecodeError:
-            dataframe = pd.read_csv(filename, header=0, index_col=False,
+            dataframe = pd.read_csv(filename, header=None, index_col=False,
                                     encoding='raw_unicode_escape')
+
+        # if column headers were repeated, read_csv would rename them,
+        # so set header=None and manually set the headers after reading
+        headers = utils.string_to_unicode(dataframe.loc[0].to_list())
+        dataframe = dataframe.drop(0).reset_index(drop=True)
+        dataframe.columns = headers
 
         # splits data into separate entries
         indices = []
@@ -283,10 +287,6 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             data.append(dataframe.iloc[:, row:entry])
             row += len(data[-1].columns) + 1
         data.append(dataframe.iloc[:, row:])
-        for dataframe in data:
-            dataframe.columns = [
-                '_'.join(col.split('_')[:-1]) for col in dataframe.columns
-            ]
 
         figures = launch_plotting_gui(
             [data], rc_changes, fig_kwargs, axes, gui_values
