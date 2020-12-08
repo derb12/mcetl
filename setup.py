@@ -1,19 +1,19 @@
 #!/usr/bin/env python
-
 """The setup script."""
 
 
 from setuptools import setup, find_packages
 
+
 with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
 requirements = [
-    'lmfit',
+    'lmfit>=1.0',
     'matplotlib>=3.1',
     'numpy>=1.8',
     'openpyxl>=2.4',
-    'pandas',
+    'pandas>=0.24',
     'pysimplegui>=4.19',
     'scipy',
     'sympy',
@@ -48,6 +48,9 @@ setup(
     description="An Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
     extras_require={
+        'extras': [
+            'xlrd'
+        ],
         'docs': [
             'sphinx',
             'sphinx-rtd-theme',

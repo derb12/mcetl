@@ -4,6 +4,9 @@
 Useful functions are put here in order to prevent circular importing
 within the other files.
 
+The functions contained within this module ease the use of user-interfaces
+and selecting options for opening files.
+
 @author: Donald Erb
 Created on Jul 15, 2020
 
@@ -24,6 +27,16 @@ from pathlib import Path
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 import PySimpleGUI as sg
+
+
+# determine if .xls files can be read
+try:
+    import xlrd
+except ImportError:
+    _HAS_XLRD = False
+else:
+    _HAS_XLRD = True
+    del xlrd
 
 
 DEFAULT_FITTING_FORMATS = {
@@ -558,7 +571,9 @@ def raw_data_import(window_values, file, show_popup=True):
 
     """
 
-    excel_formats = ('.xls', '.xlsx', '.xlsm')
+    excel_formats = ['.xlsx', '.xlsm']
+    if _HAS_XLRD:
+        excel_formats.append('.xls')
 
     try:
         row_start = window_values['row_start']
@@ -576,8 +591,9 @@ def raw_data_import(window_values, file, show_popup=True):
             repeat_unit = window_values['repeat_unit']
 
             total_dataframe = pd.read_excel(
-                file, window_values['sheet'], None, skiprows=row_start,
-                skipfooter=row_end, usecols=columns, convert_float=not show_popup
+                file, sheet_name=window_values['sheet'], header=None,
+                skiprows=row_start, skipfooter=row_end, convert_float=not show_popup,
+                usecols=columns, engine=None if _HAS_XLRD else 'openpyxl'
             )
 
             column_indices = [num + first_col for num in column_numbers]
@@ -609,7 +625,7 @@ def raw_data_import(window_values, file, show_popup=True):
 
         else:
             window_1_open = False
-            if file.endswith('.xlsx') and len(dataframes) > 1:
+            if Path(file).suffix in excel_formats and len(dataframes) > 1:
                 window_1_open = True
                 window_1 = show_dataframes(total_dataframe, 'Total Raw Data')
                 window_0 = show_dataframes(dataframes, 'Imported Datasets')
@@ -632,7 +648,7 @@ def raw_data_import(window_values, file, show_popup=True):
                         window_0_open = False
 
             del window_0
-            if file.endswith('.xlsx') and len(dataframes) > 1:
+            if Path(file).suffix in excel_formats and len(dataframes) > 1:
                 del window_1
             dataframes = None # to clean up memory, dataframe is not needed
 
@@ -665,7 +681,9 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
 
     """
 
-    excel_formats = ('.xls', '.xlsx', '.xlsm')
+    excel_formats = ['.xlsx', '.xlsm']
+    if _HAS_XLRD:
+        excel_formats.append('.xls')
     lock_columns = False # used to lock total number of columns
 
     # Default values for if there is no file specified
@@ -733,8 +751,11 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
             disable_other = False
         else:
             disable_excel = False
+            dataframes = pd.read_excel(
+                file, sheet_name=None, header=None, convert_float=False,
+                engine=None if _HAS_XLRD else 'openpyxl'
+            )
 
-            dataframes = pd.read_excel(file, None, None, convert_float=False)
             sheet_names = list(dataframes.keys())
             sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
@@ -820,17 +841,18 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
     ]
 
     if file is None:
+        file_types = [("All Files", "*.*"), ("CSV", "*.csv"),
+                      ("Text Files", "*.txt"), ("Excel Workbook", "*.xlsx"),
+                      ("Excel Macro-Enabled Workbook", "*.xlsm")]
+        if _HAS_XLRD:
+            file_types.append(("Excel 97-2003 Workbook", "*.xls"))
+
         layout.insert(
             0,
             [sg.InputText('Choose a file', key='file', enable_events=True,
                           disabled=True, size=(28, 1), pad=(5, (10, 5))),
              sg.FileBrowse(key='file_browse', target='file', pad=(5, (10, 5)),
-                           file_types=(("All Files", "*.*"),
-                                       ("CSV", "*.csv"),
-                                       ("Text Files", "*.txt"),
-                                       ("Excel Workbook", "*.xlsx"),
-                                       ("Excel 97-2003 Workbook", "*.xls"),
-                                       ("Excel Macro-Enabled Workbook", "*.xlsm"),))]
+                           file_types=file_types)]
         )
     if data_source is not None:
         for variable in data_source.unique_variables:
@@ -862,8 +884,10 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 continue
 
             elif Path(values['file']).suffix in excel_formats:
-                dataframes = pd.read_excel(values['file'], None, None,
-                                           convert_float=False)
+                dataframes = pd.read_excel(
+                    values['file'], sheet_name=None, header=None,
+                    convert_float=False, engine=None if _HAS_XLRD else 'openpyxl'
+                )
                 sheet_names = list(dataframes.keys())
                 sheet_0_len = len(dataframes[sheet_names[0]].columns)
 
