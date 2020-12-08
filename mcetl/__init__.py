@@ -23,7 +23,7 @@ Created on Jul 15, 2020
 """
 
 
-__author__ = """Donald Erb"""
+__author__ = 'Donald Erb'
 __version__ = '0.3.0'
 
 
@@ -35,15 +35,15 @@ from .main_gui import launch_main_gui
 # Fixes blurry tkinter windows due to weird dpi scaling in Windows os
 import os
 if os.name == 'nt': # nt designates Windows os
-    ctypes_imported = False
     try:
         import ctypes
-        ctypes_imported = True
-        ctypes.OleDLL('shcore').SetProcessDpiAwareness(1)
-    except (ImportError, AttributeError, OSError):
+    except ImportError:
         pass
-    finally:
-        if ctypes_imported:
+    else:
+        try:
+            ctypes.OleDLL('shcore').SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
+        finally:
             del ctypes
-        del ctypes_imported
 del os
