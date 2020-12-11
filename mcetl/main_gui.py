@@ -493,8 +493,9 @@ def _create_column_labels_window(dataset, data_source, options, index,
     if options['save_excel']:
         header = 'Sheet Name: '
         header_visible = True
-        validations['user_inputs'].append([
-            'sheet_name', 'sheet name', utils.string_to_unicode, False, None
+        validations['user_inputs'].extend([
+            ['sheet_name', 'sheet name', utils.string_to_unicode, False, None],
+            ['sheet_name', 'sheet name', utils.validate_sheet_name, False, None]
         ])
     else:
         header = f'Dataset {index + 1}'
