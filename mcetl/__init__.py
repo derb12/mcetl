@@ -3,8 +3,7 @@
 mcetl - An Extract-Transform-Load framework focused on materials characterization
 =======================================================================================
 
-mcetl provides user interfaces for processing data, performing peak fitting, and
-plotting data.
+mcetl provides user interfaces for processing, fitting, and plotting data.
 
 mcetl is focused on easing the time required to process data files. It does this
 by allowing the user to define DataSource objects which contains the information
@@ -13,7 +12,7 @@ rows and columns to use, labels for the columns, etc.), the calculations that
 will be performed on the data, and the options for writing the data to Excel
 (formatting, placement in the worksheet, etc.).
 
-In addition, mcetl provides peak fitting and plotting user interfaces that
+In addition, mcetl provides fitting and plotting user interfaces that
 can be used without creating any DataSource objects.
 
 
@@ -28,6 +27,7 @@ __version__ = '0.3.0'
 
 
 from .datasource import DataSource
+from .excel_writer import ExcelWriterHandler
 from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 from .main_gui import launch_main_gui
 

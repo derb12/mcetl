@@ -28,6 +28,7 @@ import PySimpleGUI as sg
 
 from . import utils
 from .datasource import DataSource
+from .excel_writer import ExcelWriterHandler
 from .file_organizer import file_finder, file_mover
 
 
@@ -1070,6 +1071,12 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
         # Removes unique variables that are only used in preprocessing
         if not processing_options['process_data']:
             data_source.remove_unneeded_variables()
+        # Create the writer handler and read the Excel file if appending.
+        if processing_options['save_excel']:
+            writer_handler = ExcelWriterHandler(
+                processing_options['file_name'], not processing_options['append_file'],
+                data_source.excel_formats
+            )
 
         # Selection of raw data files
         if processing_options['multiple_files']:
@@ -1190,15 +1197,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
-                output['writer'] = utils.create_excel_writer(
-                    processing_options['file_name'], not processing_options['append_file']
-                )
-                # Formatting styles for the Excel workbook
-                for style, kwargs in data_source.excel_formats.items():
-                    try:
-                        output['writer'].book.add_named_style(NamedStyle(style, **kwargs))
-                    except ValueError: # Style already exists in the workbook
-                        pass
+                output['writer'] = writer_handler.writer
 
                 _write_to_excel(
                     merged_dataframes, data_source, labels, output['writer'],
@@ -1245,7 +1244,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
 
         # Handles saving the Excel file
         if processing_options['save_excel']:
-            utils.save_excel_file(output['writer'])
+            writer_handler.save_excel_file()
 
         # Handles moving files
         if processing_options['move_files']:

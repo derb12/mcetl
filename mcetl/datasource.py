@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Contains the DataSource class.
+"""The DataSource class contains all needed information for importing, processing, and saving data.
 
 @author: Donald Erb
 Created on Jul 31, 2020
@@ -11,11 +11,10 @@ Created on Jul 31, 2020
 import itertools
 
 import numpy as np
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 
 from . import utils
-from .functions import PreprocessFunction, CalculationFunction, SummaryFunction
+from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 
 
 class DataSource:
@@ -35,6 +34,43 @@ class DataSource:
         dataset.
 
     """
+
+    excel_formats = {
+        'header_even': {
+            'font': dict(size=12, bold=True),
+            'fill': dict(fill_type='solid', start_color='F9B381', end_color='F9B381'),
+            'border': dict(bottom=dict(style='thin')),
+            'alignment': dict(horizontal='center', vertical='center', wrap_text=True)
+        },
+        'header_odd': {
+            'font': dict(size=12, bold=True),
+            'fill': dict(fill_type='solid', start_color='73A2DB', end_color='73A2DB'),
+            'border': dict(bottom=dict(style='thin')),
+            'alignment': dict(horizontal='center', vertical='center', wrap_text=True)
+        },
+        'subheader_even': {
+            'font': dict(bold=True),
+            'fill': dict(fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'),
+            'border': dict(bottom=dict(style='thin')),
+            'alignment': dict(horizontal='center', vertical='center', wrap_text=True)
+        },
+        'subheader_odd': {
+            'font': dict(bold=True),
+            'fill': dict(fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'),
+            'border': dict(bottom=dict(style='thin')),
+            'alignment': dict(horizontal='center', vertical='center', wrap_text=True)
+        },
+        'columns_even': {
+            'fill': dict(fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'),
+            'alignment': dict(horizontal='center', vertical='center'),
+            'number_format': '0.00'
+        },
+        'columns_odd': {
+            'fill': dict(fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'),
+            'alignment': dict(horizontal='center', vertical='center'),
+            'number_format': '0.00'
+        }
+    }
 
     def __init__(
             self,
@@ -89,19 +125,18 @@ class DataSource:
         figure_rcParams : dict, optional
             A dictionary containing any changes to matplotlib's rcParams.
             The default is None.
-        excel_writer_formats : dict(dict), optional
-            A dictionary of styles to overwrite the default settings for the
-            pd.ExcelWriter. The following keys are used when writing data
-            from files to Excel:
+        excel_writer_formats : dict(dict or openpyxl.style.NamedStyle), optional
+            A dictionary of styles used to format the output Excel workbook.
+            The following keys are used when writing data from files to Excel:
                 'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
                 'columns_even', 'columns_odd'
-            The following keys are used when writing data from mcetl's peak
-            fitting to Excel:
+            The following keys are used when writing data fit results to Excel:
                 'fitting_header_even', 'fitting_header_odd', 'fitting_subheader_even',
                 'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
                 'fitting_descriptors_even', 'fitting_descriptors_odd'
-            The values for the dictionaries must also be dictionaries, with
-            keys corresponding to keyword inputs for openpyxl's NamedStyle.
+            The values for the dictionaries must be either dictionaries, with
+            keys corresponding to keyword inputs for openpyxl's NamedStyle, or NamedStyle
+            objects.
         sample_separation : TYPE, optional
             DESCRIPTION. The default is 0.
         entry_separation : TYPE, optional
@@ -116,9 +151,11 @@ class DataSource:
             Raised if the input name is a blank string, or if either excel_row_offset
             or excel_column_offset is < 0.
         TypeError
-            DESCRIPTION.
+            Raised if one of the input functions is not a valid mcetl.FunctionBase
+            object.
         IndexError
-            DESCRIPTION.
+            Raised if the number of data columns is less than the number of unique
+            variables.
 
         """
 
@@ -165,7 +202,7 @@ class DataSource:
         # ensures the number of imported columns can accomodate all variables
         if len(self.column_numbers) < len(self.unique_variables):
             raise IndexError((
-                f'The number of columns specified for mcetl.DataSource "{self.name}" '
+                f'The number of columns specified for {self} '
                 'must be greater or equal to the number of unique variables.'
             ))
 
@@ -218,86 +255,37 @@ class DataSource:
             self.y_plot_index = 1
 
         # sets excel_formats attribute
-        self._create_excel_writer_formats(excel_writer_formats)
+        self.excel_formats = self._create_excel_writer_formats(excel_writer_formats)
 
 
     def __str__(self):
         return f'{self.__class__.__name__}(name={self.name})'
 
 
-    def _create_excel_writer_formats(self, format_kwargs):
+    @classmethod
+    def _create_excel_writer_formats(cls, styles=None):
         """
         Sets the excel_formats attribute for the DataSource.
 
         Parameters
         ----------
-        format_kwargs : dict
+        styles : dict, optional
             The input dictionary to override the default formats.
+
+        Returns
+        -------
+        format_kwargs : dict
+            The input styles dictionary with any missing keys from
+            DataSource.excel_formats added.
 
         """
 
-        self.excel_formats = {
-            'header_even': {
-                'font': Font(size=12, bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='F9B381', end_color='F9B381'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'header_odd': {
-                'font': Font(size=12, bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='73A2DB', end_color='73A2DB'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'subheader_even': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'subheader_odd': {
-                'font': Font(bold=True),
-                'fill': PatternFill(
-                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-                ),
-                'border': Border(bottom=Side(style='thin')),
-                'alignment': Alignment(
-                    horizontal='center', vertical='center', wrap_text=True
-                )
-            },
-            'columns_even': {
-                'fill': PatternFill(
-                    fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-                ),
-                'alignment': Alignment(horizontal='center', vertical='center'),
-                'number_format': '0.00',
-            },
-            'columns_odd': {
-                'fill': PatternFill(
-                    fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-                ),
-                'alignment': Alignment(horizontal='center', vertical='center'),
-                'number_format': '0.00',
-            },
-            **utils.DEFAULT_FITTING_FORMATS
-        }
+        format_kwargs = styles if styles is not None else {}
+        for key, value in cls.excel_formats.items():
+            if key not in format_kwargs:
+                format_kwargs[key] = value
 
-        if format_kwargs is not None:
-            for key in self.excel_formats:
-                if key in format_kwargs:
-                    self.excel_formats[key].update(format_kwargs[key])
+        return format_kwargs
 
 
     def _validate_target_columns(self):
