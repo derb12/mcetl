@@ -14,7 +14,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from openpyxl.chart import Reference, Series, ScatterChart
-from openpyxl.styles import NamedStyle
 from openpyxl.utils.cell import get_column_letter as _get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
@@ -22,6 +21,8 @@ import PySimpleGUI as sg
 
 from . import fitting_utils, peak_fitting
 from .. import plot_utils, utils
+from ..excel_writer import ExcelWriterHandler
+# openpyxl is imported within fit_to_excel
 
 
 class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
@@ -1293,7 +1294,8 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     gui_values : dict, optional
         A dictionary containing the default gui values to pass to fit_dataframe.
     excel_writer : pd.ExcelWriter, optional
-        The Excel writer used to save the results to Excel.
+        The Excel writer used to save the results to Excel. If input, the engine
+        must be "openpyxl".
     save_excel : bool, optional
         If True (default), then the fit results will be saved to an Excel file.
     plot_excel : bool, optional
@@ -1349,56 +1351,43 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
     else:
         fit_dataframes = utils.open_multiple_files()
 
-    if not save_excel or excel_writer is not None or not fit_dataframes:
-        writer = excel_writer
-    else:
-        layout = [
-            [sg.Text('File name for peak fitting results')],
-            [sg.Input('', key='file', size=(20, 1), disabled=True),
-             sg.FileSaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
-                           key='browse', target='file')],
-            [sg.Text('')],
-            [sg.Button('Skip Saving'),
-             sg.Button('Submit', bind_return_key=True,
-                       button_color=utils.PROCEED_COLOR),
-             sg.Check('New File', key='new_file')]
-        ]
-
-        window = sg.Window('File Selection', layout)
-        while True:
-            event, values = window.read()
-            if event == sg.WIN_CLOSED:
-                utils.safely_close_window(window)
-            elif event == 'Skip Saving':
-                save_excel = False
-                writer = None
-                break
-            elif (event == 'Submit'
-                    and utils.validate_inputs(values, strings=[['file', 'File name']])):
-                break
-
-        window.close()
-        del window
-
-        if save_excel:
-            file_path = Path(values['file'])
-            if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
-                values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
-
-            writer = utils.create_excel_writer(values['file'], values['new_file'])
-
-    # Formatting styles for the Excel workbook
-    for style in utils.DEFAULT_FITTING_FORMATS.keys():
-        if excel_formats is not None and style in excel_formats:
-            kwargs = excel_formats[style]
+    if save_excel and fit_dataframes:
+        if excel_writer is not None:
+            writer_handler = ExcelWriterHandler(writer=excel_writer)
         else:
-            kwargs = utils.DEFAULT_FITTING_FORMATS[style]
-        try:
-            writer.book.add_named_style(NamedStyle(style, **kwargs))
-        except AttributeError: # writer is None
-            break
-        except ValueError: # Style already exists in the workbook
-            pass
+            layout = [
+                [sg.Text('File name for peak fitting results')],
+                [sg.Input('', key='file', size=(20, 1), disabled=True),
+                sg.FileSaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
+                            key='browse', target='file')],
+                [sg.Text('')],
+                [sg.Button('Skip Saving'),
+                sg.Button('Submit', bind_return_key=True,
+                        button_color=utils.PROCEED_COLOR),
+                sg.Check('New File', key='new_file')]
+            ]
+
+            window = sg.Window('File Selection', layout)
+            while True:
+                event, values = window.read()
+                if event == sg.WIN_CLOSED:
+                    utils.safely_close_window(window)
+                elif event == 'Skip Saving':
+                    save_excel = False
+                    break
+                elif (event == 'Submit'
+                        and utils.validate_inputs(values, strings=[['file', 'File name']])):
+                    break
+
+            window.close()
+            del window
+
+            if save_excel:
+                file_path = Path(values['file'])
+                if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
+                    values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
+
+                writer_handler = ExcelWriterHandler(values['file'], values['new_file'])
 
     fit_results = []
     proceed = True
@@ -1422,9 +1411,9 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
             if save_excel:
                 fit_to_excel(peak_df, params_df, descriptors_df,
-                             writer, gui_values['sample_name'], plot_excel)
+                             writer_handler.writer, gui_values['sample_name'], plot_excel)
 
     if save_excel and save_when_done and not all(entry is None for entry in fit_results):
-        utils.save_excel_file(writer)
+        writer_handler.save_excel_file()
 
     return fit_results, gui_values, proceed

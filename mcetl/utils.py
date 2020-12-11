@@ -12,9 +12,6 @@ Created on Jul 15, 2020
 
 Attributes
 ----------
-DEFAULT_FITTING_FORMATS : dict
-    The default openpyxl styles to use when writing the peak fitting
-    results to Excel.
 PROCEED_COLOR : tuple(str, str)
     The button color for all buttons that proceed to the next window.
 
@@ -24,7 +21,6 @@ PROCEED_COLOR : tuple(str, str)
 import operator
 from pathlib import Path
 
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -38,83 +34,6 @@ else:
     _HAS_XLRD = True
     del xlrd
 
-
-DEFAULT_FITTING_FORMATS = {
-    'fitting_header_even': {
-        'font': Font(size=12, bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='F9B381', end_color='F9B381'
-        ),
-        'border': Border(bottom=Side(style='thin')),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        )
-    },
-    'fitting_header_odd': {
-        'font': Font(size=12, bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='73A2DB', end_color='73A2DB'
-        ),
-        'border': Border(bottom=Side(style='thin')),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        )
-    },
-    'fitting_subheader_even': {
-        'font': Font(bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-        ),
-        'border': Border(bottom=Side(style='thin')),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        )
-    },
-    'fitting_subheader_odd': {
-        'font': Font(bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-        ),
-        'border': Border(bottom=Side(style='thin')),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        )
-    },
-    'fitting_columns_even': {
-        'fill': PatternFill(
-            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-        ),
-        'alignment': Alignment(horizontal='center', vertical='center'),
-        'number_format': '0.00',
-    },
-    'fitting_columns_odd': {
-        'fill': PatternFill(
-            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-        ),
-        'alignment': Alignment(horizontal='center', vertical='center'),
-        'number_format': '0.00',
-    },
-    'fitting_descriptors_even': {
-        'font': Font(bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='FFEAD6', end_color='FFEAD6'
-        ),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        ),
-        'number_format': '0.000',
-    },
-    'fitting_descriptors_odd': {
-        'font': Font(bold=True),
-        'fill': PatternFill(
-            fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'
-        ),
-        'alignment': Alignment(
-            horizontal='center', vertical='center', wrap_text=True
-        ),
-        'number_format': '0.000',
-    }
-}
 
 PROCEED_COLOR = ('white', '#00A949')
 
@@ -514,9 +433,9 @@ def optimize_memory(dataframe, convert_objects=False):
     dataframe_to_rows offers a significant speed increase (using openpyxl's
     method results in a speed increae of ~ 30% since the cells are only
     iterated over once. If using dataframe.to_excel and then formatting,
-    it requires iterating over all cells twice). I would
-    rather have a speed increase with the downside of more memory usage.
-    The dtypes can be still converted to string after writing to Excel, though.
+    it requires iterating over all cells twice). I would rather have a
+    speed increase with the downside of more memory usage. The dtypes can
+    be still converted to string after writing to Excel, though.
 
     """
 
@@ -1152,80 +1071,3 @@ def open_multiple_files():
             pass
 
     return dataframes
-
-
-def create_excel_writer(file_name, new_file=False):
-    """
-    Creates a pandas ExcelWriter and ensures the current file is closed.
-
-    Parameters
-    ----------
-    file_name : str or Path
-        The file name or path for the Excel file to be created.
-    new_file : bool, optional
-        If False (default), will append to an existing file. If True, or if
-        no file currently exists with the given file_name, a new file will
-        be created, even if a file with the same name currently exists.
-
-    Returns
-    -------
-    pd.ExcelWriter
-        The pandas ExcelWriter object for the desired file name.
-
-    Notes
-    -----
-    If appending to a file, makes the user close the file before proceeding
-    because any further changes to the file after creating the ExcelWriter
-    will be lost.
-
-    """
-
-    path = Path(file_name)
-    if new_file or not path.exists():
-        mode = 'w'
-    else:
-        mode = 'a'
-        while True:
-            try:
-                path.rename(path) # errors if file is currently open
-            except PermissionError:
-                sg.popup_ok(
-                    (f'Please close {path.name} so it can be opened in python.\n'
-                     'Until the file is saved in python, any additional\n'
-                     'changes made by the user will be lost.\n'),
-                    title='Close File'
-                )
-            else:
-                break
-
-    return pd.ExcelWriter(file_name, engine='openpyxl', mode=mode)
-
-
-def save_excel_file(excel_writer):
-    """
-    Handles saving the Excel file and the various exceptions that can occur.
-
-    Parameters
-    ----------
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
-
-    """
-
-    path = Path(excel_writer.path)
-    # Ensures that the folder destination exist
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    try_to_save = True
-    while try_to_save:
-        try:
-            excel_writer.save()
-            print('\nSaved Excel file.')
-            break
-
-        except PermissionError:
-            try_to_save = sg.popup_ok(
-                f'Trying to overwrite {path.name}.\nPlease close the file.\n',
-                title='Close File'
-            )
