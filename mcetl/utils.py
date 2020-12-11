@@ -68,6 +68,60 @@ def safely_close_window(window):
     raise WindowCloseError('Window was closed earlier than expected.')
 
 
+_COLUMN_NAME_CACHE = {}
+def excel_column_name(index):
+    """
+    Converts 1-based index to Excel column name, eg. 1 -> 'A'.
+
+    Parameters
+    ----------
+    index : int
+        The column number. Must be 1-based, ie. the first column
+        number is 1 rather than 0.
+
+    Returns
+    -------
+    str
+        The column name for the input index.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input index is not in the range 1 <= index <= 18278,
+        meaning the column name is not within 'A'...'ZZZ'.
+
+    Notes
+    -----
+    Caches the result so that any repeated index lookups are faster.
+
+    """
+
+    global _COLUMN_NAME_CACHE
+
+    if index in _COLUMN_NAME_CACHE:
+        return _COLUMN_NAME_CACHE[index]
+
+    elif not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
+        raise ValueError(f'Invalid column index {index}')
+
+    col_num = index
+    col_letters = [] # appending to list faster than appending to str
+    while col_num > 0:
+        # ensure remainder is between 1 and 26
+        col_num, remainder = divmod(col_num, 26)
+        if remainder == 0:
+            remainder = 26
+            col_num -= 1
+
+        # convert the remainder to a character
+        col_letters.append(chr(ord('A') + remainder - 1))
+
+    col_name = ''.join(reversed(col_letters))
+    _COLUMN_NAME_CACHE[index] = col_name
+
+    return col_name
+
+
 def string_to_unicode(input_list):
     r"""
     Converts strings to unicode by replacing '\\' with '\'.
