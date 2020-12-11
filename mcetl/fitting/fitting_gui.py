@@ -870,6 +870,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             'user_inputs': [
                 ['peak_list', 'peak x values', float, True],
                 ['sample_name', 'sample name', utils.string_to_unicode, False, None],
+                ['sample_name', 'sample name', utils.validate_sheet_name, False, None],
                 ['x_label', 'x label', utils.string_to_unicode, False, None],
                 ['y_label', 'y label', utils.string_to_unicode, False, None],
                 ['model_list', 'model list', str, True],

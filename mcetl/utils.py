@@ -274,6 +274,8 @@ def validate_inputs(window_values, integers=None, floats=None,
     The display text will be the text that is shown to the user if the value
     of window_values[key] fails the validation.
 
+    #TODO eventually collect all errors so they can all be fixed at once.
+
     """
 
     if integers is not None:
@@ -359,6 +361,33 @@ def validate_inputs(window_values, integers=None, floats=None,
                 return False
 
     return True
+
+
+def validate_sheet_name(name):
+    r"""
+    Ensures that the desired Excel sheet name is valid.
+
+    Parameters
+    ----------
+    name : str
+        The desired sheet name.
+
+    Raises
+    ------
+    ValueError
+        Raised if the sheet name is greater than 31 characters or if it
+        contains any of the following: \, /, ?, *, [, ], :
+
+    """
+
+    forbidden_characters = ('\\', '/', '?', '*', '[', ']', ':')
+
+    if len(name) > 31:
+        raise ValueError('Sheet name must be less than 32 characters.')
+    elif any(char in name for char in forbidden_characters):
+        raise ValueError(
+            f'Sheet name cannot have any of the following characters:\n{forbidden_characters}'
+        )
 
 
 def show_dataframes(dataframes, title='Raw Data'):
