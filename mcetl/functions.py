@@ -17,7 +17,7 @@ Created on Jul 31, 2020
 
 import itertools
 
-from openpyxl.utils.cell import get_column_letter as _get_column_letter
+from .utils import excel_column_name
 
 
 class FunctionBase:
@@ -300,7 +300,7 @@ class CalculationFunction(FunctionBase):
             excel_columns = None
         else:
             excel_columns = [
-                _get_column_letter(num) for num in range(first_column, len(dataset.columns) + first_column)
+                excel_column_name(num) for num in range(first_column, len(dataset.columns) + first_column)
             ]
 
         target_columns = [reference[target] for target in self.target_columns]

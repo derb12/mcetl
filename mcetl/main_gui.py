@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel
 
+@author: Donald Erb
+Created on May 5, 2020
+
 Notes
 -----
 The imports for the fitting and plotting guis are within their respective
-functions to reduce the time it takes for this module to be imported.
-
-@author: Donald Erb
-Created on May 5, 2020
+functions to reduce the time it takes for this module to be imported. Likewise,
+openpyxl is imported within _write_to_excel
 
 """
 
@@ -18,11 +19,6 @@ from pathlib import Path
 import sys
 import traceback
 
-from openpyxl.chart import Reference, Series, ScatterChart
-from openpyxl.chart.series import SeriesLabel, StrRef
-from openpyxl.styles import NamedStyle
-from openpyxl.utils.cell import get_column_letter as _get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -30,6 +26,7 @@ from . import utils
 from .datasource import DataSource
 from .excel_writer import ExcelWriterHandler
 from .file_organizer import file_finder, file_mover
+# openpyxl is imported within _write_to_excel
 
 
 def get_save_location():
@@ -89,6 +86,11 @@ def _write_to_excel(dataframes, data_source, labels,
 
     """
 
+    from openpyxl.chart import Reference, Series, ScatterChart
+    from openpyxl.chart.series import SeriesLabel, StrRef
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
+
     # openpyxl uses 1-based indices
     first_row = data_source.excel_row_offset + 1
     first_column = data_source.excel_column_offset + 1
@@ -139,7 +141,7 @@ def _write_to_excel(dataframes, data_source, labels,
                 cell.style = 'subheader_' + suffix
 
         # Dataset values and formatting
-        rows = _dataframe_to_rows(dataset, index=False, header=False)
+        rows = dataframe_to_rows(dataset, index=False, header=False)
         for row_index, row in enumerate(rows, first_row + 2):
             entry = 1
             suffix = 'even'
@@ -236,7 +238,7 @@ def _write_to_excel(dataframes, data_source, labels,
                         )
                     )
                     series.title = SeriesLabel(
-                        StrRef(f"'{sheet_name}'!{_get_column_letter(location)}{first_row}")
+                        StrRef(f"'{sheet_name}'!{utils.excel_column_name(location)}{first_row}")
                     )
                     chart.append(series)
                 location += sum(data_source.lengths[i][j])

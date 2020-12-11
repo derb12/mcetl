@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Provides a GUI to fit data using lmfit Models and save the results to Excel
+"""Provides a GUI to fit data using lmfit Models and save the results to Excel.
 
 @author: Donald Erb
 Created on May 24, 2020
+
+Notes
+-----
+openpyxl is imported within fit_to_excel to reduce the import time of the module,
+and is only imported if saving fit results to Excel.
 
 """
 
@@ -13,9 +18,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from openpyxl.chart import Reference, Series, ScatterChart
-from openpyxl.utils.cell import get_column_letter as _get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows as _dataframe_to_rows
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -721,9 +723,7 @@ def _process_fitting_kwargs(dataframe, values):
         df_1[f'{name}_sterr'] = std_err_df[name]
     df_1 = df_1.fillna('-')
 
-    model_names = [component._name for component in fit_result[-1].components]
-    while 'pvoigt' in model_names:
-        model_names[model_names.index('pvoigt')] = 'pseudovoigt'
+    model_names = [component.__class__.__name__ for component in fit_result[-1].components]
     df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
     params_df = pd.concat([df_0, df_1], axis=1)
 
@@ -1125,6 +1125,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
 
     """
 
+    from openpyxl.chart import Reference, Series, ScatterChart
+    from openpyxl.utils.dataframe import dataframe_to_rows
+
     # Ensures that the sheet name is unique so it does not overwrite data;
     # not needed for openpyxl, but just a precaution
     current_sheets = [sheet.title.lower() for sheet in excel_writer.book.worksheets]
@@ -1142,6 +1145,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             sheet_name = f'{sheet_base}_{num}'
             num += 1
 
+    # use dict.fromkeys rather than a set to preserve order
     param_names = dict.fromkeys([
         '',
         *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
@@ -1194,7 +1198,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         cell = worksheet.cell(row=3, column=i, value=peak_name)
         cell.style = 'fitting_subheader_' + next(suffix)
 
-    rows = _dataframe_to_rows(peaks_dataframe, index=False, header=False)
+    rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
@@ -1248,9 +1252,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
     for column in range(1, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2):
-        worksheet.column_dimensions[_get_column_letter(column)].width = 12.5
+        worksheet.column_dimensions[utils.excel_column_name(column)].width = 12.5
     for column in range(len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2, total_width + 2):
-        worksheet.column_dimensions[_get_column_letter(column)].width = 20
+        worksheet.column_dimensions[utils.excel_column_name(column)].width = 20
 
     if plot_excel:
         axis_attributes = {
