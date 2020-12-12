@@ -391,6 +391,35 @@ def _find_peaks(dataframe, gui_values):
     return found_peaks
 
 
+def _get_background_kwargs(gui_values):
+    """
+    Gets any necessary keyword arguments for the selected background model.
+
+    Parameters
+    ----------
+    bkg_model : str
+        The selected background model
+
+    Returns
+    -------
+    kwargs : dict or None
+        A dictionary containing any keyword arguments needed to initialize
+        the selected background model. Returns None if no kwargs are required.
+
+    """
+
+    model = f_utils.get_model_name(gui_values['bkg_type'])
+
+    if model not in f_utils._INIT_MODELS:
+        kwargs = None
+    else:
+        total_kwargs = f_utils._INIT_MODELS[model]
+        key, values = list(total_kwargs.items())[0] # only 1 item in the dict
+        kwargs = {key: type(values[0])(gui_values[f'bkg_kwarg_{model}'])}
+
+    return kwargs
+
+
 def _create_peak_fitting_gui(dataframe, default_inputs):
     """
     [summary]
@@ -435,15 +464,28 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
                 ], key='manual_tab', visible=default_inputs['manual_peaks'])]
         ], key='tab'
     )
+
+    # models that require a keyword input during initialization
+    bkg_init_models = []
+    for model, kwargs in f_utils._INIT_MODELS.items():
+        if model in f_utils._TOTAL_MODELS:
+            key, values = list(kwargs.items())[0]
+            bkg_init_models.append(
+                sg.Column([
+                    [sg.Text(f'Parameter: {key}'),
+                     sg.Combo(values[1], default_inputs[f'bkg_kwarg_{model}'],
+                              key=f'bkg_kwarg_{model}', readonly=True)]
+                ], pad=(0, 0), key=f'bkg_col_{model}',
+                visible=default_inputs['bkg_type'] == model)
+            )
+
+    all_models = sorted(f_utils._GUI_MODELS.keys())
     peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.peak_transformer()]
     auto_bkg_layout = [
         [sg.Text('Model for fitting background:'),
-            sg.Combo(['PolynomialModel','ExponentialModel'], key='bkg_type',
-                    readonly=False, enable_events=True,
-                    default_value=default_inputs['bkg_type'])],
-        [sg.Text('Polynomial order:'),
-            sg.Combo(list(range(8)), key='poly_n', readonly=True,
-                    default_value=default_inputs['poly_n'])],
+         sg.Combo(all_models, default_inputs['bkg_type'], key='bkg_type',
+                  readonly=True, enable_events=True)],
+        [sg.Text('    '), *bkg_init_models],
         [sg.Text('Min and max x values to use for fitting the background:')],
         [sg.Text('    x min:', size=(8, 1)),
             sg.Input(default_inputs['bkg_x_min'], key='bkg_x_min', size=(5, 1))],
@@ -562,8 +604,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'center_offset': '',
         'max_sigma': 'inf',
         'subtract_bkg': True,
-        'bkg_type': 'PolynomialModel',
-        'poly_n': '0',
+        'bkg_type': 'Constant',
         'bkg_x_min': '-inf',
         'bkg_x_max': 'inf',
         'fit_residuals': False,
@@ -578,6 +619,9 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'selected_peaks': [],
         'selected_bkg': []
     }
+
+    for model, kwargs in f_utils._INIT_MODELS.items():
+        default_inputs[f'bkg_kwarg_{model}'] = list(kwargs.values())[0][0]
 
     if user_inputs is not None:
         default_inputs.update(user_inputs)
@@ -658,10 +702,10 @@ def _process_fitting_kwargs(dataframe, values):
     min_method = values['min_method']
     subtract_bkg = values['subtract_bkg']
     background_type = values['bkg_type']
+    background_kwargs = _get_background_kwargs(values)
     bkg_min = values['bkg_x_min']
     bkg_max = values['bkg_x_max']
     max_sigma = values['max_sigma']
-    poly_n = values['poly_n']
     fit_residuals = values['fit_residuals']
     min_resid = values['min_resid']
     num_resid_fits = values['num_resid_fits']
@@ -701,8 +745,8 @@ def _process_fitting_kwargs(dataframe, values):
     fitting_results = peak_fitting.fit_peaks(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
-        additional_peaks, model_list, background_type, poly_n, None, vary_Voigt,
-        fit_residuals, num_resid_fits, min_resid, debug, peak_heights
+        additional_peaks, model_list, background_type, background_kwargs, None,
+        vary_Voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
     )
 
     fit_result = fitting_results['fit_results']
@@ -854,7 +898,6 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             'integers': [
                 ['x_fit_index', 'x column'],
                 ['y_fit_index', 'y column'],
-                ['poly_n', 'polynomial order'],
                 ['num_resid_fits', 'number of residual fits']
             ],
             'floats': [
@@ -898,7 +941,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'user_inputs': validations['peak_fitting']['user_inputs'][:1],
     }
     validations['peak_selector'] = {
-        'integers': validations['peak_fitting']['integers'][:3],
+        'integers': validations['peak_fitting']['integers'][:2],
         'floats': validations['peak_fitting']['floats'][:5],
         'strings': validations['peak_fitting']['strings'][:1],
         'constraints': validations['peak_fitting']['constraints'][:1]
@@ -969,9 +1012,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             bkg_max = values['bkg_x_max']
             subtract_bkg = values['subtract_bkg']
             background_type = values['bkg_type']
+            background_kwargs = _get_background_kwargs(values)
             bkg_min = values['bkg_x_min']
             bkg_max = values['bkg_x_max']
-            poly_n = values['poly_n']
             peak_width = values['peak_width']
             default_model = values['default_model']
 
@@ -992,8 +1035,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             try:
                 peak_list = peak_fitting.PeakSelector(
                     x_data[domain_mask], y_data[domain_mask], peak_list,
-                    peak_width, subtract_bkg, background_type, poly_n,
-                    bkg_min, bkg_max, default_model
+                    peak_width, subtract_bkg, background_type,
+                    background_kwargs, bkg_min, bkg_max, default_model
                 ).event_loop()
             except Exception as e:
                 sg.popup(f'Error creating plot:\n    {repr(e)}')
@@ -1036,26 +1079,30 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         elif event == 'subtract_bkg':
             if values['subtract_bkg']:
                 window['bkg_type'].update(visible=True)
-                window['poly_n'].update(visible=True)
                 window['bkg_x_min'].update(visible=True)
                 window['bkg_x_max'].update(visible=True)
                 window['automatic_bkg'].update(disabled=False)
                 window['manual_bkg'].update(disabled=False)
                 window['bkg_selector'].update(disabled=False)
             else:
-                window['bkg_type'].update(visible=False, value='PolynomialModel')
-                window['poly_n'].update(visible=False, value='0')
+                # set bkg to 'Gaussian' b/c it has no init kwargs and its GUI name will not change
+                window['bkg_type'].update(visible=False, value='Constant')
                 window['bkg_x_min'].update(visible=False, value='-inf')
                 window['bkg_x_max'].update(visible=False, value='inf')
                 window['automatic_bkg'].update(disabled=True)
                 window['manual_bkg'].update(disabled=True)
                 window['bkg_selector'].update(disabled=True)
+                for model in f_utils._INIT_MODELS.keys():
+                    if model in f_utils._TOTAL_MODELS:
+                        window[f'bkg_col_{model}'].update(visible=False)
 
         elif event == 'bkg_type':
-            if values['bkg_type'] == 'PolynomialModel':
-                window['poly_n'].update(visible=True)
-            else:
-                window['poly_n'].update(visible=False, value='0')
+            bkg_model = f_utils.get_model_name(values['bkg_type'])
+            for model in f_utils._INIT_MODELS.keys():
+                if model == bkg_model:
+                    window[f'bkg_col_{model}'].update(visible=True)
+                elif model in f_utils._TOTAL_MODELS:
+                    window[f'bkg_col_{model}'].update(visible=False)
 
         elif event in ('model_list', 'default_model'):
             temp_model_list = []
