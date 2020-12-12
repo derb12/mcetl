@@ -806,7 +806,7 @@ def fit_peaks(
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
         min_method='least_squares', x_min=-np.inf, x_max=np.inf,
         additional_peaks=None, model_list=None, background_type='PolynomialModel',
-        poly_n=0, fit_kws=None, vary_Voigt=False, fit_residuals=False,
+        background_kwargs=None, fit_kws=None, vary_Voigt=False, fit_residuals=False,
         num_resid_fits=5, min_resid=0.05, debug=False, peak_heights=None):
     """
     Takes x,y data, finds the peaks, fits the peaks, and returns all relevant information.
@@ -858,9 +858,8 @@ def fit_peaks(
         models in lmfit.models.
     background_type : str
         String corresponding to a model in lmfit.models; used to fit the background.
-    poly_n : int
-        Degree of the polynomial; only used if background_type is set
-        to 'PolynomialModel'.
+    background_kwargs : dict, optional
+        Any keyword arguments needed to initialize the background model.
     fit_kws : dict
         Keywords to be passed on to the minimizer.
     vary_Voigt : bool
@@ -993,9 +992,9 @@ def fit_peaks(
 
     if subtract_background:
         bkg_mask = (x >= bkg_min) & (x <= bkg_max)
-        bkg_kwargs = {'degree': poly_n} if background_type == 'PolynomialModel' else {}
+        bkg_kwargs = background_kwargs if background_kwargs is not None else {}
 
-        background = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
+        background = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
         bkg_params = background.guess(y[bkg_mask], x=x[bkg_mask])
         initial_bkg = _check_background(background_type, background.eval(bkg_params, x=x), y)
 
@@ -1381,9 +1380,8 @@ class PeakSelector(plot_utils.EmbeddedFigure):
     background_type : str
         String corresponding to a model in lmfit.models; used to fit
         the background.
-    poly_n : int
-        Degree of the polynomial; only used if background_type is
-        set to 'PolynomialModel'.
+    background_kwargs : dict
+        Any keyword arguments needed to initialize the background model
     bkg_min : float or int
         Minimum x value to use for initially fitting the background.
     bkg_max : float or int
@@ -1401,7 +1399,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
 
     def __init__(self, x, y, click_list=None, initial_peak_width=1,
                  subtract_background=False, background_type='PolynomialModel',
-                 poly_n=4, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
+                 background_kwargs=None, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
 
         super().__init__(x, y, click_list)
         nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
@@ -1428,9 +1426,9 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             self.background = np.zeros(x.size)
         else:
             bkg_mask = (self.x > bkg_min) & (self.x < bkg_max)
-            bkg_kwargs = {'degree': poly_n} if background_type == 'PolynomialModel' else {}
+            bkg_kwargs = background_kwargs if background_kwargs is not None else {}
 
-            bkg_model = getattr(lmfit.models, background_type)(prefix='background_', **bkg_kwargs)
+            bkg_model = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
             bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
             self.background = _check_background(background_type, bkg_model.eval(bkg_params, x=x), y)
 

@@ -5,7 +5,7 @@ Easier to use launch_fitting_gui from mcetl.fitting, but this is another
 way to fit peaks using mcetl.
 
 @author: Donald Erb
-Created on Sat Aug 22 17:34:39 2020
+Created on Aug 22, 2020
 
 """
 
@@ -37,7 +37,7 @@ subtract_background=True
 model_list = []
 min_method = 'least_squares'
 background_type = 'PolynomialModel'
-poly_n = 1
+background_kwargs = {'degree': 1}
 default_model='Gaussian'
 fit_kws = {}
 vary_Voigt=False
@@ -64,10 +64,10 @@ fitting_results = fitting.fit_peaks(
     center_offset=center_offset, peak_width=peak_width, model_list=model_list,
     subtract_background=subtract_background, x_min=x_min, x_max=x_max,
     additional_peaks=additional_peaks, background_type=background_type,
-    poly_n=poly_n, min_method=min_method, default_model=default_model,
-    fit_kws=fit_kws, vary_Voigt=vary_Voigt, fit_residuals=fit_residuals,
-    num_resid_fits=num_resid_fits, min_resid=min_resid,
-    debug=debug, bkg_min=bkg_min
+    background_kwargs=background_kwargs, min_method=min_method,
+    default_model=default_model, fit_kws=fit_kws, vary_Voigt=vary_Voigt,
+    fit_residuals=fit_residuals, num_resid_fits=num_resid_fits,
+    min_resid=min_resid, debug=debug, bkg_min=bkg_min
 )
 
 print('\n\n'+'-'*8+f' {time.time()-time0:.1f} seconds '+'-'*8)
