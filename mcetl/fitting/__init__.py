@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Provides all objects related to fitting data.
+"""
+mcetl.fitting - Functions and GUI to help fit data
+==================================================
 
+Contains functions that ease the fitting of data. The main entry is through
+mcetl.fitting.launch_fitting_gui, but also contains useful functions without
+needing to launch a GUI.
 
 @author: Donald Erb
 Created on Nov 15, 2020

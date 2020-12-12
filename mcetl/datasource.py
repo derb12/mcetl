@@ -21,6 +21,55 @@ class DataSource:
     """
     Used to give default settings for importing data and various functions based on the source.
 
+    Parameters
+    ----------
+    name : str
+        The name of the DataSource. Used when displaying the DataSource in a GUI.
+    column_labels : TYPE, optional
+        DESCRIPTION. The default is None.
+    functions : TYPE, optional
+        DESCRIPTION. The default is None.
+    column_numbers : TYPE, optional
+        DESCRIPTION. The default is None.
+    start_row : TYPE, optional
+        DESCRIPTION. The default is 0.
+    end_row : TYPE, optional
+        DESCRIPTION. The default is 0.
+    separator : TYPE, optional
+        DESCRIPTION. The default is None.
+    unique_variable_indices : TYPE, optional
+        DESCRIPTION. The default is None.
+    xy_plot_indices : TYPE, optional
+        DESCRIPTION. The default is None.
+    file_type : TYPE, optional
+        DESCRIPTION. The default is None.
+    num_files : TYPE, optional
+        DESCRIPTION. The default is 1.
+    unique_variables : TYPE, optional
+        DESCRIPTION. The default is None.
+    figure_rcParams : dict, optional
+        A dictionary containing any changes to matplotlib's rcParams.
+        The default is None.
+    excel_writer_formats : dict(dict or openpyxl.style.NamedStyle), optional
+        A dictionary of styles used to format the output Excel workbook.
+        The following keys are used when writing data from files to Excel:
+            'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
+            'columns_even', 'columns_odd'
+        The following keys are used when writing data fit results to Excel:
+            'fitting_header_even', 'fitting_header_odd', 'fitting_subheader_even',
+            'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
+            'fitting_descriptors_even', 'fitting_descriptors_odd'
+        The values for the dictionaries must be either dictionaries, with
+        keys corresponding to keyword inputs for openpyxl's NamedStyle, or NamedStyle
+        objects.
+    sample_separation : TYPE, optional
+        DESCRIPTION. The default is 0.
+    entry_separation : TYPE, optional
+        DESCRIPTION. The default is 0.
+    label_entries : bool, optional
+        If True, will add a number to the column labels for each
+        entry in a sample.
+
     Attributes
     ----------
     lengths : list
@@ -94,57 +143,6 @@ class DataSource:
             sample_separation=0,
             label_entries=True):
         """
-        DataSource initialization.
-
-        Parameters
-        ----------
-        name : TYPE
-            DESCRIPTION.
-        column_labels : TYPE, optional
-            DESCRIPTION. The default is None.
-        functions : TYPE, optional
-            DESCRIPTION. The default is None.
-        column_numbers : TYPE, optional
-            DESCRIPTION. The default is None.
-        start_row : TYPE, optional
-            DESCRIPTION. The default is 0.
-        end_row : TYPE, optional
-            DESCRIPTION. The default is 0.
-        separator : TYPE, optional
-            DESCRIPTION. The default is None.
-        unique_variable_indices : TYPE, optional
-            DESCRIPTION. The default is None.
-        xy_plot_indices : TYPE, optional
-            DESCRIPTION. The default is None.
-        file_type : TYPE, optional
-            DESCRIPTION. The default is None.
-        num_files : TYPE, optional
-            DESCRIPTION. The default is 1.
-        unique_variables : TYPE, optional
-            DESCRIPTION. The default is None.
-        figure_rcParams : dict, optional
-            A dictionary containing any changes to matplotlib's rcParams.
-            The default is None.
-        excel_writer_formats : dict(dict or openpyxl.style.NamedStyle), optional
-            A dictionary of styles used to format the output Excel workbook.
-            The following keys are used when writing data from files to Excel:
-                'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
-                'columns_even', 'columns_odd'
-            The following keys are used when writing data fit results to Excel:
-                'fitting_header_even', 'fitting_header_odd', 'fitting_subheader_even',
-                'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
-                'fitting_descriptors_even', 'fitting_descriptors_odd'
-            The values for the dictionaries must be either dictionaries, with
-            keys corresponding to keyword inputs for openpyxl's NamedStyle, or NamedStyle
-            objects.
-        sample_separation : TYPE, optional
-            DESCRIPTION. The default is 0.
-        entry_separation : TYPE, optional
-            DESCRIPTION. The default is 0.
-        label_entries : bool, optional
-            If True, will add a number to the column labels for each
-            entry in a sample.
-
         Raises
         ------
         ValueError
@@ -166,7 +164,6 @@ class DataSource:
 
         # attributes that will be set later
         self.lengths = None
-        self.excel_formats = None
         self.references = None
 
         self.start_row = start_row
@@ -243,8 +240,11 @@ class DataSource:
         else:
             self.unique_variable_indices = unique_variable_indices
 
-        while len(self.unique_variables) > len(self.unique_variable_indices):
-            self.unique_variable_indices.append(max(self.unique_variable_indices) + 1)
+        # ensure all unique variables have a unique column index
+        unused_indices = (i for i in range(len(self.unique_variables)) if i not in self.unique_variable_indices)
+        for i in range(len(self.unique_variables)):
+            if i > len(self.unique_variable_indices) - 1:
+                self.unique_variable_indices.append(next(unused_indices))
 
         # x and y indices for plotting
         if isinstance(xy_plot_indices, (list, tuple)) and len(xy_plot_indices) >= 2:
@@ -435,10 +435,7 @@ class DataSource:
 
 
     def _merge_references(self, dataframes, references):
-        """
-        Merges all the references for the merged dataframe.
-
-        """
+        """Merges all the references for the merged dataframe."""
 
         functions = (self.calculation_functions
                      + self.sample_summary_functions
@@ -476,7 +473,7 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(list(list(pd.DataFrame)))
             A list of lists of lists of dataframes.
         import_values : list
             A list of lists of dictionaries containing the values used to import the data
@@ -514,7 +511,7 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(list(list(pd.DataFrame)))
             A list of lists of lists of dataframes.
         import_values : list
             A list of lists of dictionaries containing the values used to import the data
@@ -522,7 +519,7 @@ class DataSource:
 
         Returns
         -------
-        new_dataframes : list
+        new_dataframes : list(list(list(pd.DataFrame)))
             The list of lists of lists of dataframes, after performing the
             preprocessing.
         new_import_values : list
@@ -574,12 +571,12 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(list(list(pd.DataFrame)))
             A nested list of list of lists of dataframes.
 
         Returns
         -------
-        merged_dataframes : list
+        merged_dataframes : list(pd.DataFrame)
             A list of dataframes.
 
         """
@@ -610,7 +607,7 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(pd.DataFrame)
             A list of dataframes, one per dataset.
         index : int
             If index is 0, will perform the Excel functions; if index is 1, will
@@ -618,7 +615,7 @@ class DataSource:
 
         Returns
         -------
-        processed_dataframes : list
+        processed_dataframes : list(pd.DataFrame)
             The list of dataframes after processing.
 
         Notes
@@ -654,12 +651,12 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(pd.DataFrame)
             A list of dataframes, one for each dataset.
 
         Returns
         -------
-        list
+        list(pd.DataFrame)
             The list of dataframes after processing.
 
         """
@@ -675,12 +672,12 @@ class DataSource:
 
         Parameters
         ----------
-        dataframes : list
+        dataframes : list(pd.DataFrame)
             A list of dataframes, one for each dataset.
 
         Returns
         -------
-        list
+        list(pd.DataFrame)
             The list of dataframes after processing.
 
         """
@@ -694,13 +691,13 @@ class DataSource:
 
         Parameters
         ----------
-        merged_dataframes : list
+        merged_dataframes : list(pd.DataFrame)
             A list of dataframes. Each dataframe will be split into lists of lists
             of dataframes.
 
         Returns
         -------
-        split_dataframes : list
+        split_dataframes : list(list(list(pd.DataFrame)))
             A list of lists of lists of dataframes, corresponding to entries
             and samples within each dataset.
 
@@ -731,9 +728,7 @@ class DataSource:
             for sample in dataset:
                 for j, entry in enumerate(sample):
                     entry.columns = list(range(len(entry.columns))) #TODO later assign column names to the dataframes here
-                    dtypes = {
-                        col: next(dataset_dtypes[i]) for col in entry.columns
-                    }
+                    dtypes = {col: next(dataset_dtypes[i]) for col in entry.columns}
                     sample[j] = entry.astype(dtypes)
 
         return split_dataframes

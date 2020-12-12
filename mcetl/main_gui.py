@@ -1006,7 +1006,7 @@ def _move_files(files):
 
 def launch_main_gui(data_sources, fitting_mpl_params=None):
     """
-    Goes through all steps to find files, process/fit/plot the data, and save to Excel.
+    Goes through all steps to find files, process/fit/plot the imported data, and save to Excel.
 
     Parameters
     ----------

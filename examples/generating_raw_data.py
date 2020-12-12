@@ -2,7 +2,7 @@
 """This is an example program to show how to generate example raw data using mcetl.
 
 @author: Donald Erb
-Created on Sat Aug 22 13:49:50 2020
+Created on Aug 22, 2020
 
 """
 

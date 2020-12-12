@@ -363,14 +363,19 @@ def validate_inputs(window_values, integers=None, floats=None,
     return True
 
 
-def validate_sheet_name(name):
+def validate_sheet_name(sheet_name):
     r"""
     Ensures that the desired Excel sheet name is valid.
 
     Parameters
     ----------
-    name : str
+    sheet_name : str
         The desired sheet name.
+
+    Returns
+    -------
+    sheet_name : str
+        The input sheet name. Only returned if it is valid.
 
     Raises
     ------
@@ -382,12 +387,14 @@ def validate_sheet_name(name):
 
     forbidden_characters = ('\\', '/', '?', '*', '[', ']', ':')
 
-    if len(name) > 31:
+    if len(sheet_name) > 31:
         raise ValueError('Sheet name must be less than 32 characters.')
-    elif any(char in name for char in forbidden_characters):
+    elif any(char in sheet_name for char in forbidden_characters):
         raise ValueError(
             f'Sheet name cannot have any of the following characters:\n{forbidden_characters}'
         )
+
+    return sheet_name
 
 
 def show_dataframes(dataframes, title='Raw Data'):
