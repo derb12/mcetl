@@ -19,21 +19,22 @@ import numpy as np
 import PySimpleGUI as sg
 from scipy import signal
 
-from . import fitting_utils, models
+from . import fitting_utils as f_utils
+from . import models
 from .. import plot_utils, utils
 
 
 def peak_transformer():
     """
-    Provides the expressions needed to convert peak width and height to sigma and amplitude.
+    The expressions needed to convert peak width, height, and mode to model parameters.
 
     Returns
     -------
-    dict
+    dict(str: dict(str: function))
         A dictionary containing the string for lmfit models as keys, and
-        a list as the values. The list contains the equations to estimate sigma,
-        amplitude/height, and peak center respectively, using input heights,
-        full-width-at-half-maximums, and peak mode (x-position at max y).
+        a dictionary as the values, containing the equations to estimate
+        parameters of the model using input heights, full-width-at-half-maximums,
+        and peak mode (x-position at max y).
 
     Notes
     -----
@@ -45,116 +46,91 @@ def peak_transformer():
     Most equations for approximating the amplitude and sigma were gotten from:
     http://openafox.com/science/peak-function-derivations.html
 
-    The equations for the Breit-Wigner-Fano and Breit-Wigner-Fano_alt models were
-    derived personally, with the formulas for BWF_alt
+    The equations for the BreitWignerModel and BreitWignerFanoModel models were
+    derived personally, with the formulas for BreitWignerFanoModel
     for fwhm = 2 * sigma * (1 + q**2) / ((q**2) - 1 + 1e-19), where the 1e-19 is in
     case q = 1 or q = -1, and the formula for height = maximum / (1 + 1 / q**2).
 
     """
 
-    models_dict = {}
-    #
-    models_dict['Gaussian'] = (
-        lmfit.models.GaussianModel,
-        {
+    models_dict = {
+        # lmfit.models.GaussianModel
+        'GaussianModel': {
             'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
             'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Lorentzian'] = (
-        lmfit.models.LorentzianModel,
-        {
+        },
+        # lmfit.models.LorentzianModel
+        'LorentzianModel': {
             'sigma': lambda h, w, *args: w / 2,
             'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Voigt'] = (
-        lmfit.models.VoigtModel,
-        {
+        },
+        # lmfit.models.VoigtModel
+        'VoigtModel': {
             'sigma': lambda h, w, *args: w / 3.6013,
             'gamma': lambda h, w, *args: w / 3.6013,
             'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Pseudo-Voigt'] = (
-        lmfit.models.PseudoVoigtModel,
-        {
+        },
+        # lmfit.models.PseudoVoigtModel
+        'PseudoVoigtModel': {
             'sigma': lambda h, w, *args: w / 2,
             'amplitude': lambda h, w, *args: h * w * 1.269,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Pearson7'] = (
-        lmfit.models.Pearson7Model,
-        {
+        },
+        # lmfit.models.Pearson7Model
+        'Pearson7Model': {
             'sigma': lambda h, w, *args: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
             'amplitude': lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Moffat'] = (
-        lmfit.models.MoffatModel,
-        {
+        },
+        # lmfit.models.MoffatModel
+        'MoffatModel': {
             'sigma': lambda h, w, *args: w / 2,
             'amplitude': lambda h, w, *args: h,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Skewed Gaussian'] = (
-        lmfit.models.SkewedGaussianModel,
-        {
+        },
+        # lmfit.models.SkewedGaussianModel
+        'SkewedGaussianModel': {
             'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
             'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Skewed Voigt'] = (
-        lmfit.models.SkewedVoigtModel,
-        {
+        },
+        # lmfit.models.SkewedVoigtModel
+        'SkewedVoigtModel': {
             'sigma': lambda h, w, *args: w / 3.6013,
             'gamma': lambda h, w, *args: w / 3.6013,
             'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Split Lorentzian'] = (
-        lmfit.models.SplitLorentzianModel,
-        {
+        },
+        # lmfit.models.SplitLorentzianModel
+        'SplitLorentzianModel': {
             'sigma': lambda h, w, *args: w / 2,
             'sigma_r': lambda h, w, *args: w / 2,
             'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
             'center': lambda h, w, m, *args: m
-        }
-    )
-    models_dict['Log-normal'] = (
-        lmfit.models.LognormalModel,
-        {
+        },
+        # lmfit.models.LognormalModel
+        'LognormalModel': {
             'sigma': _lognormal_sigma,
             'amplitude': _lognormal_amplitude,
             'center': _lognormal_center
-        }
-    )
-    models_dict['Breit-Wigner-Fano'] = ( # assumes q = 1 at init
-        lmfit.models.BreitWignerModel,
-        {
+        },
+        # lmfit.models.BreitWignerModel
+        'BreitWignerModel': { # assumes q = 1 at init
             'sigma': lambda h, w, *args: w, # leave alone since fwhm=inf for q=1
             'amplitude': lambda h, w, *args: h / 2,
             'center': lambda h, w, m, *args: m - w / 2,
-        }
-    )
-    models_dict['Breit-Wigner-Fano_alt'] = ( # assumes q = -3 at init
-        models.BreitWignerFanoModel,
-        {
+        },
+        # mcetl.fitting.models.BreitWignerFanoModel
+        'BreitWignerFanoModel': { # assumes q = -3 at init
             'sigma': lambda h, w, *args: w * 4 / 10,
             'height': lambda h, w, *args: h / (1 + 1 / 3**2),
             'center': lambda h, w, m, *args: m - (w * 4 / 10) / (-3),
         }
-    )
+    }
 
-    # sort the keys alphabetically before returning
     return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
 
@@ -384,15 +360,13 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     for i, peak_center in enumerate(peak_centers, start_num):
         prefix = f'peak_{i + 1}_'
         peak_width = peak_widths[i]
-        peak_type = next(peak_list)
+        peak_type = f_utils.get_model_name(next(peak_list))
 
         if peak_type not in models_dict:
-            raise NotImplementedError(
-                f'"{peak_type}" is not implemented in the peak_transformer function.'
-            )
+            raise NotImplementedError(f'{peak_type} is not an implemented peak model.')
 
-        peak_model = models_dict[peak_type][0](prefix=prefix)
-        amplitude_key = 'amplitude' if peak_type != 'Breit-Wigner-Fano_alt' else 'height'
+        peak_model = f_utils.get_model_object(peak_type)(prefix=prefix)
+        amplitude_key = 'amplitude' if peak_type != 'BreitWignerFanoModel' else 'height'
 
         if use_middles:
             peak_mask = (x >= middles[i]) & (x <= middles[i + 1])
@@ -411,7 +385,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                                       'max': 0 if peak_height < 0 else np.inf},
                         'sigma': {'min': min_sigma, 'max': max_sigma}}
 
-        if peak_type != 'Log-normal':
+        if peak_type != 'LognormalModel':
             param_kwargs['center'] = {'value': peak_center,
                                       'min': peak_center - center_offset,
                                       'max': peak_center + center_offset}
@@ -425,21 +399,21 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             param_kwargs['sigma']['value'] = sigma
             param_kwargs['amplitude']['value'] = _lognormal_amplitude(peak_height, peak_width,
                                                                       peak_center)
-            param_kwargs['x_mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
+            param_kwargs['mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
                                       'min': peak_center - center_offset,
                                       'max': peak_center + center_offset}
             # TODO setting mode doesn't seem to constrain center and sigma...
-            peak_model.set_param_hint('x_mode', **param_kwargs['x_mode'])
+            peak_model.set_param_hint('mode', **param_kwargs['mode'])
 
         peak_model.set_param_hint('center', **param_kwargs['center'])
         peak_model.set_param_hint(amplitude_key, **param_kwargs['amplitude'])
         peak_model.set_param_hint('sigma', **param_kwargs['sigma'])
 
-        if peak_type in ('Voigt', 'Skewed Voigt') and vary_Voigt:
+        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_Voigt:
             peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
                                       vary=True, expr='')
 
-        if peak_type != 'Log-normal':
+        if peak_type != 'LognormalModel':
             default_params = peak_model.guess(y_peak, x_peak, negative=peak_height < 0)
         else:
             default_params = {}
@@ -448,7 +422,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         if debug:
             ax1.plot(x_peak, peak_model.eval(peak_params, x=x_peak))
 
-        lone_peak = False if peak_type != 'Log-normal' else True
+        lone_peak = False if peak_type != 'LognormalModel' else True
         # peak_width < middles checks whether the peak is isolated or near other peaks
         if peak_heights is None and peak_width < (middles[i + 1] - middles[i]):
             temp_fit = peak_model.fit(y_peak, peak_params, x=x_peak,
@@ -472,7 +446,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 peak_params[f'{prefix}center'].value = param_kwargs['center']['value']
 
         if not lone_peak: # calculates parameters using equations from peak_transformer
-            for parameter, equation in models_dict[peak_type][1].items():
+            for parameter, equation in models_dict[peak_type].items():
                 peak_params[f'{prefix}{parameter}'].value = equation(peak_height, peak_width,
                                                                      peak_center)
 
@@ -514,19 +488,17 @@ def _generate_composite_model(params_dict):
 
     """
 
-    models_dict = peak_transformer()
-
     params = None
     composite_model = None
-    for prefix in params_dict:
-        peak_model = models_dict[params_dict[prefix][0]][0](prefix=prefix)
-        for param in params_dict[prefix][1]:
+    for prefix, param_values in params_dict.items():
+        peak_model = f_utils.get_model_object(param_values[0])(prefix=prefix)
+        for param in param_values[1]:
             hint_dict = {
-                'value' : params_dict[prefix][1][param].value,
-                'min' : params_dict[prefix][1][param].min,
-                'max' : params_dict[prefix][1][param].max,
-                'vary' : params_dict[prefix][1][param].vary,
-                'expr' : params_dict[prefix][1][param].expr
+                'value' : param_values[1][param].value,
+                'min' : param_values[1][param].min,
+                'max' : param_values[1][param].max,
+                'vary' : param_values[1][param].vary,
+                'expr' : param_values[1][param].expr
             }
             peak_model.set_param_hint(param, **hint_dict)
         peak_params = peak_model.make_params()
@@ -760,7 +732,7 @@ def _re_sort_prefixes(params_dict):
 
     centers = []
     for prefix in params_dict:
-        if params_dict[prefix][0] != 'Lognormal':
+        if params_dict[prefix][0] != 'LognormalModel':
             centers.append([prefix, params_dict[prefix][1][f'{prefix}center'].value])
         else:
             mean = params_dict[prefix][1][f'{prefix}center'].value
@@ -1184,13 +1156,10 @@ def fit_peaks(
         for model, values in output['individual_peaks'][-1].items():
             if 'peak' in model:
                 numeric_calcs = {
-                    'numeric area': fitting_utils.numerical_area(fit_result.userkws['x'],
-                                                                 values),
-                    'numeric fwhm': fitting_utils.numerical_fwhm(fit_result.userkws['x'],
-                                                                 values),
-                    'numeric extrema': fitting_utils.numerical_extrema(values),
-                    'numeric x-at-extrema': fitting_utils.numerical_mode(fit_result.userkws['x'],
-                                                                         values)
+                    'numeric area': f_utils.numerical_area(fit_result.userkws['x'], values),
+                    'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], values),
+                    'numeric extremum': f_utils.numerical_extremum(values),
+                    'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], values)
                 }
                 for calc, value in numeric_calcs.items():
                     output['best_values'][-1].append(
@@ -1494,10 +1463,10 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         models_dict = peak_transformer()
-        display_models = [model.replace('Model', '') for model in models_dict.keys()]
-        try:
-            initial_model = display_models[list(models_dict.keys()).index(peak_model)]
-        except ValueError:
+        display_models = [f_utils.get_gui_name(model) for model in models_dict.keys()]
+        if f_utils.get_gui_name(peak_model) in display_models:
+            initial_model = f_utils.get_gui_name(peak_model)
+        else:
             initial_model = display_models[0]
 
         layout = [
@@ -1567,11 +1536,11 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                 height = peak[1]
                 width = peak[2]
                 center = peak[3]
-                peak_model = models_dict[peak[0]][0](prefix=f'peak_{i + 1}')
-                for param, equation in models_dict[peak[0]][1].items():
-                    peak_model.set_param_hint(param, value=equation(height, width, center))
-
+                peak_model = f_utils.get_model_object(peak[0])(prefix=f'peak_{i + 1}')
                 peak_params = peak_model.make_params()
+                for param, equation in models_dict[peak[0]].items():
+                    peak_params[f'peak_{i + 1}{param}'].set(value=equation(height, width, center))
+
                 peak = peak_model.eval(peak_params, x=self.x)
                 self.axis.plot(self.x, peak + self.background, ':',
                                lw=2, label=f'peak {i + 1}')
@@ -1628,7 +1597,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                     except ValueError:
                         self.window['peak_width'].update('')
                     else:
-                        selected_model = self.window['peak_model'].get()
+                        selected_model = f_utils.get_model_name(self.window['peak_model'].get())
 
                         #[lmfit model, peak height, peak width, peak center]
                         peak_center = event.xdata
@@ -1804,7 +1773,7 @@ def plot_fit_results(fit_result, label_rsq=False, plot_initial=False, return_fig
         ax_main.text(
             plot_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
             plot_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
-            f'R$^2$= {fitting_utils.r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
+            f'R$^2$= {f_utils.r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
             ha='left', va='top'
         )
     ax_resid.tick_params(labelbottom=False, bottom=False, which='both')

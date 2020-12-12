@@ -15,13 +15,15 @@ and is only imported if saving fit results to Excel.
 from collections import defaultdict
 import itertools
 from pathlib import Path
+import traceback
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
-from . import fitting_utils, peak_fitting
+from . import fitting_utils as f_utils
+from . import peak_fitting
 from .. import plot_utils, utils
 from ..excel_writer import ExcelWriterHandler
 # openpyxl is imported within fit_to_excel
@@ -256,7 +258,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
             ]
         )
 
-        r_sq, r_sq_adj = fitting_utils.r_squared_model_result(fit_result)
+        r_sq, r_sq_adj = f_utils.r_squared_model_result(fit_result)
         results_text = (f'Fit Converged: {fit_result.success}\nR\u00B2: {r_sq:.5f}\n'
                         f'adjusted R\u00B2: {r_sq_adj:.5f}\n\n{fit_result.fit_report()}')
 
@@ -312,8 +314,9 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
                         line.set_ydata(line.get_ydata() + self.background)
                     self.axis.plot(self.x, self.background, 'k-', label='background_')
 
-                if not values['hide_legend']:
-                    self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+                self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+                if values['hide_legend']:
+                    self.axis.get_legend().set_visible(False)
                 self.axis.relim()
                 self.axis.autoscale()
                 self.figure.canvas.draw_idle()
@@ -401,11 +404,14 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
 
     """
 
-    if (any(model in ('Voigt', 'Skewed Voigt') for model in default_inputs['model_list'])
-            or default_inputs['default_model'] in ('Voigt', 'Skewed Voigt')):
-        disable_vary_Voigt = False
-    else:
-        disable_vary_Voigt = True
+    disable_vary_Voigt = True
+    for model in itertools.chain(default_inputs['model_list'], default_inputs['default_model']):
+        try:
+            if f_utils.get_model_name(model) in ('VoigtModel', 'SkewedVoigtModel'):
+                disable_vary_Voigt = False
+                break
+        except KeyError:
+            pass
 
     automatic_layout = [
         [sg.Text('Peak x values, separated by commas (leave blank to just use peak finding):')],
@@ -429,6 +435,7 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
                 ], key='manual_tab', visible=default_inputs['manual_peaks'])]
         ], key='tab'
     )
+    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.peak_transformer()]
     auto_bkg_layout = [
         [sg.Text('Model for fitting background:'),
             sg.Combo(['PolynomialModel','ExponentialModel'], key='bkg_type',
@@ -458,7 +465,7 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
 
     layout = [
         [sg.Text('Default peak model:'),
-         sg.Combo(list(peak_fitting.peak_transformer().keys()), key='default_model', readonly=True,
+         sg.Combo(peak_models, key='default_model', readonly=True,
                     default_value=default_inputs['default_model'], enable_events=True)],
         [sg.Check('Vary Voigt gamma parameter', key='vary_Voigt', disabled=disable_vary_Voigt,
                     default=default_inputs['vary_Voigt'],
@@ -743,7 +750,7 @@ def _process_fitting_kwargs(dataframe, values):
     peaks_df['total fit'] = fit_result[-1].best_fit
 
     # Creation of dataframe for descriptions of the fitting
-    r_sq, adj_r_sq = fitting_utils.r_squared_model_result(fit_result[-1])
+    r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result[-1])
     # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
     # set to 1; same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
@@ -806,8 +813,8 @@ def fit_dataframe(dataframe, user_inputs=None):
     while gui_values is not None:
         try:
             individual_models, *fit_results = _process_fitting_kwargs(dataframe, gui_values)
-        except Exception as e: # error during fitting
-            sg.popup(f'Error during fitting:\n    {repr(e)}\n')
+        except: # error during fitting
+            sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
             if gui_values['confirm_results'] and not ResultsPlot(fit_results[0][-1]).event_loop():
@@ -900,7 +907,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'integers': validations['peak_fitting']['integers'][:2],
     }
 
-    available_models = peak_fitting.peak_transformer()
+    peak_models = peak_fitting.peak_transformer()
+    voigt_models = [f_utils.get_gui_name(model) for model in ('VoigtModel', 'SkewedVoigtModel')]
 
     window, default_inputs = _create_fitting_gui(dataframe, user_inputs)
     peak_list = default_inputs['selected_peaks'] # Values if using manual peak selection
@@ -992,15 +1000,15 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             else:
                 # updates values in the window from the peak selector plot
                 sorted_peaks = [[val[0], val[3]] for val in sorted(peak_list, key=lambda x: x[3])]
-                temp_model_list = [model for model, center in sorted_peaks]
+                temp_model_list = [f_utils.get_gui_name(model) for model, _ in sorted_peaks]
                 window['model_list'].update(value=', '.join(temp_model_list))
                 window['peak_list'].update(
-                    value=', '.join([str(np.round(center, 2)) for model, center in sorted_peaks])
+                    value=', '.join([str(np.round(center, 2)) for _, center in sorted_peaks])
                 )
 
-                if any(model in ('Voigt', 'Skewed Voigt') for model in temp_model_list):
+                if any(model in voigt_models for model in temp_model_list):
                     window['vary_Voigt'].update(disabled=False)
-                elif values['default_model'] not in ('Voigt', 'Skewed Voigt'):
+                elif values['default_model'] not in voigt_models:
                     window['vary_Voigt'].update(disabled=True, value=False)
 
             window.un_hide()
@@ -1050,11 +1058,15 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['poly_n'].update(visible=False, value='0')
 
         elif event in ('model_list', 'default_model'):
-            temp_model_list = [
-                entry.strip() for entry in values['model_list'].split(',') if entry
-            ]
-            if (any(model in ('Voigt', 'Skewed Voigt') for model in temp_model_list)
-                    or values['default_model'] in ('Voigt', 'Skewed Voigt')):
+            temp_model_list = []
+            for entry in values['model_list'].split(','):
+                if entry:
+                    try:
+                        temp_model_list.append(f_utils.get_gui_name(entry.strip()))
+                    except KeyError:
+                        pass
+            if (any(model in voigt_models for model in temp_model_list)
+                    or values['default_model'] in voigt_models):
                 window['vary_Voigt'].update(disabled=False)
             else:
                 window['vary_Voigt'].update(disabled=True, value=False)
@@ -1068,8 +1080,18 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['num_resid_fits'].update(visible=False, value=5)
 
         elif event =='Fit' and utils.validate_inputs(values, **validations['peak_fitting']):
-            if any(entry not in available_models for entry in values['model_list']):
-                sg.popup('Need to correct the terms in the model list', title='Error')
+            bad_models = []
+            for entry in values['model_list']:
+                try:
+                   if f_utils.get_model_name(entry) not in peak_models:
+                       bad_models.append(entry)
+                except KeyError:
+                    bad_models.append(entry)
+            if bad_models:
+                sg.popup(
+                    f'Need to correct terms in the model list:\n  {", ".join(bad_models)}\n',
+                    title='Error'
+                )
             elif values['automatic_peaks'] and not _find_peaks(dataframe, values):
                 sg.popup(
                     ('No peaks found in fitting range. Either manually enter \n'
