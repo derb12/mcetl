@@ -5,17 +5,17 @@ Since no data is input into the function, it will launch a window
 that will prompt the user to select the data files to open and plot.
 
 @author: Donald Erb
-Created on Sat Aug 22 17:34:39 2020
+Created on Aug 22, 2020
 
 """
 
 from mcetl.plotting import launch_plotting_gui
-from mcetl import utils, plot_utils
+#from mcetl import utils, plot_utils
 #import PySimpleGUI as sg
 
 #sg.theme('darkblue10') # Changes overall theme for all windows.
 #utils.PROCEED_COLOR = ('white', 'green') # Changes the color of the button used to move to the next window.
-#plot_utils.CANVAS_SIZE = (500, 500) # Changes the size of the figure within the GUI.
+#plot_utils.CANVAS_SIZE = (800, 500) # Changes the size of the figure within the GUI.
 
 # changes for matploblib's rcParams to change the plot format
 changes = {

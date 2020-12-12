@@ -5,7 +5,7 @@ The steps for processing are more clearly broken down so that each step can be u
 
 
 @author: Donald Erb
-Created on Sat Aug 22 13:49:50 2020
+Created on Aug 22, 2020
 
 """
 
@@ -146,7 +146,7 @@ calculation2 = CalculationFunction('calc2', ['x', 'y'], func2, 1, {'offset': 5})
 calculation3 = CalculationFunction('calc3', ['calc2'], func3, 'calc2', {'offset': 1})
 separator = PreprocessFunction('sep', 'x', split, None)
 sum1 = SummaryFunction('sum', 'x', f, added_columns=2)
-sum3 = SummaryFunction('sum3', 'x', f2, sample_summary=False)
+sum3 = SummaryFunction('sum3', 'x', f2, 1, sample_summary=False)
 
 #Data Source
 xrd = DataSource(

@@ -2,7 +2,7 @@
 """Example script to show how to use mcetl.launch_main_gui with defined DataSource objects.
 
 @author: Donald Erb
-Created on Sat Aug 22 13:01:37 2020
+Created on Aug 22, 2020
 
 """
 
