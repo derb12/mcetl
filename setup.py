@@ -20,7 +20,6 @@ requirements = [
 ]
 
 setup_requirements = [
-    #'pytest-runner',
 ]
 
 test_requirements = [
@@ -49,12 +48,8 @@ setup(
     install_requires=requirements,
     extras_require={
         'extras': [
+            'pillow>=6.2',
             'xlrd'
-        ],
-        'docs': [
-            'sphinx',
-            'sphinx-rtd-theme',
-            'sphinx-autoapi'
         ]
     },
     license="BSD 3-clause",
