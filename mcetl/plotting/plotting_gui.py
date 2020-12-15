@@ -49,6 +49,17 @@ import PySimpleGUI as sg
 
 from .. import plot_utils, utils
 
+# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
+# minimum Pillow version is v6.2
+try:
+    from PIL import __version__ as _pillow_version
+    if int(''.join(_pillow_version.split('.')[:2])) >= 62:
+        _HAS_PIL = True
+    else:
+        _HAS_PIL = False
+    del _pillow_version
+except ImportError:
+    _HAS_PIL = False
 
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
@@ -487,33 +498,30 @@ def _save_image_options(figure):
                         file_extension = selected_extension.lower()
 
                 file_name = str(Path(directory, file_path.stem + '.' + file_extension))
-                layout_2, param_types, use_pillow = _get_image_options(
+                layout_2, param_types = _get_image_options(
                     extension_mapping.get(file_extension.lower(), '')
                 )
 
                 if not layout_2:
-                    save_dict = {}
+                    pil_kwargs = None
                 else:
                     window_2 = sg.Window(f'Options for {file_extension.upper()}',
                                          layout_2)
-                    event_2, save_dict = window_2.read(close=True)
+                    event_2, pil_kwargs = window_2.read(close=True)
                     window_2 = None
                     if event_2 in (sg.WIN_CLOSED, 'Back'):
                         window_1.un_hide()
                         continue
 
-                for param in param_types:
-                    save_dict[param] = param_types[param](save_dict[param])
+                for param, function in param_types.items():
+                    pil_kwargs[param] = function(pil_kwargs[param])
+
+                if (extension_mapping[file_extension.lower()] == 'TIFF'
+                        and pil_kwargs['compression'] != 'jpeg'):
+                    pil_kwargs.pop('quality')
+
                 try:
-                    if not use_pillow:
-                        figure.savefig(file_name, **save_dict)
-                    else:
-                        if ((extension_mapping[file_extension.lower()] == 'TIFF')
-                                and (save_dict['compression'] != 'jpeg')):
-                            save_dict.pop('quality')
-
-                        figure.savefig(file_name, pil_kwargs=save_dict)
-
+                    figure.savefig(file_name, pil_kwargs=pil_kwargs)
                     sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
                     break
 
@@ -521,9 +529,7 @@ def _save_image_options(figure):
                     sg.popup(
                         (f'Save failed...\n\nSaving to "{file_extension}" may not '
                          'be supported by matplotlib, or an additional error may '
-                         'have occured.\nIf trying to save to tiff/tif, try saving '
-                         'without compression.'
-                         f'\n\nError:\n    {repr(e)}\n'),
+                         f'have occured.\n\nError:\n    {repr(e)}\n'),
                         title='Error'
                     )
                     window_1.un_hide()
@@ -535,6 +541,9 @@ def _save_image_options(figure):
 def _get_image_options(extension):
     """
     Constructs the layout for options to save to the given image extension.
+
+    Allows setting options for compressing and/or setting the quality of the
+    output image.
 
     Parameters
     ----------
@@ -550,11 +559,16 @@ def _get_image_options(extension):
         and values corresponding to a function that will convert the key values
         to a desired output. Usually used to change the type from string to
         the desired type.
-    use_pillow : bool
-        If True, will pass the dictionary from the PySimpleGUI window as "pil_kwargs";
-        if False, will simply pass the dictionary as "**kwargs".
+
+    Notes
+    -----
+    If Pillow is not installed (was not a requirement of matplotlib until v3.3.0),
+    then no options are given to compress/optimize the output image.
 
     """
+
+    if not _HAS_PIL:
+        return [], {}
 
     if extension == 'JPEG':
         extension_layout = [
@@ -565,7 +579,6 @@ def _get_image_options(extension):
             [sg.Check('Progressive', key='progressive')]
         ]
         param_types = {'quality': int}
-        use_pillow = True
 
     elif extension == 'PNG':
         extension_layout = [
@@ -574,7 +587,6 @@ def _get_image_options(extension):
             [sg.Check('Optimize', True, key='optimize')]
         ]
         param_types = {'compress_level': int}
-        use_pillow = True
 
     elif extension == 'TIFF':
         extension_layout = [
@@ -587,12 +599,10 @@ def _get_image_options(extension):
                        size=(30, 30), key='quality', orientation='h')],
         ]
         param_types = {'quality': int, 'compression': _convert_to_pillow_kwargs}
-        use_pillow = True
 
     else:
         extension_layout = []
         param_types = {}
-        use_pillow = False
 
     if extension_layout:
         layout = [
@@ -606,7 +616,7 @@ def _get_image_options(extension):
     else:
         layout = []
 
-    return layout, param_types, use_pillow
+    return layout, param_types
 
 
 def _convert_to_pillow_kwargs(arg):
