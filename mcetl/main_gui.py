@@ -262,19 +262,13 @@ def _select_processing_options(data_sources):
 
     """
 
-    if get_save_location().joinpath('previous_search.json').exists():
-        last_search_disabled = False
-    else:
-        last_search_disabled = True
-
-    #Selection of check boxes
     options_layout = [
         [sg.Text('Select Input', relief='ridge', justification='center',
                  size=(40, 1))],
         [sg.Radio('Multiple Files', 'options_radio', default=True,
                   key='multiple_files', enable_events=True)],
         [sg.Check('Use Previous Search', key='use_last_search',
-                  disabled=last_search_disabled, pad=((40, 0), (1, 0)))],
+                  disabled=True, pad=((40, 0), (1, 0)))],
         [sg.Radio('Single File', 'options_radio', key='single_file',
                   enable_events=True)],
         [sg.Text('Select All Boxes That Apply', relief='ridge',
@@ -310,24 +304,36 @@ def _select_processing_options(data_sources):
 
     layout = [
         [sg.TabGroup([
-            [sg.Tab('Options', options_layout, key='tab1'),
-             sg.Tab('Data Sources', [
+            [sg.Tab('Data Sources', [
                 [sg.Text('Select Data Source:', relief='ridge',
                          justification='center', size=(40, 1))],
                 *data_sources_radios,
-             ], key='tab2')]
+             ], key='tab1'),
+             sg.Tab('Options', options_layout, key='tab2')]
         ], tab_background_color=sg.theme_background_color(), key='tab')],
         [sg.Button('Next', bind_return_key=True,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
     window = sg.Window('Main Menu', layout)
-
+    data_source = None
     while True:
         event, values = window.read()
 
         if event == sg.WIN_CLOSED:
             utils.safely_close_window(window)
+
+        elif event.startswith('source'):
+            for source in data_sources:
+                if values[f'source_{source.name}']:
+                    data_source = source
+                    break
+
+            if (values['multiple_files']
+                    and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
+                window['use_last_search'].update(disabled=False)
+            else:
+                window['use_last_search'].update(value=False, disabled=True)
 
         elif event == 'Next':
             if any((values['fit_data'], values['plot_python'], values['save_excel'],
@@ -347,12 +353,11 @@ def _select_processing_options(data_sources):
             elif values['move_files']:
                 break
             else:
-                sg.popup('Please select a data processing option.\n',
-                         title='Error')
+                sg.popup('Please select a data processing option.\n', title='Error')
 
-        if event == 'multiple_files':
-            if not last_search_disabled:
-                window['use_last_search'].update(disabled=False)
+        if (event == 'multiple_files' and data_source is not None
+                and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
+            window['use_last_search'].update(disabled=False)
 
         elif event == 'single_file':
             window['use_last_search'].update(value=False, disabled=True)
@@ -400,7 +405,7 @@ def _select_processing_options(data_sources):
 
     # removes unneeded keys
     for key in ('file_save_as', 'save_as', 'single_file', 'tab'):
-        del values[key]
+        values.pop(key, None)
 
     return values
 
@@ -1084,8 +1089,8 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
-                with get_save_location().joinpath('previous_search.json').open('r') as f:
-                    files = json.load(f)
+                with get_save_location().joinpath(f'previous_search_{data_source.name}.json').open('r') as fp:
+                    files = json.load(fp)
             else:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
@@ -1094,8 +1099,8 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 # Saves the last search to a json file so it can be used again to bypass the search.
                 save_path = get_save_location()
                 save_path.mkdir(exist_ok=True)
-                with save_path.joinpath('previous_search.json').open('w') as f:
-                    json.dump(files, f, indent=2)
+                with save_path.joinpath(f'previous_search_{data_source.name}.json').open('w') as fp:
+                    json.dump(files, fp, indent=2)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
