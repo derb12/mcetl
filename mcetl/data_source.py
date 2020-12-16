@@ -68,7 +68,7 @@ class DataSource:
         DESCRIPTION. The default is 0.
     label_entries : bool, optional
         If True, will add a number to the column labels for each
-        entry in a sample.
+        entry in a sample if there is more than one entry.
 
     Attributes
     ----------
@@ -254,7 +254,7 @@ class DataSource:
             self.x_plot_index = 0
             self.y_plot_index = 1
 
-        # sets excel_formats attribute
+        # sets styles for writing to Excel
         self.excel_formats = self._create_excel_writer_formats(excel_writer_formats)
 
 
@@ -348,8 +348,8 @@ class DataSource:
 
                 if any(column not in sum_funcs for column in function.added_columns):
                     raise ValueError((
-                        f'Error with {function}. SummaryFunctions can only modify '
-                        'other SummaryFunction columns.'
+                        f'Error with {function}. SummaryFunctions can only modify columns '
+                        'for other SummaryFunctions with matching sample_summary attributes.'
                     ))
 
             unique_keys.add(function.name)
@@ -589,8 +589,7 @@ class DataSource:
                 lengths[i][j] = [len(entry.columns) for entry in sample]
             # merges all dataframes in the dataset using generators
             dataset_dataframe = pd.concat(
-                (pd.concat(
-                    (entry for entry in sample), axis=1) for sample in dataset),
+                (pd.concat((entry for entry in sample), axis=1) for sample in dataset),
                 axis=1
             )
             dataset_dataframe.columns = list(range(len(dataset_dataframe.columns)))
@@ -704,24 +703,18 @@ class DataSource:
         """
 
         sample_lengths = [
-            np.cumsum(
-                [np.sum(sample) for sample in dataset]
-            ) for dataset in self.lengths
+            np.cumsum([np.sum(sample) for sample in dataset]) for dataset in self.lengths
         ]
 
         split_dataframes = [[[] for sample in dataset] for dataset in self.lengths]
         dataset_dtypes = []
         for i, dataset in enumerate(merged_dataframes):
             dataset_dtypes.append(iter(dataset.dtypes.values))
-            split_samples = np.array_split(
-                dataset, sample_lengths[i], axis=1
-            )[:-1]
+            split_samples = np.array_split(dataset, sample_lengths[i], axis=1)[:-1]
 
             for j, sample in enumerate(split_samples):
                 split_dataframes[i][j].extend(
-                    np.array_split(
-                        sample, np.cumsum(self.lengths[i][j]), axis=1)[:-1]
-                )
+                    np.array_split(sample, np.cumsum(self.lengths[i][j]), axis=1)[:-1])
 
         # renames columns back to individual indices and reassigns dtypes
         for i, dataset in enumerate(split_dataframes):

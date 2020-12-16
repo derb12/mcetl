@@ -23,7 +23,7 @@ import pandas as pd
 import PySimpleGUI as sg
 
 from . import utils
-from .datasource import DataSource
+from .data_source import DataSource
 from .excel_writer import ExcelWriterHandler
 from .file_organizer import file_finder, file_mover
 # openpyxl is imported within _write_to_excel
