@@ -163,8 +163,11 @@ class DataSource:
             raise ValueError('DataSource name cannot be a blank string.')
 
         # attributes that will be set later
-        self.lengths = None
-        self.references = None
+        self.lengths = None # used for splitting merged datasets
+        self.references = None # used to reference columns within a dataframe
+        # signifies that entry and sample separation columns were added to the
+        # merged dataset and will need to be removed in split_into_entries method
+        self._added_separators = False
 
         self.start_row = start_row
         self.end_row = end_row
@@ -503,6 +506,7 @@ class DataSource:
 
         # merges the references into one for each dataset
         self.references = self._merge_references(dataframes, references)
+        self._added_separators = True
 
 
     def do_preprocessing(self, dataframes, import_values):
@@ -716,13 +720,20 @@ class DataSource:
                 split_dataframes[i][j].extend(
                     np.array_split(sample, np.cumsum(self.lengths[i][j]), axis=1)[:-1])
 
-        # renames columns back to individual indices and reassigns dtypes
+        # renames columns back to individual indices, reassigns dtypes, and removes
+        # the separation columns, if they were added
         for i, dataset in enumerate(split_dataframes):
             for sample in dataset:
                 for j, entry in enumerate(sample):
-                    entry.columns = list(range(len(entry.columns))) #TODO later assign column names to the dataframes here
+                    entry.columns = list(range(len(entry.columns)))
                     dtypes = {col: next(dataset_dtypes[i]) for col in entry.columns}
-                    sample[j] = entry.astype(dtypes)
+                    if self._added_separators:
+                        separation_cols = self.sample_separation if j == len(sample) - 1 else self.entry_separation
+                    else:
+                        separation_cols = 0
+
+                    sample[j] = entry.astype(dtypes
+                        ).drop(range(len(entry.columns) - separation_cols, len(entry.columns)), axis=1)
 
         return split_dataframes
 
