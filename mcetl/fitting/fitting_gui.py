@@ -239,7 +239,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
             width = 15
             height = 25
         else:
-            width = font.measure('A')
+            width = font.measure('A') # 'M' is the largest, but use 'A' to get closer to average
             height = font.metrics('linespace')
         finally:
             temp.close()
@@ -482,7 +482,7 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
     all_models = sorted(f_utils._GUI_MODELS.keys())
     peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.peak_transformer()]
     auto_bkg_layout = [
-        [sg.Text('Model for fitting background:'),
+        [sg.Text('Model'),
          sg.Combo(all_models, default_inputs['bkg_type'], key='bkg_type',
                   readonly=True, enable_events=True)],
         [sg.Text('    '), *bkg_init_models],

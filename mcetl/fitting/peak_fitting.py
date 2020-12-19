@@ -377,6 +377,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         y_peak = y[peak_mask]
 
         if peak_heights is None:
+            # estimate peak height as half the y-value, to allow hidden peaks equal opportunity
             peak_height = y_peak[np.argmin(np.abs(peak_center - x_peak))] / 2
         else:
             peak_height = peak_heights[i]
@@ -1178,8 +1179,8 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         The x-values to be plotted.
     y : array-like
         The y-values to be plotted.
-    click_list : list, optional
-        A list of selected points on the plot.
+    click_list : list(list(float, float)), optional
+        A list of selected points (lists of x, y values) on the plot.
 
     Attributes
     ----------
@@ -1256,7 +1257,7 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         Returns
         -------
         list(list(float, float))
-            A list of the (x, y) values for the selected points on the figure.
+            A list of the [x, y] values for the selected points on the figure.
 
         """
 
@@ -1479,9 +1480,12 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                       default_value=initial_model),
              sg.Text('    Peak FWHM:'),
              sg.Input(peak_width, key='peak_width', size=(10, 1))],
-            [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
-                       bind_return_key=True, pad=(5, (15, 0))),
-             sg.Button('Clear Points', key='clear', pad=(5, (15, 0)))]
+            [sg.Column([
+                [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
+                        bind_return_key=True, pad=(5, (15, 0))),
+                sg.Button('Clear Points', key='clear', pad=(5, (15, 0))),
+                sg.Check('Hide legend', key='hide_legend', enable_events=True)]
+            ], vertical_alignment='bottom')]
         ]
 
         self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
@@ -1504,7 +1508,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
 
         self.window.reappear()
         while True:
-            event = self.window.read()[0]
+            event, values = self.window.read()
             if event in ('close', sg.WIN_CLOSED):
                 break
             elif event == 'clear':
@@ -1512,6 +1516,12 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                     self.picked_object = patch
                     self._remove_circle()
                 self._update_plot()
+            elif event == 'hide_legend':
+                if values[event]:
+                    self.axis.get_legend().set_visible(False)
+                else:
+                    self.axis.get_legend().set_visible(True)
+                self.figure.canvas.draw_idle()
 
         self._close()
 
@@ -1547,7 +1557,9 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             self.axis.plot(self.x, y_tot + self.background, color='k', ls='--',
                            lw=2, label='total')
 
-        self.axis.legend()
+        self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+        if self.window['hide_legend'].get():
+            self.axis.get_legend().set_visible(False)
         self.figure.canvas.draw_idle()
 
 

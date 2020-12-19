@@ -7,6 +7,13 @@ within the other files.
 @author  : Donald Erb
 Created on Nov 18, 2020
 
+Notes
+-----
+The functions get_model_name, get_model_object, and get_gui_name are to be
+used, rather than referring to the constants _TOTAL_MODELS and _GUI_MODELS
+because the implementation of these constants may change in the future while
+the output of the functions can be kept constant.
+
 """
 
 
@@ -222,7 +229,7 @@ def get_model_name(model):
             if model.lower() in (model_name.lower(), values['display_name'].lower()):
                 output = model_name
                 break
-        else:
+        else: # if there is no break
             raise KeyError((f'"{model}" is not an available model. Check the spelling,'
                             ' and may need to update lmfit and/or mcetl.'))
 
@@ -446,6 +453,46 @@ def numerical_fwhm(x, y):
         fwhm = abs(x_intercepts[1] - x_intercepts[0])
 
     return fwhm
+
+
+def subtract_linear_background(x, y, background_points):
+    """
+    Returns y-values after subtracting a linear background constructed from points.
+
+    Parameters
+    ----------
+    x : array-like
+        The x-values of the data.
+    y : array-like
+        The y-values of the data.
+    background_points : list(list(float, float))
+        A list containing the [x, y] values for each point representing
+        the background.
+
+    Returns
+    -------
+    y_subtracted : np.ndarray
+        The input y-values, after subtracting the background.
+
+    Notes
+    -----
+    Assumes the background is represented by lines connecting each of the
+    specified background points.
+
+    """
+
+    x_data = np.asarray(x)
+    y_data = np.asarray(y)
+    y_subtracted = y_data.copy()
+    if len(background_points) > 1:
+        points = sorted(background_points, key=lambda p: p[0])
+        for i in range(len(points) - 1):
+            x_points, y_points = zip(*points[i:i + 2])
+            boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
+            y_line = y_data[boundary]
+            y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.shape[0])
+
+    return y_subtracted
 
 
 def constrain_input(value, iterable):

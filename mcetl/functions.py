@@ -348,7 +348,9 @@ class SummaryFunction(CalculationFunction):
         columns that are currently empty, with the number of columns affected
         by the functions being equal to the input integer. If the input is a string
         or list/tuple of strings, it denotes that the functions will change the
-        contents of an existing column(s), whose column names are the inputs.
+        contents of an existing column(s), whose column names are the inputs. Further,
+        SummaryFunctions can only modify other SummaryFunction columns with matching
+        sample_summary attributes.
     function_kwargs : dict, optional
         A dictionary of keywords and values to be passed to the function.
         The default is None.
