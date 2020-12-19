@@ -1115,18 +1115,21 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                     for j, sample in enumerate(dataset):
                         for entry in sample:
                             if import_values is None or not import_values['same_values']:
-                                import_values = utils.select_file_gui(data_source, entry,
-                                                                      import_values)
+                                import_values = utils.select_file_gui(
+                                    data_source, entry, import_values,
+                                    processing_options['process_data']
+                                )
 
                             added_dataframes = utils.raw_data_import(import_values, entry, False)
                             output['dataframes'][i][j].extend(added_dataframes)
                             references = {}
                             for var in data_source.unique_variables:
+                                # use .get() since keys will not exist if not processing
                                 references[var] = import_values.get(f'index_{var}')
                             import_vals[i][j].extend([references] * len(added_dataframes))
 
         else:
-            import_values = utils.select_file_gui(data_source)
+            import_values = utils.select_file_gui(data_source, assign_columns=processing_options['process_data'])
             output['dataframes'] = [[utils.raw_data_import(import_values, import_values['file'],
                                                            False)]]
             files = [[[import_values['file']]]]

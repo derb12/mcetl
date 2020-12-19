@@ -4,8 +4,8 @@
 Useful functions are put here in order to prevent circular importing
 within the other files.
 
-The functions contained within this module ease the use of user-interfaces
-and selecting options for opening files.
+The functions contained within this module ease the use of user-interfaces,
+selecting options for opening files, and working with Excel.
 
 @author: Donald Erb
 Created on Jul 15, 2020
@@ -18,8 +18,10 @@ PROCEED_COLOR : tuple(str, str)
 """
 
 
+import itertools
 import operator
 from pathlib import Path
+import textwrap
 
 import pandas as pd
 import PySimpleGUI as sg
@@ -94,6 +96,8 @@ def excel_column_name(index):
     -----
     Caches the result so that any repeated index lookups are faster.
 
+    Function adapted from similar functions in openpyxl and xlsxwriter.
+
     """
 
     global _COLUMN_NAME_CACHE
@@ -102,7 +106,7 @@ def excel_column_name(index):
         return _COLUMN_NAME_CACHE[index]
 
     elif not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
-        raise ValueError(f'Invalid column index {index}')
+        raise ValueError(f'Column index {index} must be between 1 and 18278.')
 
     col_num = index
     col_letters = [] # appending to list faster than appending to str
@@ -113,8 +117,9 @@ def excel_column_name(index):
             remainder = 26
             col_num -= 1
 
-        # convert the remainder to a character
-        col_letters.append(chr(ord('A') + remainder - 1))
+        # convert the remainder to a character;
+        # 64 denotes ord('A') - 1, so if remainder = 1, chr(65) = 'A'
+        col_letters.append(chr(64 + remainder))
 
     col_name = ''.join(reversed(col_letters))
     _COLUMN_NAME_CACHE[index] = col_name
@@ -391,7 +396,7 @@ def validate_sheet_name(sheet_name):
         raise ValueError('Sheet name must be less than 32 characters.')
     elif any(char in sheet_name for char in forbidden_characters):
         raise ValueError(
-            f'Sheet name cannot have any of the following characters:\n{forbidden_characters}'
+            f'Sheet name cannot have any of the following characters: {forbidden_characters}'
         )
 
     return sheet_name
@@ -667,7 +672,7 @@ def raw_data_import(window_values, file, show_popup=True):
         sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
 
 
-def select_file_gui(data_source=None, file=None, previous_inputs=None):
+def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_columns=False):
     """
     GUI to select a file and input the necessary options to import its data.
 
@@ -681,6 +686,10 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         A dictionary containing the values from a previous usage of this
         function, that will be used to overwrite the defaults. Note, if
         opening Excel files, the previous_inputs will have no effect.
+    assign_columns : bool, optional
+        If True, designates that the columns for each unique variable in
+        the data source need to be identified. If False (or if data_source
+        is None), then will not prompt user to select columns for variables.
 
     Returns
     -------
@@ -693,7 +702,11 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
     excel_formats = ['.xlsx', '.xlsm']
     if _HAS_XLRD:
         excel_formats.append('.xls')
-    lock_columns = False # used to lock total number of columns
+
+    if data_source is None or not data_source.unique_variables:
+        assign_column_indices = False
+    else:
+        assign_column_indices = assign_columns
 
     # Default values for if there is no file specified
     default_inputs = {
@@ -732,12 +745,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         for key in unwanted_keys:
             previous_inputs.pop(key, None)
 
-        if data_source is not None:
-            lock_columns = True # TODO will need to rethink how to implement for excel files
-            num_columns = len(previous_inputs['columns'])
-
-        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs['columns'])
-        previous_inputs['fixed_width_columns'] = ', '.join(str(num) for num in previous_inputs['fixed_width_columns'])
+        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs.get('columns', []))
+        previous_inputs['fixed_width_columns'] = ', '.join(str(num) for num in previous_inputs.get('fixed_width_columns', []))
         default_inputs.update(previous_inputs)
 
     validations = {
@@ -752,6 +761,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
     disable_excel = True
     disable_other = True
     disable_bottom = True
+    dataframes = None # TODO wil be passed to raw_data_import to prevent opening excel files multiple times
 
     if file is not None: # data_source would also not be None
         disable_bottom = False
@@ -803,96 +813,127 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
         })
 
     layout = [
-        [sg.Text('Excel Workbook Options', relief='ridge', size=(38, 1),
-                 justification='center', pad=(0, (15, 10)))],
-        [sg.Text('Sheet to use:'),
-         sg.Combo(default_inputs['sheets'], size=(17, 4), key='sheet',
-                  default_value=default_inputs['sheet'], disabled=disable_excel,
-                  readonly=True, enable_events=True)],
-        [sg.Text('First Column:'),
-         sg.Combo(default_inputs['excel_columns'], size=(17, 4),
-                  key='first_col', readonly=True,
-                  default_value=default_inputs['first_column'],
-                  disabled=disable_excel, enable_events=True)],
-        [sg.Text('Last Column:'),
-         sg.Combo(default_inputs['excel_columns'], size=(17, 4), key='last_col',
-                  readonly=True, default_value=default_inputs['last_column'],
-                  disabled=disable_excel, enable_events=True)],
-        [sg.Text('Number of columns per dataset:'),
-         sg.Input(default_inputs['repeat_unit'], key='repeat_unit', size=(3, 1),
-                  disabled=disable_excel, enable_events=True)],
-        [sg.Text('Other Filetype Options', relief='ridge', size=(38, 1),
-                 justification='center', pad=(5, (25, 10)))],
-        [sg.Text('Separator (eg. , or ;)', size=(20, 1)),
-         sg.Input(default_inputs['initial_separator'], key='separator',
-                  disabled=disable_other, size=(5, 1))],
-        [sg.Check('Fixed-width file', default_inputs['initial_fixed_width_file'],
-                  key='fixed_width_file', enable_events=True, pad=(5, (5, 0)),
-                  disabled=disable_bottom)],
-        [sg.Text('   Column widths,\n    separated by commas:'),
-         sg.Input(default_inputs['initial_fixed_width_columns'], size=(10, 1),
-                  key='fixed_width_columns', disabled=disable_other)],
-        [sg.Text('=' * 34, pad=(5, (10, 10)))],
-        [sg.Text('Enter data columns,\n separated by commas:',
-                 tooltip='Starts at 0'),
-         sg.Input(default_inputs['initial_columns'], key='columns',
-                  do_not_clear=True, tooltip='Starts at 0', size=(10, 1),
-                  enable_events=True, disabled=disable_bottom)],
-        [sg.Text('Start row:', tooltip='Starts at 0', size=(8, 1)),
-         sg.Input(default_inputs['initial_row_start'], key='row_start',
-                  do_not_clear=True, size=(5, 1), disabled=disable_bottom,
-                  tooltip='Starts at 0')],
-        [sg.Text('End row: ', tooltip='Counts up from bottom. Starts at 0',
-                 size=(8, 1)),
-         sg.Input(default_inputs['initial_row_end'], key='row_end',
-                  size=(5, 1), disabled=disable_bottom,
-                  tooltip='Counts up from bottom. Starts at 0')]
+        [
+            sg.TabGroup([
+                [sg.Tab(
+                    'Other',
+                    [
+                        [sg.Text('Separator (eg. , or ;)', size=(20, 1)),
+                        sg.Input(default_inputs['initial_separator'], key='separator',
+                                disabled=disable_other, size=(5, 1))],
+                        [sg.Check('Fixed-width file', default_inputs['initial_fixed_width_file'],
+                                key='fixed_width_file', enable_events=True, pad=(5, (5, 0)),
+                                disabled=disable_bottom)],
+                        [sg.Text('    Column widths,\n     separated by commas'),
+                        sg.Input(default_inputs['initial_fixed_width_columns'], size=(10, 1),
+                                key='fixed_width_columns',
+                                disabled=not(not disable_other and default_inputs['initial_fixed_width_file']))],
+                    ], key='OTHER_TAB'
+                )],
+                [sg.Tab(
+                    'Excel',
+                    [
+                        [sg.Text('Sheet to use'),
+                        sg.Combo(default_inputs['sheets'], size=(17, 4), key='sheet',
+                                default_value=default_inputs['sheet'], disabled=disable_excel,
+                                readonly=True, enable_events=True)],
+                        [sg.Text('First column '),
+                        sg.Combo(default_inputs['excel_columns'], size=(17, 4),
+                                key='first_col', readonly=True,
+                                default_value=default_inputs['first_column'],
+                                disabled=disable_excel, enable_events=True)],
+                        [sg.Text('Last column '),
+                        sg.Combo(default_inputs['excel_columns'], size=(17, 4), key='last_col',
+                                readonly=True, default_value=default_inputs['last_column'],
+                                disabled=disable_excel, enable_events=True)],
+                        [sg.Text('Number of columns per dataset:'),
+                        sg.Input(default_inputs['repeat_unit'], key='repeat_unit', size=(3, 1),
+                                disabled=disable_excel, enable_events=True)],
+                    ], key='EXCEL_TAB', background_color=sg.theme_background_color()
+                )]
+            ], tab_background_color=sg.theme_background_color()),
+        ],
+                [sg.Text('Columns to import,\n separated by commas',
+                        tooltip='Starts at 0'),
+                sg.Input(default_inputs['initial_columns'], key='columns',
+                        do_not_clear=True, tooltip='Starts at 0', size=(12, 1),
+                        enable_events=True, disabled=disable_bottom)],
+                [sg.Text('Start row', tooltip='Starts at 0', size=(8, 1)),
+                sg.Input(default_inputs['initial_row_start'], key='row_start',
+                        do_not_clear=True, size=(5, 1), disabled=disable_bottom,
+                        tooltip='Starts at 0')],
+                [sg.Text('End row', tooltip='Counts up from bottom. Starts at 0',
+                        size=(8, 1)),
+                sg.Input(default_inputs['initial_row_end'], key='row_end',
+                        size=(5, 1), disabled=disable_bottom,
+                        tooltip='Counts up from bottom. Starts at 0')]
     ]
 
     if file is None:
-        file_types = [("All Files", "*.*"), ("CSV", "*.csv"),
-                      ("Text Files", "*.txt"), ("Excel Workbook", "*.xlsx"),
-                      ("Excel Macro-Enabled Workbook", "*.xlsm")]
+        file_types = [('All Files', '*.*'), ('CSV', '*.csv'),
+                      ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
+                      ('Excel Macro-Enabled Workbook', '*.xlsm')]
         if _HAS_XLRD:
-            file_types.append(("Excel 97-2003 Workbook", "*.xls"))
+            file_types.append(('Excel 97-2003 Workbook', '*.xls'))
 
         layout.insert(
             0,
-            [sg.InputText('Choose a file', key='file', enable_events=True,
-                          disabled=True, size=(28, 1), pad=(5, (10, 5))),
-             sg.FileBrowse(key='file_browse', target='file', pad=(5, (10, 5)),
-                           file_types=file_types)]
+            [sg.Input('Choose a file', key='file', size=(26, 1), disabled=True),
+             sg.Input('', key='new_file', enable_events=True, visible=False),
+             sg.FileBrowse(key='file_browse', target='new_file', file_types=file_types)]
         )
-    if data_source is not None:
-        for variable in data_source.unique_variables:
-            layout.extend([
-                [sg.Text(f'Column of {variable} data:'),
-                 sg.Combo(default_inputs['initial_total_indices'],
-                          default_inputs['initial_total_indices'][default_inputs['variable_indices'][variable]],
-                          size=(3, 1), readonly=True,
-                          key=f'index_{variable}', disabled=disable_bottom)]
+    if assign_column_indices:
+        variable_elements = []
+        for variable, index in default_inputs['variable_indices'].items():
+            variable_elements.append([
+                sg.Column([[sg.Text(textwrap.fill('Variable: ' + variable, 15))]], expand_x=True),
+                sg.Column([[
+                    sg.Text('  Column #'),
+                    sg.Combo(default_inputs['initial_total_indices'],
+                            default_inputs['initial_total_indices'][index],
+                            size=(3, 1), readonly=True,
+                            key=f'index_{variable}', disabled=disable_bottom)
+                ]], element_justification='right',)
             ])
-        layout.append([sg.Check('Same options for all files', default_inputs['same_values'],
-                                key='same_values', disabled=disable_other)])
+        layout.extend([
+            [sg.HorizontalSeparator()],
+            [sg.Column(variable_elements, scrollable=True, vertical_scroll_only=True, expand_x=True)],
+            [sg.HorizontalSeparator()]
+        ])
 
-    layout.extend([
-        [sg.Button('Test Import', pad=(5, (15, 5))),
-         sg.Button('Next', bind_return_key=True, pad=(5, (15, 5)),
-                   button_color=PROCEED_COLOR)]
+    layout.append([
+        sg.Column([[
+            sg.Column([
+                [sg.Check('Same options\nfor all files', default_inputs['same_values'],
+                        key='same_values', disabled=disable_other,
+                        visible=None not in (data_source, file))]
+                ]),
+            sg.Column([
+                [sg.Button('Test Import'),
+                sg.Button('Next', bind_return_key=True, button_color=PROCEED_COLOR)]])
+        ]], expand_x=True, element_justification='right', pad=(0, 0))
     ])
 
-    window = sg.Window('Data Import', layout)
+    window = sg.Window('Data Import', layout, finalize=True)
+    if file is not None and Path(file).suffix in excel_formats:
+        window['EXCEL_TAB'].select()
+
     while True:
         event, values = window.read()
 
         if event == sg.WIN_CLOSED:
             safely_close_window(window)
 
-        elif event == 'file':
-            if values['file'] == 'Choose a file':
+        elif event == 'new_file':
+            if not values['new_file'] or values['new_file'] == values['file']:
                 continue
+            else:
+                window['file'].update(values['new_file'])
+                values['file'] = values['new_file']
 
-            elif Path(values['file']).suffix in excel_formats:
+            if Path(values['file']).suffix in excel_formats:
+                window['EXCEL_TAB'].select()
+
                 dataframes = pd.read_excel(
                     values['file'], sheet_name=None, header=None,
                     convert_float=False, engine=None if _HAS_XLRD else 'openpyxl'
@@ -915,6 +956,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 )
                 window['row_start'].update(value='0', disabled=False)
                 window['row_end'].update(value='0', disabled=False)
+                window['same_values'].update(value=False, disabled=True)
                 window['fixed_width_columns'].update(value='', disabled=True)
                 window['fixed_width_file'].update(value=False, disabled=True)
 
@@ -937,6 +979,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                     )
 
             else:
+                window['OTHER_TAB'].select()
                 window['sheet'].update(values=[], value='', disabled=True)
                 window['first_col'].update(values=[], value='', disabled=True)
                 window['last_col'].update(values=[], value='', disabled=True)
@@ -949,6 +992,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                                            disabled=False)
                 window['row_end'].update(value=default_inputs['row_end'],
                                          disabled=False)
+                window['same_values'].update(value=default_inputs['same_values'], disabled=False)
                 window['fixed_width_columns'].update(
                     value=default_inputs['fixed_width_columns'],
                     disabled=not default_inputs['fixed_width_file']
@@ -956,11 +1000,16 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 window['fixed_width_file'].update(
                     value=default_inputs['fixed_width_file'], disabled=False
                 )
-                if (default_inputs['fixed_width_file'] and
-                        not any('fixed_width_columns' in entry for entry in validations['user_inputs'])):
-                    validations['user_inputs'].append(
-                        ['fixed_width_columns', 'fixed width columns', int]
-                    )
+                if default_inputs['fixed_width_file']:
+                    if not any('fixed_width_columns' in entry for entry in validations['user_inputs']):
+                        validations['user_inputs'].append(
+                            ['fixed_width_columns', 'fixed width columns', int]
+                        )
+                else:
+                    for i, entry in enumerate(validations['user_inputs']):
+                        if 'fixed_width_columns' in entry:
+                            del validations['user_inputs'][i]
+                            break
 
                 for i, entry in enumerate(validations['integers']):
                     if 'repeat_unit' in entry:
@@ -979,18 +1028,17 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                         )
 
         elif event == 'sheet':
-            dataframe = dataframes[values['sheet']]
-            window['repeat_unit'].update(value=len(dataframe.columns))
-            cols = [f'Column {num}' for num in range(len(dataframe.columns))]
+            window['repeat_unit'].update(value=len(dataframes[values['sheet']].columns))
+            cols = [f'Column {num}' for num in range(len(dataframes[values['sheet']].columns))]
             window['first_col'].update(values=cols, value=cols[0])
             window['last_col'].update(values=cols, value=cols[-1])
             window['columns'].update(
-                value=', '.join(str(i) for i in range(len(dataframe.columns)))
+                value=', '.join(str(i) for i in range(len(dataframes[values['sheet']].columns)))
             )
 
             if data_source is not None:
                 _assign_indices(
-                    window, [num for num in range(len(dataframe.columns))],
+                    window, [num for num in range(len(dataframes[values['sheet']].columns))],
                     default_inputs['variable_indices']
                 )
 
@@ -1058,16 +1106,13 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None):
                 if event == 'Test Import':
                     test_file = file if file is not None else values['file']
                     raw_data_import(values, test_file)
-                elif lock_columns and len(values['columns']) != num_columns:
-                    sg.popup(f'Number of columns must be equal to {num_columns}.\n',
-                             title='Error')
                 else:
                     break
 
     window.close()
     del window
 
-    if data_source is not None:
+    if assign_column_indices:
         # converts column numbers back to indices
         for key in data_source.unique_variables:
             values[f'index_{key}'] = values['columns'].index(int(values[f'index_{key}']))
