@@ -50,16 +50,14 @@ import PySimpleGUI as sg
 from .. import plot_utils, utils
 
 # determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
-# minimum Pillow version is v6.2
 try:
-    from PIL import __version__ as _pillow_version
-    if int(''.join(_pillow_version.split('.')[:2])) >= 62:
-        _HAS_PIL = True
-    else:
-        _HAS_PIL = False
-    del _pillow_version
+    import PIL
 except ImportError:
     _HAS_PIL = False
+else:
+    _HAS_PIL = True
+    del PIL
+
 
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',

@@ -738,66 +738,67 @@ class DataSource:
         return split_dataframes
 
 
-    def create_needed_labels(self, max_df_length=None):
+    def _create_imported_data_labels(self, df_length=None):
         """
-        Calculates the necessary column labels for imported data and Functions.
+        Calculates the necessary column labels for imported data.
 
         Also fills in as many labels as possible using self.column_labels.
 
         Parameters
         ----------
-        max_df_length : int, optional
-            The highest number of columns in the imported dataframes.
+        df_length : int, optional
+            The number of columns in the imported dataframe.
 
         Returns
         -------
-        total_labels : list
-            A list with four lists, containing all the needed column
-            labels: index 0 is for imported data labels,
-            index 1 is for CalculationFunctions labels, index 2 is for
-            sample SummaryFunctions labels, and index 3 is for dataset
+        imported_data_labels : list(str)
+            A list of strings
+
+        """
+
+        specified_labels = itertools.chain(self.column_labels, itertools.cycle(['']))
+        imported_data_labels = [
+            next(specified_labels) for _ in range(len(self.column_numbers) - self._deleted_columns)
+        ]
+        if df_length is not None:
+            if df_length <= len(self.column_numbers) - self._deleted_columns:
+                imported_data_labels = imported_data_labels[:df_length]
+            else:
+                imported_data_labels.extend(
+                    '' for _ in range(df_length - len(self.column_numbers) + self._deleted_columns)
+                )
+
+        return imported_data_labels
+
+
+    def _create_calculation_labels(self):
+        """
+        Calculates the necessary column labels for the DataSource's Functions.
+
+        Also fills in as many labels as possible using self.column_labels.
+
+        Returns
+        ----------
+        calculation_labels : list(list(str))
+            A list with three lists, containing all the needed column labels
+            for functions: index 0 is for CalculationFunctions labels, index 1
+            is for sample SummaryFunctions labels, and index 2 is for dataset
             SummaryFunctions labels.
 
         """
 
-        total_labels = [[], [], [], []]
-        total_labels[0].extend('' for _ in range(len(self.column_numbers) - self._deleted_columns))
+        specified_labels = itertools.chain(self.column_labels, itertools.cycle(['']))
+        # discard the column labels that correspond to imported data
+        unneeded = [next(specified_labels) for _ in range(len(self.column_numbers) - self._deleted_columns)]
 
-        for function in self.calculation_functions:
-            if isinstance(function.added_columns, int):
-                total_labels[1].extend('' for _ in range(function.added_columns))
+        calculation_labels = [[], [], []]
+        functions = (self.calculation_functions, self.sample_summary_functions, self.dataset_summary_functions)
+        for i, function_type in enumerate(functions):
+            for function in function_type:
+                if isinstance(function.added_columns, int):
+                    calculation_labels[i].extend(next(specified_labels) for _ in range(function.added_columns))
 
-        for function in self.sample_summary_functions:
-            if isinstance(function.added_columns, int):
-                total_labels[2].extend('' for _ in range(function.added_columns))
-
-        for function in self.dataset_summary_functions:
-            if isinstance(function.added_columns, int):
-                total_labels[3].extend('' for _ in range(function.added_columns))
-
-        specified_labels = iter(self.column_labels)
-        fill_labels = True
-        for entry in total_labels:
-            if not fill_labels:
-                break
-            else:
-                for i in range(len(entry)):
-                    try:
-                        entry[i] = next(specified_labels)
-                    except StopIteration:
-                        fill_labels = False
-                        break
-
-        # fills labels for the imported data last in case the number
-        # of imported columns is different than self.column_numbers
-        if max_df_length is not None:
-            temp_names = total_labels[0].copy()
-            total_labels[0] = ['' for _ in range(max_df_length)]
-            # reassigns the column names
-            for i in range(min(len(temp_names), max_df_length)):
-                total_labels[0][i] = temp_names[i]
-
-        return total_labels
+        return calculation_labels
 
 
     def print_column_labels_template(self):
@@ -810,7 +811,7 @@ class DataSource:
 
         """
 
-        labels = self.create_needed_labels()
+        labels = [self._create_imported_data_labels(), *self._create_calculation_labels()]
         label_template = list(itertools.chain.from_iterable(labels))
 
         print((
@@ -818,5 +819,5 @@ class DataSource:
             f'Calculation labels: {len(labels[1])}\n'
             f'Sample summary labels: {len(labels[2])}\n'
             f'Dataset summary labels: {len(labels[3])}\n\n'
-            f'label template = {label_template}'
+            f'column_labels template for {self} = {label_template}'
         ))
