@@ -4,6 +4,12 @@
 @author: Donald Erb
 Created on May 5, 2020
 
+Notes
+-----
+The imports for the fitting and plotting guis are within their respective
+functions to reduce the time it takes for this module to be imported. Likewise,
+openpyxl is imported within _write_to_excel
+
 """
 
 
@@ -13,18 +19,17 @@ from pathlib import Path
 import sys
 import traceback
 
-from openpyxl.styles import NamedStyle
 import pandas as pd
 import PySimpleGUI as sg
 
 from . import utils
-from .datasource import DataSource
+from .data_source import DataSource
+from .excel_writer import ExcelWriterHandler
 from .file_organizer import file_finder, file_mover
-from .peak_fitting_gui import launch_peak_fitting_gui
-from .plotting_gui import launch_plotting_gui
+# openpyxl is imported within _write_to_excel
 
 
-def _get_save_location():
+def get_save_location():
     """
     Gets the correct filepath to save the previous_search.json depending on the operating system.
 
@@ -81,11 +86,10 @@ def _write_to_excel(dataframes, data_source, labels,
 
     """
 
+    from openpyxl.chart import Reference, Series, ScatterChart
+    from openpyxl.chart.series import SeriesLabel, StrRef
     from openpyxl.utils.dataframe import dataframe_to_rows
-    if plot_excel:
-        from openpyxl.chart import Reference, Series, ScatterChart
-        from openpyxl.chart.series import SeriesLabel, StrRef
-        from openpyxl.utils.cell import get_column_letter
+
 
     # openpyxl uses 1-based indices
     first_row = data_source.excel_row_offset + 1
@@ -125,7 +129,7 @@ def _write_to_excel(dataframes, data_source, labels,
 
         # Subheader values and formatting
         flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
-        subheaders = iter(labels[i]['total_labels'])
+        subheaders = itertools.chain(labels[i]['total_labels'], itertools.cycle(['']))
         for j, entry in enumerate(flattened_lengths):
             suffix = 'even' if j % 2 == 0 else 'odd'
             for col_index in range(entry):
@@ -234,7 +238,7 @@ def _write_to_excel(dataframes, data_source, labels,
                         )
                     )
                     series.title = SeriesLabel(
-                        StrRef(f"'{sheet_name}'!{get_column_letter(location)}{first_row}")
+                        StrRef(f"'{sheet_name}'!{utils.excel_column_name(location)}{first_row}")
                     )
                     chart.append(series)
                 location += sum(data_source.lengths[i][j])
@@ -258,27 +262,21 @@ def _select_processing_options(data_sources):
 
     """
 
-    if _get_save_location().joinpath('previous_search.json').exists():
-        last_search_disabled = False
-    else:
-        last_search_disabled = True
-
-    #Selection of check boxes
     options_layout = [
         [sg.Text('Select Input', relief='ridge', justification='center',
                  size=(40, 1))],
         [sg.Radio('Multiple Files', 'options_radio', default=True,
                   key='multiple_files', enable_events=True)],
         [sg.Check('Use Previous Search', key='use_last_search',
-                  disabled=last_search_disabled, pad=((40, 0), (1, 0)))],
+                  disabled=True, pad=((40, 0), (1, 0)))],
         [sg.Radio('Single File', 'options_radio', key='single_file',
                   enable_events=True)],
         [sg.Text('Select All Boxes That Apply', relief='ridge',
                  justification='center', size=(40, 1))],
         [sg.Check('Process Data', key='process_data', default=True,
                   enable_events=True)],
-        [sg.Check('Fit Peaks', key='fit_peaks', enable_events=True)],
-        [sg.Check('Save to Excel', key='save_fitting', pad=((40, 0), (1, 0)),
+        [sg.Check('Fit Data', key='fit_data', enable_events=True)],
+        [sg.Check('Save Results to Excel', key='save_fitting', pad=((40, 0), (1, 0)),
                   enable_events=True, disabled=True)],
         [sg.Check('Plot in Python', key='plot_python')],
         [sg.Check('Move File(s)', key='move_files', default=False)],
@@ -306,36 +304,42 @@ def _select_processing_options(data_sources):
 
     layout = [
         [sg.TabGroup([
-            [sg.Tab('Options', options_layout, key='tab1'),
-             sg.Tab('Data Sources', [
+            [sg.Tab('Data Sources', [
                 [sg.Text('Select Data Source:', relief='ridge',
                          justification='center', size=(40, 1))],
                 *data_sources_radios,
-             ], key='tab2')]
+             ], key='tab1'),
+             sg.Tab('Options', options_layout, key='tab2')]
         ], tab_background_color=sg.theme_background_color(), key='tab')],
         [sg.Button('Next', bind_return_key=True,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
     window = sg.Window('Main Menu', layout)
-
+    data_source = None
     while True:
         event, values = window.read()
 
         if event == sg.WIN_CLOSED:
             utils.safely_close_window(window)
 
-        elif event == 'Next':
-            if any((values['fit_peaks'], values['plot_python'],
-                    values['save_excel'], values['move_files'],
-                    values['process_data'])):
+        elif event.startswith('source'):
+            for source in data_sources:
+                if values[f'source_{source.name}']:
+                    data_source = source
+                    break
 
-                close_window = False
-                for source in data_sources:
-                    if values[f'source_{source.name}']:
-                        close_window = True
-                        break
-                if close_window:
+            if (values['multiple_files']
+                    and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
+                window['use_last_search'].update(disabled=False)
+            else:
+                window['use_last_search'].update(value=False, disabled=True)
+
+        elif event == 'Next':
+            if any((values['fit_data'], values['plot_python'], values['save_excel'],
+                    values['move_files'], values['process_data'])):
+
+                if any(values[f'source_{source.name}'] for source in data_sources):
                     if not values['save_excel'] or values['file_name']:
                         break
                     else:
@@ -344,25 +348,22 @@ def _select_processing_options(data_sources):
                             title='Error'
                         )
                 else:
-                    sg.popup('Please select a data source.\n',
-                             title='Error')
+                    sg.popup('Please select a data source.\n', title='Error')
 
             elif values['move_files']:
                 break
-
             else:
-                sg.popup('Please select a data processing option.\n',
-                         title='Error')
+                sg.popup('Please select a data processing option.\n', title='Error')
 
-        if event == 'multiple_files':
-            if not last_search_disabled:
-                window['use_last_search'].update(disabled=False)
+        if (event == 'multiple_files' and data_source is not None
+                and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
+            window['use_last_search'].update(disabled=False)
 
         elif event == 'single_file':
             window['use_last_search'].update(value=False, disabled=True)
 
-        elif event == 'fit_peaks':
-            if values['fit_peaks'] and values['save_excel']:
+        elif event == 'fit_data':
+            if values['fit_data'] and values['save_excel']:
                 window['save_fitting'].update(value=True, disabled=False)
                 window['plot_fit_excel'].update(disabled=False)
             else:
@@ -380,7 +381,7 @@ def _select_processing_options(data_sources):
                 window['append_file'].update(readonly=True)
                 window['plot_data_excel'].update(disabled=False)
 
-                if values['fit_peaks']:
+                if values['fit_data']:
                     window['save_fitting'].update(value=True, disabled=False)
                     window['plot_fit_excel'].update(disabled=False)
             else:
@@ -404,7 +405,7 @@ def _select_processing_options(data_sources):
 
     # removes unneeded keys
     for key in ('file_save_as', 'save_as', 'single_file', 'tab'):
-        del values[key]
+        values.pop(key, None)
 
     return values
 
@@ -479,8 +480,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
     if options['process_data'] and data_source.dataset_summary_functions:
         default_inputs.update({'summary_name': 'Summary'})
         validations['user_inputs'].append([
-            'summary_name', 'summary name',
-            utils.string_to_unicode, True, None
+            'summary_name', 'summary name', utils.string_to_unicode, True, None
         ])
 
     keys = ('data_label', 'calculation_label',
@@ -498,14 +498,17 @@ def _create_column_labels_window(dataset, data_source, options, index,
     if options['save_excel']:
         header = 'Sheet Name: '
         header_visible = True
-        validations['user_inputs'].append([
-            'sheet_name', 'sheet name', utils.string_to_unicode, False, None
+        validations['user_inputs'].extend([
+            ['sheet_name', 'sheet name', utils.string_to_unicode, False, None],
+            ['sheet_name', 'sheet name', utils.validate_sheet_name, False, None]
         ])
     else:
         header = f'Dataset {index + 1}'
         header_visible = False
 
-    column_width = 32
+    column_width = 38
+    input_width = 25
+    label_expr = '    {:<10}' # ensures all columns line up regardless of number up to 99
     labels_layout = [
         [sg.Text(header, visible=header_visible),
          sg.Input(default_inputs['sheet_name'], key='sheet_name',
@@ -516,16 +519,16 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
     for i in range(len(dataset)):
         labels_layout.append(
-            [sg.Text(f'    Sample {i + 1}'),
-             sg.Input(default_inputs[f'sample_name_{i}'], size=(20, 1),
-                      key=f'sample_name_{i}')]
+            [sg.Text(label_expr.format(f'Sample {i + 1}')),
+             sg.Input(default_inputs[f'sample_name_{i}'],
+                      size=(input_width, 1), key=f'sample_name_{i}')]
         )
 
     if options['process_data'] and data_source.dataset_summary_functions:
         labels_layout.append(
-            [sg.Text('    Summary'),
-             sg.Input(default_inputs['summary_name'], size=(20, 1),
-                      key='summary_name')]
+            [sg.Text('    Summary  '),
+             sg.Input(default_inputs['summary_name'],
+                      size=(input_width, 1), key='summary_name')]
         )
 
     labels_layout.extend([
@@ -539,8 +542,8 @@ def _create_column_labels_window(dataset, data_source, options, index,
             f'{keys[0]}_{i}', f'raw data label {i}', utils.string_to_unicode, True, None
         ])
         labels_layout.append(
-            [sg.Text(f'    Column {i}'),
-             sg.Input(default_inputs[f'{keys[0]}_{i}'], size=(20, 1),
+            [sg.Text(label_expr.format(f'Column {i}')),
+             sg.Input(default_inputs[f'{keys[0]}_{i}'], size=(input_width, 1),
                       key=f'{keys[0]}_{i}')]
         )
 
@@ -553,9 +556,9 @@ def _create_column_labels_window(dataset, data_source, options, index,
                 for k in range(len(label_list)):
                     col_num = i + 1 + k if j == 0 else k # continue column numbering for Calculations
                     labels_layout.append(
-                        [sg.Text(f'    Column {col_num}'),
-                         sg.Input(default_inputs[f'{keys[j + 1]}_{k}'], size=(20, 1),
-                                  key=f'{keys[j + 1]}_{k}')]
+                        [sg.Text(label_expr.format(f'Column {col_num}')),
+                         sg.Input(default_inputs[f'{keys[j + 1]}_{k}'],
+                                  size=(input_width, 1), key=f'{keys[j + 1]}_{k}')]
                     )
                     validations['user_inputs'].append([
                         f'{keys[j + 1]}_{k}', f'{calc_labels[j].lower()} label {col_num}',
@@ -564,7 +567,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
     labels_column = [
         sg.Column(labels_layout, scrollable=True,
-                  vertical_scroll_only=True, size=(404, 400))
+                  vertical_scroll_only=True, size=(460, 400))
     ]
 
     if not options['plot_data_excel']:
@@ -586,19 +589,18 @@ def _create_column_labels_window(dataset, data_source, options, index,
 
         plot_layout = [
             [sg.Text('Chart title:'),
-             sg.Input(default_inputs['chart_title'], key='chart_title', size=(20, 1))],
+             sg.Input(default_inputs['chart_title'], key='chart_title',
+                      size=(input_width, 1))],
             [sg.Text('Column of x data for plotting:'),
-             sg.Combo(list(range(len(available_cols))),
-                      key='x_plot_index', readonly=True, size=(3, 1),
-                      default_value=default_inputs['x_plot_index'])],
+             sg.Combo(list(range(len(available_cols))), default_inputs['x_plot_index'],
+                      key='x_plot_index', readonly=True, size=(4, 1), enable_events=True)],
             [sg.Text('Column of y data for plotting:'),
-             sg.Combo(list(range(len(available_cols))),
-                      key='y_plot_index', readonly=True, size=(3, 1),
-                      default_value=default_inputs['y_plot_index'])],
+             sg.Combo(list(range(len(available_cols))), default_inputs['y_plot_index'],
+                      key='y_plot_index', readonly=True, size=(4, 1), enable_events=True)],
             [sg.Text('X axis label:'),
-             sg.Input(default_inputs['x_label'], key='x_label', size=(20, 1))],
+             sg.Input(default_inputs['x_label'], key='x_label', size=(input_width, 1))],
             [sg.Text('Y axis label:'),
-             sg.Input(default_inputs['y_label'], key='y_label', size=(20, 1))],
+             sg.Input(default_inputs['y_label'], key='y_label', size=(input_width, 1))],
             [sg.Text(("Min and max values to show on the plot\n"
                       "(leave blank to use Excel's default):"))],
             [sg.Text('    X min:', size=(8, 1)),
@@ -632,8 +634,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    return validations, sg.Window(f'Dataset {index + 1} Options',
-                                  layout, location=location)
+    return validations, sg.Window(f'Dataset {index + 1} Options', layout, location=location)
 
 
 def _select_column_labels(dataframes, data_source, processing_options):
@@ -675,7 +676,6 @@ def _select_column_labels(dataframes, data_source, processing_options):
 
             if event == sg.WIN_CLOSED:
                 utils.safely_close_window(window)
-
             elif event == 'Unicode Help':
                 sg.popup(
                     ('"\\u00B2": \u00B2 \n"\\u03B8": \u03B8 \n"'
@@ -684,7 +684,12 @@ def _select_column_labels(dataframes, data_source, processing_options):
                      ' (m/s\\u00B2) creates Acceleration (m/s\u00B2).\n'),
                     title='Example Unicode'
                 )
-
+            elif event in ('x_plot_index', 'y_plot_index'):
+                column_keys = [
+                    *[values[key] for key in values if key.startswith('data_label')],
+                    *[values[key] for key in values if key.startswith('calculation_label')]
+                ]
+                window[f'{event.split("_")[0]}_label'].update(column_keys[int(values[event])])
             elif event in ('Back', 'Next', 'Finish'):
                 if utils.validate_inputs(values, **validations):
                     label_values[j].update(values)
@@ -739,16 +744,14 @@ def _collect_column_labels(dataframes, data_source, labels, options):
         labels[i]['total_labels'] = []
 
         for j in range(len(labels[i]['sample_names'])):
-            index_modifier = -1 if labels[i]['sample_summary_labels'] else 0
-
-            for entry_num in range(1, len(dataset[j]) + 1 + index_modifier):
+            for entry_num in range(1, len(dataset[j]) + 1):
                 for label in labels[i]['column_labels']:
                     if data_source.label_entries and len(dataset[j]) > 1 and label:
                         labels[i]['total_labels'].append(f'{label} {entry_num}')
                     else:
                         labels[i]['total_labels'].append(label)
 
-                if options['process_data'] and entry_num != len(dataset[j]) + index_modifier:
+                if options['process_data'] and entry_num != len(dataset[j]):
                     labels[i]['total_labels'].extend([
                         '' for _ in range(data_source.entry_separation)
                     ])
@@ -771,9 +774,10 @@ def _collect_column_labels(dataframes, data_source, labels, options):
             ])
 
 
-def _fit_data(datasets, data_source, labels, excel_writer, options):
+def _fit_data(datasets, data_source, labels,
+              excel_writer, options, rc_params=None):
     """
-    Handles peak fitting and any exceptions that occur during peak fitting.
+    Handles fitting the data and any exceptions that occur during fitting.
 
     Parameters
     ----------
@@ -792,6 +796,8 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
         'plot_fit_excel' which determine whether the fit results
         will be saved to Excel and whether the results will be plotted,
         respectively.
+    rc_params : dict, optional
+        A dictionary of changes to matplotlib's rcparams.
 
     Returns
     -------
@@ -807,31 +813,37 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
 
     """
 
-    # Changes some defaults for the plot formatting to look nice.
-    mpl_changes = { #TODO maybe allow this to be an input into the main gui function
-        'font.serif': 'Times New Roman',
-        'font.family': 'serif',
-        'font.size': 12,
-        'mathtext.default': 'regular',
-        'xtick.direction': 'in',
-        'ytick.direction': 'in',
-        'xtick.minor.visible': True,
-        'ytick.minor.visible': True,
-        'xtick.major.size': 5,
-        'xtick.major.width': 0.6,
-        'xtick.minor.size': 2.5,
-        'xtick.minor.width': 0.6,
-        'ytick.major.size': 5,
-        'ytick.major.width': 0.6,
-        'ytick.minor.size': 2.5,
-        'ytick.minor.width': 0.6,
-        'lines.linewidth': 2,
-        'lines.markersize': 5,
-        'axes.linewidth': 0.6,
-        'legend.frameon': False,
-        'figure.dpi': 150,
-        'figure.figsize': (6, 4.5)
-    }
+    from .fitting import launch_fitting_gui
+
+
+    if rc_params is not None:
+        mpl_changes = rc_params.copy()
+    else:
+        # Changes some defaults for the plot formatting to look nice.
+        mpl_changes = {
+            'font.serif': 'Times New Roman',
+            'font.family': 'serif',
+            'font.size': 12,
+            'mathtext.default': 'regular',
+            'xtick.direction': 'in',
+            'ytick.direction': 'in',
+            'xtick.minor.visible': True,
+            'ytick.minor.visible': True,
+            'xtick.major.size': 5,
+            'xtick.major.width': 0.6,
+            'xtick.minor.size': 2.5,
+            'xtick.minor.width': 0.6,
+            'ytick.major.size': 5,
+            'ytick.major.width': 0.6,
+            'ytick.minor.size': 2.5,
+            'ytick.minor.width': 0.6,
+            'lines.linewidth': 2,
+            'lines.markersize': 5,
+            'axes.linewidth': 0.6,
+            'legend.frameon': False,
+            'figure.dpi': 150,
+            'figure.figsize': (6, 4.5)
+        }
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
@@ -859,7 +871,7 @@ def _fit_data(datasets, data_source, labels, excel_writer, options):
 
                     default_inputs.update({'sample_name': name})
 
-                    fit_output, default_inputs, proceed = launch_peak_fitting_gui(
+                    fit_output, default_inputs, proceed = launch_fitting_gui(
                         entry, default_inputs, excel_writer,
                         options['save_fitting'], options['plot_fit_excel'],
                         mpl_changes, False
@@ -902,6 +914,9 @@ def _plot_data(datasets, data_source):
         datasets in dataframes, then [None, None] will be the entry instead.
 
     """
+
+    from .plotting import launch_plotting_gui
+
 
     plot_datasets = []
     for dataset in datasets: # Flattens the dataset to a single list per dataset
@@ -994,14 +1009,17 @@ def _move_files(files):
             print('Moving on with program.')
 
 
-def launch_main_gui(data_sources):
+def launch_main_gui(data_sources, fitting_mpl_params=None):
     """
-    Goes through all of the windows to find files, process/plot/fit data, and save to Excel.
+    Goes through all steps to find files, process/fit/plot the imported data, and save to Excel.
 
     Parameters
     ----------
     data_sources : list(DataSource) or tuple(DataSource)
         A container (list, tuple) of mcetl.DataSource objects.
+    fitting_mpl_params : dict, optional
+        A dictionary of changes for matplotlib's rcparams to use
+        during fitting.
 
     Returns
     -------
@@ -1048,7 +1066,7 @@ def launch_main_gui(data_sources):
     if not isinstance(data_sources, (list, tuple)):
         data_sources = [data_sources]
     if any(not isinstance(data_source, DataSource) for data_source in data_sources):
-        raise TypeError("Only DataSource objects can be used in the main gui.")
+        raise TypeError("Only mcetl.DataSource objects can be used in mcetl's main gui.")
 
     try:
         processing_options = _select_processing_options(data_sources)
@@ -1058,70 +1076,79 @@ def launch_main_gui(data_sources):
             if processing_options[f'source_{source.name}']:
                 data_source = source
                 break
+        # Removes unique variables that are only used in preprocessing
+        if not processing_options['process_data']:
+            data_source.remove_unneeded_variables()
+        # Create the writer handler and read the Excel file if appending.
+        if processing_options['save_excel']:
+            writer_handler = ExcelWriterHandler(
+                processing_options['file_name'], not processing_options['append_file'],
+                data_source.excel_formats
+            )
 
         # Selection of raw data files
         if processing_options['multiple_files']:
             if processing_options['use_last_search']:
-                with _get_save_location().joinpath('previous_search.json').open('r') as f:
-                    files = json.load(f)
+                with get_save_location().joinpath(f'previous_search_{data_source.name}.json').open('r') as fp:
+                    files = json.load(fp)
             else:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
                 )
 
                 # Saves the last search to a json file so it can be used again to bypass the search.
-                save_path = _get_save_location()
+                save_path = get_save_location()
                 save_path.mkdir(exist_ok=True)
-                with save_path.joinpath('previous_search.json').open('w') as f:
-                    json.dump(files, f, indent=2)
+                with save_path.joinpath(f'previous_search_{data_source.name}.json').open('w') as fp:
+                    json.dump(files, fp, indent=2)
 
             # Imports the raw data from the files
             if any((processing_options['process_data'],
                     processing_options['save_excel'],
-                    processing_options['fit_peaks'],
+                    processing_options['fit_data'],
                     processing_options['plot_python'])):
 
                 output['dataframes'] = [[[] for sample in dataset] for dataset in files]
                 import_vals = [[[] for sample in dataset] for dataset in files]
-                if files[0][0][0].endswith('.xlsx'):
-                    for i, dataset in enumerate(files):
-                        for j, sample in enumerate(dataset):
-                            for entry in sample:
-                                #disable_blank_col = not (i == 0 and j == 0) #TODO use this later to lock out changing the number of columns
+                import_values = None
+                for i, dataset in enumerate(files):
+                    for j, sample in enumerate(dataset):
+                        for entry in sample:
+                            if import_values is None or not import_values['same_values']:
                                 import_values = utils.select_file_gui(
-                                    data_source, sample
-                                )
-                                added_dataframes = utils.raw_data_import(
-                                    import_values, sample, False
-                                )
-                                output['dataframes'][i][j].extend(added_dataframes)
-                                import_vals[i][j].extend(
-                                    [import_values] * len(added_dataframes)
+                                    data_source, entry, import_values,
+                                    processing_options['process_data']
                                 )
 
-                else:
-                    import_values = utils.select_file_gui(data_source, files[0][0][0])
-                    for i, dataset in enumerate(files):
-                        for j, sample in enumerate(dataset):
-                            for entry in sample:
-                                output['dataframes'][i][j].extend(
-                                    utils.raw_data_import(import_values, entry, False)
-                                )
-                                import_vals[i][j].append(import_values)
+                            added_dataframes = utils.raw_data_import(import_values, entry, False)
+                            output['dataframes'][i][j].extend(added_dataframes)
+                            references = {}
+                            for var in data_source.unique_variables:
+                                # use .get() since keys will not exist if not processing
+                                references[var] = import_values.get(f'index_{var}')
+                            import_vals[i][j].extend([references] * len(added_dataframes))
 
         else:
-            import_values = utils.select_file_gui(data_source)
-            output['dataframes'] = [[
-                utils.raw_data_import(import_values, import_values['file'], False)
-            ]]
+            import_values = utils.select_file_gui(data_source, assign_columns=processing_options['process_data'])
+            output['dataframes'] = [[utils.raw_data_import(import_values, import_values['file'],
+                                                           False)]]
             files = [[[import_values['file']]]]
-            import_vals = [[[import_values] * len(output['dataframes'][0][0])]]
+            references = {}
+            for var in data_source.unique_variables:
+                references[var] = import_values.get(f'index_{var}')
+            import_vals = [[[references] * len(output['dataframes'][0][0])]]
 
         # Specifies column names
         if any((processing_options['process_data'],
                 processing_options['save_excel'],
-                processing_options['fit_peaks'],
+                processing_options['fit_data'],
                 processing_options['plot_python'])):
+
+            if processing_options['process_data']:
+                # Perform preprocessing functions
+                output['dataframes'], import_vals = data_source.do_preprocessing(
+                    output['dataframes'], import_vals
+                )
 
             label_values = _select_column_labels(
                 output['dataframes'], data_source, processing_options
@@ -1165,21 +1192,13 @@ def launch_main_gui(data_sources):
                         'y_log_scale': values['y_log_scale']
                     })
 
-            if not processing_options['process_data']: # Otherwise, will assign labels after Separation functions
-                _collect_column_labels(output['dataframes'], data_source,
-                                       labels, processing_options)
+            _collect_column_labels(output['dataframes'], data_source,
+                                   labels, processing_options)
 
         if processing_options['save_excel'] or processing_options['process_data']:
-
             if processing_options['process_data']:
-                # Perform separation functions
-                output['dataframes'], import_vals = data_source.do_separation_functions(
-                    output['dataframes'], import_vals
-                )
                 # Assign reference indices for all relevant columns
                 data_source.set_references(output['dataframes'], import_vals)
-
-                _collect_column_labels(output['dataframes'], data_source, labels, processing_options)
 
             # Merge dataframes for each dataset
             merged_dataframes = data_source.merge_datasets(output['dataframes'])
@@ -1189,22 +1208,7 @@ def launch_main_gui(data_sources):
                 merged_dataframes = data_source.do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
-                if (processing_options['append_file']
-                        and Path(processing_options['file_name']).exists()):
-                    mode = 'a'
-                else:
-                    processing_options['append_file'] = False
-                    mode = 'w'
-
-                output['writer'] =  pd.ExcelWriter(
-                    processing_options['file_name'], engine='openpyxl', mode=mode
-                )
-                # Formatting styles for the Excel workbook
-                for style, kwargs in data_source.excel_formats.items():
-                    try:
-                        output['writer'].book.add_named_style(NamedStyle(style, **kwargs))
-                    except ValueError: # Style already exists in the workbook
-                        pass
+                output['writer'] = writer_handler.writer
 
                 _write_to_excel(
                     merged_dataframes, data_source, labels, output['writer'],
@@ -1220,7 +1224,7 @@ def launch_main_gui(data_sources):
 
         # Assigns column names to the dataframes
         if any((processing_options['process_data'],
-                processing_options['fit_peaks'],
+                processing_options['fit_data'],
                 processing_options['plot_python'])):
 
             pass #TODO later assign column headers for all dfs based on labels['total_columns']
@@ -1228,7 +1232,7 @@ def launch_main_gui(data_sources):
         """
         #renames dataframe columns if there are repeated terms,
         #since it causes issues for plotting and fitting
-        if any((plot_python, fit_peaks)):
+        if any((plot_python, fit_data)):
 
             for k, dataframe in enumerate(dataframes):
                 header_list = dataframe.columns.tolist()
@@ -1243,14 +1247,15 @@ def launch_main_gui(data_sources):
         """
 
         # Handles peak fitting
-        if processing_options['fit_peaks']:
+        if processing_options['fit_data']:
             output['fit_results'] = _fit_data(
-                output['dataframes'], data_source, labels, output['writer'], processing_options
+                output['dataframes'], data_source, labels, output['writer'],
+                processing_options, fitting_mpl_params
             )
 
         # Handles saving the Excel file
         if processing_options['save_excel']:
-            utils.save_excel_file(output['writer'])
+            writer_handler.save_excel_file()
 
         # Handles moving files
         if processing_options['move_files']:

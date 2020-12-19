@@ -13,7 +13,7 @@ mcetl
         :target: https://mcetl.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
+.. image:: https://img.shields.io/badge/license-BSD%203--Clause-blue.svg
         :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
 
 
@@ -91,7 +91,7 @@ To install mcetl, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install mcetl
+    $ pip install --upgrade mcetl
 
 This is the preferred method to install mcetl, as it will always install the most recent stable release.
 

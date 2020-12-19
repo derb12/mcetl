@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Functions for creating and fitting a model with peaks and a background and plotting the results
+"""Functions for creating and fitting a model with peaks and a background and plotting the results.
+
+Also contains two classes that create windows to allow selection of peak positions and
+background points.
 
 @author: Donald Erb
 Created on Sep 14, 2019
@@ -11,87 +14,209 @@ from collections import defaultdict
 import itertools
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-from matplotlib.widgets import TextBox, RadioButtons
 import lmfit
 import numpy as np
+import PySimpleGUI as sg
 from scipy import signal
+
+from . import fitting_utils as f_utils
+from . import models
+from .. import plot_utils, utils
 
 
 def peak_transformer():
     """
-    Provides the expressions needed to convert peak width and height to sigma and amplitude.
+    The expressions needed to convert peak width, height, and mode to model parameters.
 
     Returns
     -------
-    models_dict : dict
+    dict(str: dict(str: function))
         A dictionary containing the string for lmfit models as keys, and
-        a list as the values. The first item in the value list is the lmfit
-        model name without 'Model' to be used in GUIs. The second item in the
-        value list is a list containing the equations to estimate sigma and
-        amplitude, respecitively, using input heights and
-        full-width-at-half-maximums.
+        a dictionary as the values, containing the equations to estimate
+        parameters of the model using input heights, full-width-at-half-maximums,
+        and peak mode (x-position at max y).
 
     Notes
     -----
-    The equations for approximating the amplitude and sigma were gotten from:
+    More peak models are available from lmfit, but these are the ones I have
+    tested and implemented currently.
+
+    Inputs are max height (h), fwhm (w), and mode (x where y=max height)(m).
+
+    Most equations for approximating the amplitude and sigma were gotten from:
     http://openafox.com/science/peak-function-derivations.html
 
-    Lognormal does not have equations for sigma and amplitude because the equations
-    rely on different parameters, so the calculations are done during peak
-    initialization.
+    The equations for the BreitWignerModel and BreitWignerFanoModel models were
+    derived personally, with the formulas for BreitWignerFanoModel
+    for fwhm = 2 * sigma * (1 + q**2) / ((q**2) - 1 + 1e-19), where the 1e-19 is in
+    case q = 1 or q = -1, and the formula for height = maximum / (1 + 1 / q**2).
 
     """
 
-    # more peak models may work, but these are the ones I have tested
-    model_list = [
-        'GaussianModel', 'LorentzianModel', 'VoigtModel', 'PseudoVoigtModel',
-        'Pearson7Model', 'MoffatModel', 'SkewedGaussianModel',
-        'SkewedVoigtModel', 'SplitLorentzianModel', 'LognormalModel'
-    ]
+    models_dict = {
+        # lmfit.models.GaussianModel
+        'GaussianModel': {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
+            'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.LorentzianModel
+        'LorentzianModel': {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.VoigtModel
+        'VoigtModel': {
+            'sigma': lambda h, w, *args: w / 3.6013,
+            'gamma': lambda h, w, *args: w / 3.6013,
+            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.PseudoVoigtModel
+        'PseudoVoigtModel': {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: h * w * 1.269,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.Pearson7Model
+        'Pearson7Model': {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
+            'amplitude': lambda h, w, *args: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.MoffatModel
+        'MoffatModel': {
+            'sigma': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: h,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.SkewedGaussianModel
+        'SkewedGaussianModel': {
+            'sigma': lambda h, w, *args: w / (2 * np.sqrt(2 * np.log(2))),
+            'amplitude': lambda h, w, *args: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.SkewedVoigtModel
+        'SkewedVoigtModel': {
+            'sigma': lambda h, w, *args: w / 3.6013,
+            'gamma': lambda h, w, *args: w / 3.6013,
+            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.SplitLorentzianModel
+        'SplitLorentzianModel': {
+            'sigma': lambda h, w, *args: w / 2,
+            'sigma_r': lambda h, w, *args: w / 2,
+            'amplitude': lambda h, w, *args: (h * w * np.pi) / 2,
+            'center': lambda h, w, m, *args: m
+        },
+        # lmfit.models.LognormalModel
+        'LognormalModel': {
+            'sigma': _lognormal_sigma,
+            'amplitude': _lognormal_amplitude,
+            'center': _lognormal_center
+        },
+        # lmfit.models.BreitWignerModel
+        'BreitWignerModel': { # assumes q = 1 at init
+            'sigma': lambda h, w, *args: w, # leave alone since fwhm=inf for q=1
+            'amplitude': lambda h, w, *args: h / 2,
+            'center': lambda h, w, m, *args: m - w / 2,
+        },
+        # mcetl.fitting.models.BreitWignerFanoModel
+        'BreitWignerFanoModel': { # assumes q = -3 at init
+            'sigma': lambda h, w, *args: w * 4 / 10,
+            'height': lambda h, w, *args: h / (1 + 1 / 3**2),
+            'center': lambda h, w, m, *args: m - (w * 4 / 10) / (-3),
+        }
+    }
 
-    models_dict = {model: [model.split('Model')[0]] for model in model_list}
+    return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
-    # lambda expressions for sigma and amplitude, respectively, with inputs of height (h) and fwhm (w)
-    models_dict['GaussianModel'].append([
-        lambda h, w: w / (2 * np.sqrt(2 * np.log(2))),
-        lambda h, w: (h * w * np.sqrt(np.pi / (np.log(2)))) / 2
-    ])
-    models_dict['LorentzianModel'].append([
-        lambda h, w: w / 2,
-        lambda h, w: (h * w * np.pi) / 2
-    ])
-    models_dict['VoigtModel'].append([
-        lambda h, w: w / 3.6013,
-        lambda h, w: (h * w  * 0.531 * np.sqrt(2 * np.pi))
-    ])
-    models_dict['PseudoVoigtModel'].append([
-        lambda h, w: w / 2,
-        lambda h, w: h * w * 1.269
-    ])
-    models_dict['Pearson7Model'].append([
-        lambda h, w: w / (2 * np.sqrt((2**(1 / 1.5)) - 1)),
-        lambda h, w: 2 * h * w / (2 * np.sqrt((2**(1 / 1.5)) - 1))
-    ])
-    models_dict['MoffatModel'].append([
-        lambda h, w: w / 2,
-        lambda h, w: h
-    ])
-    models_dict['SkewedGaussianModel'].append([
-        lambda h, w: w/(2 * np.sqrt(2 * np.log(2))),
-        lambda h, w: (h * w * np.sqrt(np.pi/(np.log(2)))) / 2
-    ])
-    models_dict['SkewedVoigtModel'].append([
-        lambda h, w: w / 3.6013,
-        lambda h, w: (h * w  * 0.531 * np.sqrt(2 * np.pi))
-    ])
-    models_dict['SplitLorentzianModel'].append([
-        lambda h, w: w / 2,
-        lambda h, w: (h * w * np.pi) / 2
-    ])
-    models_dict['LognormalModel'].append([]) # no simple equations for lognormal
 
-    return models_dict
+def _lognormal_center(peak_height, peak_width, mode, *args):
+    """
+    Estimates the center (mean) value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated center of the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+
+    return np.log(max(1e-9, mode)) + sigma**2
+
+
+def _lognormal_sigma(peak_height, peak_width, mode, *args):
+    """
+    Estimates the sigma value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated sigma value for the distribution.
+
+    """
+
+    m2 = mode**2 # m2 denotes mode squared
+
+    return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
+
+
+def _lognormal_amplitude(peak_height, peak_width, mode, *args):
+    """
+    Estimates the amplitude value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated amplitude value for the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+    mean = np.log(max(1e-9, mode)) + sigma**2
+
+    return (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
 
 def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
@@ -174,6 +299,12 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
                 'peak_1_': ['LorentzianModel', Parameters(...)]
             }
 
+    Raises
+    ------
+    NotImplementedError
+        Raised if a model is not within the dictionary of implemented peaks
+        from the peak_transformer function.
+
     Notes
     -----
     If params_dict is not None, it means residual data is being fit.
@@ -182,7 +313,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     when fitting peaks that are small. Any value in the residuals that is < 0 is s
     et to 0 to not influence the peak fitting.
 
-    The residual values are shifted up by (0 - min_y) to slightly
+    The residual values are shifted up by (0 - min(y)) to slightly
     overestimate the peak height. In the case of polynomial backgrounds,
     this helps to avoid getting stuck in a local minimum in which the
     peak height is underestimated and the background is overestimated.
@@ -194,110 +325,107 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     """
 
     model_list = model_list if model_list is not None else []
-    peak_list = iter(model_list + [default_model] * (len(peak_centers)-len(model_list)))
+    peak_list = itertools.chain(model_list, itertools.cycle([default_model]))
     peak_widths = peak_width if isinstance(peak_width, (list, tuple)) else [peak_width] * len(peak_centers)
 
-    y = y - background_y
+    y = y.copy() - background_y
 
     if params_dict is not None:
-        window = int(len(x) / 20) if int(len(x) / 20) % 2 == 1 else int(len(x) / 20) + 1
+        window = len(x) // 20 if (len(x) // 20) % 2 == 1 else (len(x) // 20) + 1
         y2 = signal.savgol_filter(y, window, 2, deriv=0)
         y2[y2 < 0] = 0
         y = y2 + (0 - np.min(y))
         use_middles = False
-        j = len(params_dict)
+        start_num = len(params_dict)
 
     else:
         params_dict = {}
-        j = 0
+        start_num = 0
         use_middles = True
 
-    #finds the position between peaks
-    minx, maxx = [np.min(x), np.max(x)]
+    # finds the position between peak centers
+    minx, maxx = (np.min(x), np.max(x))
     middles = [0.0 for num in range(len(peak_centers) + 1)]
     middles[0], middles[-1] = minx, maxx
     for i in range(len(peak_centers) - 1):
         middles[i + 1] = np.mean([peak_centers[i], peak_centers[i + 1]])
 
     if debug:
-        fig1, ax1 = plt.subplots()
-        fig2, ax2 = plt.subplots()
+        ax1 = plt.subplots()[-1]
+        ax2 = plt.subplots()[-1]
         ax1.plot(x, y)
         ax2.plot(x, y, label='data')
 
     models_dict = peak_transformer()
-    for i, peak_center in enumerate(peak_centers):
-        prefix = f'peak_{i+j}_'
+    for i, peak_center in enumerate(peak_centers, start_num):
+        prefix = f'peak_{i + 1}_'
         peak_width = peak_widths[i]
-        peak_type = next(peak_list)
+        peak_type = f_utils.get_model_name(next(peak_list))
 
-        if peak_type in models_dict.keys():
-            peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
+        if peak_type not in models_dict:
+            raise NotImplementedError(f'{peak_type} is not an implemented peak model.')
 
-            if use_middles:
-                peak_mask = (x>=middles[i]) & (x<=middles[i + 1])
-            else:
-                peak_mask = (x>peak_center-(peak_width/2)) & (x<peak_center+(peak_width/2))
+        peak_model = f_utils.get_model_object(peak_type)(prefix=prefix)
+        amplitude_key = 'amplitude' if peak_type != 'BreitWignerFanoModel' else 'height'
 
-            x_peak = x[peak_mask]
-            y_peak = y[peak_mask]
-
-            if peak_heights is None:
-                peak_height = y_peak[np.argmin(np.abs(peak_center-x_peak))] / 2
-            else:
-                peak_height = peak_heights[i]
-            negative_peak = peak_height < 0
-
-            if negative_peak:
-                min_area = -np.inf
-                max_area = 0
-            else:
-                min_area = 0
-                max_area = np.inf
-
-            if peak_type != 'LognormalModel':
-
-                peak_model.set_param_hint('center', value=peak_center,
-                                          min=peak_center-center_offset,
-                                          max=peak_center+center_offset)
-                peak_model.set_param_hint('amplitude', min=min_area, max=max_area)
-                peak_model.set_param_hint('sigma', min=min_sigma, max=max_sigma)
-
-                if (peak_type == 'VoigtModel') and (vary_Voigt):
-                    peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
-                                              vary=True, expr='')
-
-                default_params = peak_model.guess(y_peak, x_peak, negative=negative_peak)
-                peak_params = peak_model.make_params(**default_params)
-
-            else:
-                #directly estimates the parameters for lognormal model
-                #since lmfit's guess is not accurate for lognormal
-                xm2 = peak_center**2 # xm2 denotes x_mode squared
-                sigma = 0.85 * np.log((peak_width + peak_center * np.sqrt((4*xm2 + peak_width**2) / (xm2))) / (2 * peak_center))
-                mean = np.log(peak_center) + sigma**2
-                amplitude = (peak_height * sigma * np.sqrt(2*np.pi)) / (np.exp(((sigma**2) / 2) - mean))
-
-                #cannot easily set bounds for center for lognormal since it depends on sigma
-                peak_model.set_param_hint('center', value=mean)
-                peak_model.set_param_hint('sigma', value=sigma)
-                peak_model.set_param_hint('amplitude', value=amplitude,
-                                          min=min_area, max=max_area)
-                peak_params = peak_model.make_params()
-
+        if use_middles:
+            peak_mask = (x >= middles[i]) & (x <= middles[i + 1])
         else:
-            raise NotImplementedError(
-                f'"{peak_model}" is not implemented in the peak_transformer function.'
-            )
+            peak_mask = (x > peak_center - (peak_width / 2)) & (x < peak_center + (peak_width / 2))
+
+        x_peak = x[peak_mask]
+        y_peak = y[peak_mask]
+
+        if peak_heights is None:
+            # estimate peak height as half the y-value, to allow hidden peaks equal opportunity
+            peak_height = y_peak[np.argmin(np.abs(peak_center - x_peak))] / 2
+        else:
+            peak_height = peak_heights[i]
+
+        param_kwargs = {'amplitude': {'min': -np.inf if peak_height < 0 else 0,
+                                      'max': 0 if peak_height < 0 else np.inf},
+                        'sigma': {'min': min_sigma, 'max': max_sigma}}
+
+        if peak_type != 'LognormalModel':
+            param_kwargs['center'] = {'value': peak_center,
+                                      'min': peak_center - center_offset,
+                                      'max': peak_center + center_offset}
+        else:
+            # estimate the values because lmfit's guess is bad for lognormal
+            sigma = _lognormal_sigma(peak_height, peak_width, peak_center)
+            # cannot set min, max for center for lognormal since it depends on sigma
+            # TODO could create an expression for a parameter called mode, and set the
+            # min and max for mode, which would constrain center
+            param_kwargs['center'] = {'value': np.log(max(1e-19, peak_center)) + sigma**2}
+            param_kwargs['sigma']['value'] = sigma
+            param_kwargs['amplitude']['value'] = _lognormal_amplitude(peak_height, peak_width,
+                                                                      peak_center)
+            param_kwargs['mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
+                                      'min': peak_center - center_offset,
+                                      'max': peak_center + center_offset}
+            # TODO setting mode doesn't seem to constrain center and sigma...
+            peak_model.set_param_hint('mode', **param_kwargs['mode'])
+
+        peak_model.set_param_hint('center', **param_kwargs['center'])
+        peak_model.set_param_hint(amplitude_key, **param_kwargs['amplitude'])
+        peak_model.set_param_hint('sigma', **param_kwargs['sigma'])
+
+        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_Voigt:
+            peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
+                                      vary=True, expr='')
+
+        if peak_type != 'LognormalModel':
+            default_params = peak_model.guess(y_peak, x_peak, negative=peak_height < 0)
+        else:
+            default_params = {}
+        peak_params = peak_model.make_params(**default_params)
 
         if debug:
             ax1.plot(x_peak, peak_model.eval(peak_params, x=x_peak))
 
         lone_peak = False if peak_type != 'LognormalModel' else True
-
         # peak_width < middles checks whether the peak is isolated or near other peaks
         if peak_heights is None and peak_width < (middles[i + 1] - middles[i]):
-
             temp_fit = peak_model.fit(y_peak, peak_params, x=x_peak,
                                       method='least_squares')
 
@@ -310,25 +438,18 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             else:
                 fwhm = temp_fit.values[f'{prefix}sigma'] * 2.5 # estimate
 
-            # only uses the parameters after fitting if  fwhm < 2*peak_width
+            # only uses the parameters after fitting if  fwhm < 2 * peak_width
             # used to prevent hidden peaks from flattening before the total fitting
             if fwhm < (2 * peak_width):
+                lone_peak = True
                 peak_params = temp_fit.params
-                if peak_type != 'LognormalModel':
-                    # do not allow peak centers to shift during initialization
-                    peak_params[f'{prefix}center'].value = peak_center
-                    lone_peak = True
-                else:
-                    peak_params[f'{prefix}center'].value = mean
+                # do not allow peak centers to shift during initialization
+                peak_params[f'{prefix}center'].value = param_kwargs['center']['value']
 
-        if not lone_peak:
-            sigma_eq = models_dict[peak_type][1][0]
-            amplitude_eq = models_dict[peak_type][1][1]
-
-            peak_params[f'{prefix}sigma'].value = sigma_eq(peak_height, peak_width)
-            peak_params[f'{prefix}amplitude'].value = amplitude_eq(peak_height, peak_width)
-            if peak_type == 'SplitLorentzianModel':
-                peak_params[f'{prefix}sigma_r'].value = sigma_eq(peak_height, peak_width)
+        if not lone_peak: # calculates parameters using equations from peak_transformer
+            for parameter, equation in models_dict[peak_type].items():
+                peak_params[f'{prefix}{parameter}'].value = equation(peak_height, peak_width,
+                                                                     peak_center)
 
         if debug:
             ax2.plot(x_peak, peak_model.eval(peak_params, x=x_peak), label=f'{prefix}model')
@@ -343,7 +464,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
     return params_dict
 
 
-def _generate_lmfit_model(params_dict):
+def _generate_composite_model(params_dict):
     """
     Creates an lmfit composite model using the input dictionary of parameters.
 
@@ -360,21 +481,25 @@ def _generate_lmfit_model(params_dict):
     params : lmfit.Parameters
         An lmfit Parameters object containing the parameters for all peaks.
 
+    Notes
+    -----
+    This function is separated from the _initialize_peaks function so that peaks
+    can be reordered according to their center without having to reinitialize
+    each peak, only the composite model.
+
     """
 
     params = None
     composite_model = None
-    for prefix in params_dict:
-
-        peak_type = params_dict[prefix][0]
-        peak_model = getattr(lmfit.models, peak_type)(prefix=prefix)
-        for param in params_dict[prefix][1]:
+    for prefix, param_values in params_dict.items():
+        peak_model = f_utils.get_model_object(param_values[0])(prefix=prefix)
+        for param in param_values[1]:
             hint_dict = {
-                'value' : params_dict[prefix][1][param].value,
-                'min' : params_dict[prefix][1][param].min,
-                'max' : params_dict[prefix][1][param].max,
-                'vary' : params_dict[prefix][1][param].vary,
-                'expr' : params_dict[prefix][1][param].expr
+                'value' : param_values[1][param].value,
+                'min' : param_values[1][param].min,
+                'max' : param_values[1][param].max,
+                'vary' : param_values[1][param].vary,
+                'expr' : param_values[1][param].expr
             }
             peak_model.set_param_hint(param, **hint_dict)
         peak_params = peak_model.make_params()
@@ -552,11 +677,11 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
             right_fwhm = 0
             right_center = np.inf
 
-        if (peak_x > left_center + (left_fwhm/2)) and (peak_x < right_center - (right_fwhm/2)):
+        if (peak_x > left_center + (left_fwhm / 2)) and (peak_x < right_center - (right_fwhm / 2)):
             residual_peaks_accepted.append(peak_x)
 
     if debug:
-        fig, ax = plt.subplots()
+        ax = plt.subplots()[-1]
         ax.plot(x,residuals, label='residuals')
         ax.plot(x, resid_interp, label='interpolated residuals')
         ax.plot(x, np.array([prominence] * len(x)),
@@ -571,9 +696,9 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
             colors = ['red', 'green']
             styles = ['-.', '--']
             for i in range(2):
-                plt.text(0.1+0.35*i, 0.96, legend[i], ha='left', va='center',
+                plt.text(0.1 + 0.35 * i, 0.96, legend[i], ha='left', va='center',
                          transform=ax.transAxes)
-                plt.hlines(0.96, 0.02+0.35*i, 0.08+0.35*i, color=colors[i],
+                plt.hlines(0.96, 0.02 + 0.35 * i, 0.08 + 0.35 * i, color=colors[i],
                            linestyle=styles[i], transform=ax.transAxes)
 
         ax.legend()
@@ -619,7 +744,7 @@ def _re_sort_prefixes(params_dict):
     sorted_prefixes = [prefix for prefix, center in sorted(centers, key=lambda x: x[1])]
 
     new_params_dict = {}
-    for index, old_prefix in enumerate(sorted_prefixes):
+    for index, old_prefix in enumerate(sorted_prefixes, 1):
         new_prefix = f'peak_{index}_'
         new_params = lmfit.Parameters()
 
@@ -643,13 +768,46 @@ def _re_sort_prefixes(params_dict):
     return new_params_dict
 
 
-def peak_fitting(
+def _check_background(background_model, background_value, y):
+    """
+    Ensures that the background_value and y have the same shape.
+
+    ConstantModel and ComplexConstantModel return a single value
+    rather than an array, so need to create an array for those
+    models so that issues aren't caused during plotting.
+
+    Parameters
+    ----------
+    background_model : str
+        The model used for the background, such as 'ConstantModel'.
+    background_value : array-like or float
+        The value(s) of the background.
+    y : array-like
+        The data being fit.
+
+    Returns
+    -------
+    output : array-like
+        An array of the background values, with the same size as the
+        input y array.
+
+    """
+
+    if 'Constant' in background_model:
+        output = np.full(y.size, background_value)
+    else:
+        output = background_value
+
+    return output
+
+
+def fit_peaks(
         x, y, height=None, prominence=np.inf, center_offset=1.0,
         peak_width=1.0, default_model='PseudoVoigtModel', subtract_background=False,
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
         min_method='least_squares', x_min=-np.inf, x_max=np.inf,
         additional_peaks=None, model_list=None, background_type='PolynomialModel',
-        poly_n=0, fit_kws=None, vary_Voigt=False, fit_residuals=False,
+        background_kwargs=None, fit_kws=None, vary_Voigt=False, fit_residuals=False,
         num_resid_fits=5, min_resid=0.05, debug=False, peak_heights=None):
     """
     Takes x,y data, finds the peaks, fits the peaks, and returns all relevant information.
@@ -701,9 +859,8 @@ def peak_fitting(
         models in lmfit.models.
     background_type : str
         String corresponding to a model in lmfit.models; used to fit the background.
-    poly_n : int
-        Degree of the polynomial; only used if background_type is set
-        to 'PolynomialModel'.
+    background_kwargs : dict, optional
+        Any keyword arguments needed to initialize the background model.
     fit_kws : dict
         Keywords to be passed on to the minimizer.
     vary_Voigt : bool
@@ -782,7 +939,7 @@ def peak_fitting(
 
     Within this function:
         params == parameters for all of the peaks
-        bkrd_params == parameters for the background
+        bkg_params == parameters for the background
         composite_params == parameters for peaks + background
 
         model == CompositeModel object for all of the peaks
@@ -803,8 +960,8 @@ def peak_fitting(
     output['resid_peaks_found']
     output['resid_peaks_accepted']
 
-    x_array = np.array(x, dtype=float)
-    y_array = np.array(y, dtype=float)
+    x_array = np.asarray(x, dtype=float)
+    y_array = np.asarray(y, dtype=float)
 
     # ensures no nan values in the arrays; ~ equivalent to np.logical_not
     nan_mask = (~np.isnan(x_array)) & (~np.isnan(y_array))
@@ -830,41 +987,40 @@ def peak_fitting(
     y = y_array[domain_mask]
 
     if debug:
-        tot_fig, tot_ax = plt.subplots()
+        tot_ax = plt.subplots()[-1]
         tot_ax.plot(x, y, label='data')
         tot_ax.set_title('initial fits and backgrounds')
 
     if subtract_background:
         bkg_mask = (x >= bkg_min) & (x <= bkg_max)
+        bkg_kwargs = background_kwargs if background_kwargs is not None else {}
 
-        if background_type == 'PolynomialModel':
-            background = getattr(
-                lmfit.models, background_type)(poly_n, prefix='background_')
-        else:
-            background = getattr(
-                lmfit.models, background_type)(prefix='background_')
-
-        init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkrd = background.eval(init_bkrd_params, x=x)
+        background = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
+        bkg_params = background.guess(y[bkg_mask], x=x[bkg_mask])
+        initial_bkg = _check_background(background_type, background.eval(bkg_params, x=x), y)
 
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
             vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
-            max_sigma=max_sigma, background_y=initial_bkrd,
+            max_sigma=max_sigma, background_y=initial_bkg,
             debug=debug, peak_heights=peak_heights
         )
 
-        model, params = _generate_lmfit_model(params_dict)
-        fit_wo_bkrd = model.eval(params, x=x)
-        bkrd_params = background.guess(y - fit_wo_bkrd, x=x)
+        model, params = _generate_composite_model(params_dict)
+        fit_wo_bkg = model.eval(params, x=x)
+        bkg_params = background.guess(y - fit_wo_bkg, x=x)
 
         if debug:
-            tot_ax.plot(x, initial_bkrd, label='initial_bkrd')
-            tot_ax.plot(x, background.eval(bkrd_params, x=x), label='background_1')
+            tot_ax.plot(x, initial_bkg, label='initialization background')
+            tot_ax.plot(
+                x,
+                _check_background(background_type, background.eval(bkg_params, x=x), y),
+                label='background_1'
+            )
 
         composite_model = model + background
-        composite_params = params + bkrd_params
+        composite_params = params + bkg_params
 
     else:
         params_dict = _initialize_peaks(
@@ -874,7 +1030,7 @@ def peak_fitting(
             max_sigma=max_sigma, debug=debug, peak_heights=peak_heights
         )
 
-        composite_model, composite_params = _generate_lmfit_model(params_dict)
+        composite_model, composite_params = _generate_composite_model(params_dict)
 
     if debug:
         tot_ax.plot(x, composite_model.eval(composite_params, x=x),
@@ -931,18 +1087,21 @@ def peak_fitting(
 
                 params_dict = _re_sort_prefixes(params_dict)
 
-            model, params = _generate_lmfit_model(params_dict)
+            model, params = _generate_composite_model(params_dict)
 
             if subtract_background:
-                fit_wo_bkrd = model.eval(params, x=x)
-                bkrd_params = background.guess(y - fit_wo_bkrd, x=x)
+                fit_wo_bkg = model.eval(params, x=x)
+                bkg_params = background.guess(y - fit_wo_bkg, x=x)
 
-                composite_params = params + bkrd_params
+                composite_params = params + bkg_params
                 composite_model = model + background
 
                 if debug:
-                    tot_ax.plot(x, background.eval(bkrd_params, x=x),
-                                label=f'background_{eval_num+2}')
+                    tot_ax.plot(
+                        x,
+                        _check_background(background_type, background.eval(bkg_params, x=x), y),
+                        label=f'background_{eval_num + 2}'
+                    )
 
             else:
                 composite_model = model
@@ -950,7 +1109,7 @@ def peak_fitting(
 
             if debug:
                 tot_ax.plot(x, composite_model.eval(composite_params, x=x),
-                            label=f'initial fit_{eval_num+2}')
+                            label=f'initial fit_{eval_num + 2}')
 
             output['initial_fits'].append(composite_model.eval(composite_params, x=x))
             output['fit_results'].append(
@@ -962,13 +1121,13 @@ def peak_fitting(
 
             if np.abs(last_chisq - current_chisq) < 1e-9 and not residual_peaks[1]:
                 print((
-                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
                 ))
                 break
             else:
                 print((
-                    f'\nFit #{eval_num+2}: {output["fit_results"][-1].nfev} evaluations'
+                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     f'\nDelta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}'
                     ))
             if eval_num + 1 == num_resid_fits:
@@ -980,169 +1139,185 @@ def peak_fitting(
         plt.pause(0.01)
 
     for fit_result in output['fit_results']:
-        #list of y-values for the inidividual models
+        # list of y-values for the inidividual models
         output['individual_peaks'].append(fit_result.eval_components(x=x))
-        if background_type == 'ConstantModel':
-            output['individual_peaks'][-1]['background_'] = np.array(
-                [output['individual_peaks'][-1]['background_'],] * len(y)
+        if subtract_background:
+            output['individual_peaks'][-1]['background_'] = _check_background(
+                background_type, output['individual_peaks'][-1]['background_'], y
             )
 
-        #Gets the parameters for each model and their standard errors, if available
-        if None not in {fit_result.params[var].stderr for var in fit_result.var_names}:
-            output['best_values'].append([
-                [var, fit_result.params[var].value,
-                 fit_result.params[var].stderr] for var in fit_result.params
-            ])
-        else:
-            output['best_values'].append([
-                [var, fit_result.params[var].value, 'N/A'] for var in fit_result.params
-            ])
+        # gets the parameters for each model and their standard errors, if available
+        output['best_values'].append([])
+        for param in fit_result.params.values():
+            output['best_values'][-1].append(
+                [param.name, param.value, param.stderr if param.stderr not in (None, np.nan) else 'N/A']
+            )
+        # perform numeric calculations for each peak
+        for model, values in output['individual_peaks'][-1].items():
+            if 'peak' in model:
+                numeric_calcs = {
+                    'numeric area': f_utils.numerical_area(fit_result.userkws['x'], values),
+                    'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], values),
+                    'numeric extremum': f_utils.numerical_extremum(values),
+                    'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], values)
+                }
+                for calc, value in numeric_calcs.items():
+                    output['best_values'][-1].append(
+                        [model + calc, value if value is not None else 'N/A', 'None']
+                    )
 
     return output
 
 
-def r_squared(y, y_calc, num_variables):
+class BackgroundSelector(plot_utils.EmbeddedFigure):
     """
-    Calculates r^2 and adjusted r^2 for the fitting.
+    A window for selecting points to define the background of data.
 
     Parameters
     ----------
+    x : array-like
+        The x-values to be plotted.
     y : array-like
-        The experimental y data.
-    y_calc : array-like
-        The calculated y from fitting.
-    num_variables : int
-        The number of variables used by the fitting model.
+        The y-values to be plotted.
+    click_list : list(list(float, float)), optional
+        A list of selected points (lists of x, y values) on the plot.
 
-    Returns
-    -------
-    r_sq : float
-        The r squared value for the fitting.
-    r_sq_adj : float
-        The adjusted r squared value for the fitting, which takes into
-        account the number of variables in the fitting model.
-
-    """
-
-    mean = np.mean(y)
-    n = len(y)
-    SS_tot = np.sum((y - mean)**2)
-    SS_res = np.sum((y - y_calc)**2)
-
-    r_sq = 1 - (SS_res/SS_tot)
-    r_sq_adj = 1 - (SS_res/(n-num_variables-1))/(SS_tot/(n-1))
-
-    return r_sq, r_sq_adj
-
-
-def background_selector(x_input, y_input, click_list=None):
-    """
-    Allows selection of the background for the data on a matplotlib plot.
-
-    Parameters
+    Attributes
     ----------
-    x_input, y_input : array-like
-        x and y values for the fitting.
-    click_list : list, optional
-        A nested list, with each entry corresponding to [x, y] locations
-        for the points needed fit the background.
+    axis_2 : plt.Axes
+        The secondary axis on the figure which has no events.
 
-    Returns
-    -------
-    click_list : list
-        A nested list, with each entry corresponding to [x, y] locations
-        for the points needed fit the background.
-
-    #TODO: maybe change it so that the input click_list and output click_list are different
     """
 
+    def __init__(self, x, y, click_list=None):
 
-    def remove_circle(axis):
+        super().__init__(x, y, click_list)
+        desired_dpi = 150
+        dpi = plot_utils.determine_dpi(
+            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+             'dpi': desired_dpi}, canvas_size=self.canvas_size
+        )
+
+        self.figure, (self.axis, self.axis_2) = plt.subplots(
+            2, num='Background Selector', sharex=True, tight_layout=True,
+            gridspec_kw={'height_ratios': [1.5, 1], 'hspace': 0},
+            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
+        )
+
+        self.axis.plot(self.x, self.y, 'o-', color='dodgerblue', ms=2, label='raw data')
+        self.axis_2.plot(self.x, self.y, 'ro-', ms=2, label='subtracted data')
+
+        self.xaxis_limits = self.axis.get_xlim()
+        self.yaxis_limits = self.axis.get_ylim()
+
+        # set limits so axis bounds do not change
+        self.axis.set_xlim(self.xaxis_limits)
+        self.axis.set_ylim(self.yaxis_limits)
+
+        self.axis.legend()
+        self.axis_2.legend()
+        self.axis.tick_params(labelbottom=False, bottom=False, which='both')
+
+        self._create_window()
+        self._place_figure_on_canvas()
+
+        # update plot after placing on canvas because figure.canvas.draw_idle will
+        # cause a threading issue otherwise
+        if self.click_list:
+            self._update_plot()
+            for point in self.click_list:
+                self._create_circle(point[0], point[1])
+
+
+    def _create_window(self):
+        """Creates the GUI."""
+
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
+                                        size=(self.canvas_size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
+
+        layout = [
+            [sg.Column([
+                [sg.Text(('Create point: double left click.  Select point: single click.\n'
+                        'Delete selected point: double right click or delete key.'),
+                        justification='center')],
+                [self.canvas]], element_justification='center', pad=(0, 0))],
+            [self.toolbar_canvas],
+            [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR),
+             sg.Button('Clear Points', key='clear')]
+        ]
+
+        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0)
+
+
+    def event_loop(self):
         """
-        Removes the selected circle from the axis.
+        Handles the event loop for the GUI.
 
-        Parameters
-        ----------
-        axis : plt.Axes
-            The axis to use.
+        Returns
+        -------
+        list(list(float, float))
+            A list of the [x, y] values for the selected points on the figure.
 
         """
 
-        coords = list(axis.picked_object.get_center())
-        for i, value in enumerate(click_list):
-            if all(np.isclose(value, coords)):
-                del click_list[i]
+        self.window.reappear()
+
+        while True:
+            event = self.window.read()[0]
+            if event in ('close', sg.WIN_CLOSED):
                 break
-        axis.picked_object.remove()
-        axis.picked_object = None
+            elif event == 'clear':
+                for patch in self.axis.patches.copy():
+                    self.picked_object = patch
+                    self._remove_circle()
+                self._update_plot()
+
+        self._close()
+
+        return self.click_list
 
 
-    def create_circle(x, y, axis):
-        """
-        Places a circle at the designated x,y position.
+    def _update_plot(self):
+        """Updates the plot after events on the matplotlib figure."""
 
-        Parameters
-        ----------
-        x, y : float
-            The x, y position to place the center of the circle.
-        axis : plt.Axes
-            The axis to use.
-
-        """
-
-        x_min, x_max, y_min, y_max = axis.axis()
-        circle_width = 0.03 * (x_min - x_max)
-        circle_height = 0.03 * (y_min - y_max) * 2 # *2 because the aspect ratio is not square
-
-        circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker=True)
-        axis.add_patch(circ)
-
-
-    def plot_background(x, y, axis, axis_2):
-        """
-        Plots a background that fits the selected peaks.
-
-        Parameters
-        ----------
-        x, y : array-like
-            The x and y values of the raw data.
-        axis : plt.Axes
-            The axis upon which to plot the background.
-        axis_2 : plt.Axes
-            The axis to show the background after subtracting the user
-            specified points.
-
-        """
-
-        for line in axis.lines[1:]:
-            line.remove()
-        for line in axis_2.lines:
+        for line in self.axis.lines[1:] + self.axis_2.lines:
             line.remove()
 
-        y_subtracted = y.copy()
-        if len(click_list) > 1:
-            points = sorted(click_list, key=lambda cl: cl[0])
+        y_subtracted = self.y.copy()
+        if len(self.click_list) > 1:
+            points = sorted(self.click_list, key=lambda cl: cl[0])
 
-            for i in range(len(points)-1):
-                x_points, y_points = zip(*points[i:i+2])
-                axis.plot(x_points, y_points, color='k', ls='--',
-                          lw=2)
-                coeffs = np.polyfit(x_points, y_points, 1)
-                boundary = (x >= x_points[0]) & (x <= x_points[1])
-                x_line = x[boundary]
-                y_line = y[boundary]
-                line = np.polyval(coeffs, x_line)
-                y_subtracted[boundary] = y_line - line
+            for i in range(len(points) - 1):
+                x_points, y_points = zip(*points[i:i + 2])
+                self.axis.plot(x_points, y_points, color='k', ls='--', lw=2)
+                boundary = (self.x >= x_points[0]) & (self.x <= x_points[1])
 
-            axis.plot(0, 0, 'k--', lw=2, label='background')
+                y_line = self.y[boundary]
+                y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
 
-        axis_2.plot(x, y_subtracted, 'ro-', ms=2, label='subtracted data')
-        axis.legend()
-        axis_2.legend()
+            self.axis.plot(0, 0, 'k--', lw=2, label='background')
+
+        self.axis_2.plot(self.x, y_subtracted, 'ro-', ms=2, label='subtracted data')
+        self.axis.legend()
+        self.axis_2.legend()
+        self.figure.canvas.draw_idle()
 
 
-    def on_click(event):
+    def _remove_circle(self):
+        """Removes the selected circle from the axis."""
+
+        coords = self.picked_object.get_center()
+        for i, value in enumerate(self.click_list):
+            if all(np.isclose(value, coords)):
+                del self.click_list[i]
+                break
+
+        self.picked_object.remove()
+        self.picked_object = None
+
+
+    def _on_click(self, event):
         """
         The function to be executed whenever this is a button press event.
 
@@ -1153,143 +1328,52 @@ def background_selector(x_input, y_input, click_list=None):
 
         Notes
         -----
-        1) If the button press is not within the 'ax' axis, then nothing is done
-        2) If a double left click is done, then a circle is place on the ax axis
-        3) If a double right click is done, and a circle is selected, then the circle
-           is deleted from the ax axis
+        1) If the button press is not within the self.axis, then nothing is done.
+        2) If a double left click is done, then a circle is placed on self.axis.
+        3) If a double right click is done and a circle is selected, then the circle
+           is deleted from the self.axis.
         4) If a single left or right click is done, it deselects any selected circle
-           if the click is not on the circle
-        Peaks will be (re)plotted if 2) or 3) occurs
+           if the click is not on the circle.
 
         """
 
-        if event.inaxes == ax:
+        if event.inaxes == self.axis:
+            if event.dblclick: # a double click
+                # left click
+                if event.button == 1:
+                    self.click_list.append([event.xdata, event.ydata])
+                    self._create_circle(event.xdata, event.ydata)
+                    self._update_plot()
 
-            if event.dblclick: # is a double click
-                if event.button == 1: # left click
+                # right click
+                elif event.button == 3 and self.picked_object is not None:
+                    self._remove_circle()
+                    self._update_plot()
 
-                    click_list.append([event.xdata, event.ydata])
-
-                    create_circle(event.xdata, event.ydata, ax)
-
-                    plot_background(x, y, ax, ax_2)
-                    ax.figure.canvas.draw_idle()
-
-                elif event.button == 3: # right click
-                    if ax.picked_object is not None:
-                        remove_circle(ax)
-                        plot_background(x, y, ax, ax_2)
-                        ax.figure.canvas.draw_idle()
-
-            elif event.button in [1, 3]: # left or right click
-                if ax.picked_object is not None and not ax.picked_object.contains(event)[0]:
-                    ax.picked_object.set_facecolor('green')
-                    ax.picked_object = None
-                    ax.figure.canvas.draw_idle()
+            # left or right single click
+            elif (event.button in (1, 3) and self.picked_object is not None
+                    and not self.picked_object.contains(event)[0]):
+                self.picked_object.set_facecolor('green')
+                self.picked_object = None
+                self.figure.canvas.draw_idle()
 
 
-    def on_pick(event):
-        """
-        The function to be executed whenever this is a button press event.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        If a circle is selected, its color will change from green to red.
-        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
-        which is just an easy way to keep the axis and the objects lumped together.
-
-        """
-
-        if ax.picked_object is not None and ax.picked_object != event.artist:
-            ax.picked_object.set_facecolor('green')
-            ax.picked_object = None
-        ax.picked_object = event.artist
-        ax.picked_object.set_facecolor('red')
-        ax.figure.canvas.draw_idle()
-
-
-    def on_key(event):
-        """
-        The function to be executed if a key is pressed.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.KeyEvent
-            key_press_event event.
-
-        Notes
-        -----
-        If the 'delete' key is pressed and a circle is selected, the circle
-        will be removed from the ax axis and the peaks will be replotted
-
-        """
-
-        if event.key == 'delete':
-            if ax.picked_object is not None:
-                remove_circle(ax)
-                plot_background(x, y, ax, ax_2)
-                ax.figure.canvas.draw_idle()
-
-
-    x = np.array(x_input, float)
-    y = np.array(y_input, float)
-    click_list = click_list if click_list is not None else []
-
-    fig, (ax, ax_2) = plt.subplots(
-        2, num='Background Selector', sharex=True,
-        gridspec_kw={'height_ratios':[2, 1], 'hspace': 0}
-    )
-
-    ax.text(0.5, 1.01, 'Create point: double left click.  Select point: single click.\n'\
-            'Delete selected point: double right click or delete key.',
-            ha='center', va='bottom', transform=ax.transAxes)
-    ax.picked_object = None
-    ax.plot(x, y, 'o-', color='dodgerblue', ms=2, label='raw data')
-    ax_2.plot(x, y, 'ro-', ms=2, label='subtracted data')
-
-    #create references (cid#) to the events so they are not garbage collected
-    cid1 = fig.canvas.mpl_connect('button_press_event', on_click)
-    cid2 = fig.canvas.mpl_connect('pick_event', on_pick)
-    cid3 = fig.canvas.mpl_connect('key_press_event', on_key)
-
-    if click_list:
-        plot_background(x, y, ax, ax_2)
-        for point in click_list:
-            create_circle(point[0], point[1], ax)
-
-    ax.set_xlim(ax.get_xlim())
-    ax.set_ylim(ax.get_ylim())
-    ax.legend()
-    ax_2.legend()
-    ax.tick_params(labelbottom=False, bottom=False, which='both')
-    fig.set_tight_layout(True)
-
-    plt.show(block=False)
-
-    return click_list
-
-
-def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
-                  subtract_background=False, background_type='PolynomialModel',
-                  poly_n=4, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
+class PeakSelector(plot_utils.EmbeddedFigure):
     """
-    Allows selection of peaks on a matplotlib plot, along with peak width and type.
+    A window for selecting peaks on a plot, along with peak width and type.
 
     Parameters
     ----------
-    x_input, y_input : array-like
-        x and y values for the fitting.
-    click_list : list
+    x : array-like
+        The x-values to be plotted and fitted.
+    y : array-like
+        The y-values to be plotted and fitted.
+    click_list : list, optional
         A nested list, with each entry corresponding to a peak. Each entry
         has the following layout:
-        [[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
+        [[lmfit model, sigma function, aplitude function], [peak center, peak height, peak width]]
         where lmfit model is something like 'GaussianModel'. The first entry
-        in the list comes directly from the peak_transformer function.
+        in the list comes directly from the mcetl.peak_fitting.peak_transformer function.
     initial_peak_width : int or float
         The initial peak width input in the plot.
     subtract_background : bool
@@ -1297,9 +1381,8 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
     background_type : str
         String corresponding to a model in lmfit.models; used to fit
         the background.
-    poly_n : int
-        Degree of the polynomial; only used if background_type is
-        set to 'PolynomialModel'.
+    background_kwargs : dict
+        Any keyword arguments needed to initialize the background model
     bkg_min : float or int
         Minimum x value to use for initially fitting the background.
     bkg_max : float or int
@@ -1308,323 +1391,290 @@ def peak_selector(x_input, y_input, click_list=None, initial_peak_width=1,
         The initial model to have selected on the plot, corresponds to
         a model in lmfit.models.
 
-    Returns
-    -------
-    click_list : list
-        A nested list, with each entry corresponding to a peak. Each entry
-        has the following layout:
-        [[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
-        where lmfit model is something like 'GaussianModel'.
+    Attributes
+    ----------
+    background : array-like
+        The y-values for the background function.
 
     """
 
-    def remove_circle(axis):
+    def __init__(self, x, y, click_list=None, initial_peak_width=1,
+                 subtract_background=False, background_type='PolynomialModel',
+                 background_kwargs=None, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
+
+        super().__init__(x, y, click_list)
+        nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
+        self.x = self.x[nan_mask]
+        self.y = self.y[nan_mask]
+
+        # reduce canvas size a little since the gui has buttons under the figure
+        self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
+        desired_dpi = 150
+        dpi = plot_utils.determine_dpi(
+            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+             'dpi': desired_dpi}, canvas_size=self.canvas_size
+        )
+
+        self.figure, self.axis = plt.subplots(
+            num='Peak Selector', tight_layout=True,
+            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
+        )
+
+        self.axis.plot(self.x, self.y, 'o-', color='dodgerblue',
+                       ms=2, label='raw data')
+
+        if not subtract_background:
+            self.background = np.zeros(x.size)
+        else:
+            bkg_mask = (self.x > bkg_min) & (self.x < bkg_max)
+            bkg_kwargs = background_kwargs if background_kwargs is not None else {}
+
+            bkg_model = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
+            bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
+            self.background = _check_background(background_type, bkg_model.eval(bkg_params, x=x), y)
+
+        self.axis.plot(self.x, self.background, 'r--', lw=2, label='background')
+        self.xaxis_limits = self.axis.get_xlim()
+        self.yaxis_limits = self.axis.get_ylim()
+
+        # set limits so axis bounds do not change
+        self.axis.set_xlim(self.xaxis_limits)
+        self.axis.set_ylim(self.yaxis_limits)
+
+        self.axis.legend()
+
+        self._create_window(initial_peak_width, default_model)
+        self._place_figure_on_canvas()
+
+        if self.click_list:
+            self._update_plot()
+            for peak in self.click_list:
+                center = peak[3]
+                height = peak[1] + self.background[np.argmin(np.abs(center - self.x))]
+                self._create_circle(center, height)
+
+
+    def _create_window(self, peak_width, peak_model):
+        """Creates the GUI."""
+
+        self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
+                                        size=(self.canvas_size[0], 10))
+        self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
+
+        models_dict = peak_transformer()
+        display_models = [f_utils.get_gui_name(model) for model in models_dict.keys()]
+        if f_utils.get_gui_name(peak_model) in display_models:
+            initial_model = f_utils.get_gui_name(peak_model)
+        else:
+            initial_model = display_models[0]
+
+        layout = [
+            [sg.Column([
+                [sg.Text(('Create point: double left click.  Select point: single click.\n'
+                         'Delete selected point: double right click.'),
+                         justification='center')],
+                [self.canvas]], element_justification='center', pad=(0, 0))],
+            [self.toolbar_canvas],
+            [sg.Text('Peak model:'),
+             sg.Combo(display_models, key='peak_model', readonly=True,
+                      default_value=initial_model),
+             sg.Text('    Peak FWHM:'),
+             sg.Input(peak_width, key='peak_width', size=(10, 1))],
+            [sg.Column([
+                [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
+                        bind_return_key=True, pad=(5, (15, 0))),
+                sg.Button('Clear Points', key='clear', pad=(5, (15, 0))),
+                sg.Check('Hide legend', key='hide_legend', enable_events=True)]
+            ], vertical_alignment='bottom')]
+        ]
+
+        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
+
+
+    def event_loop(self):
         """
-        Removes the selected circle from the axis.
+        Handles the event loop for the GUI.
 
-        Parameters
-        ----------
-        axis : plt.Axes
-            The axis to use.
+        Returns
+        -------
+        list
+            A nested list, with each entry corresponding to a peak. Each entry
+            has the following layout:
+            [model, peak center, peak height, peak width]
+            where model is something like 'Gaussian'. The first entry
+            in the list comes directly from the mcetl.peak_fitting.peak_transformer function.
 
         """
 
-        center, height = list(axis.picked_object.get_center())
-        bkrd_height = initial_bkrd[np.argmin(np.abs(center-x))]
-        for i, value in enumerate(click_list):
-            if all(np.isclose(value[1][:2], [center, height - bkrd_height])):
-                del click_list[i]
+        self.window.reappear()
+        while True:
+            event, values = self.window.read()
+            if event in ('close', sg.WIN_CLOSED):
                 break
-        axis.picked_object.remove()
-        axis.picked_object = None
+            elif event == 'clear':
+                for patch in self.axis.patches.copy():
+                    self.picked_object = patch
+                    self._remove_circle()
+                self._update_plot()
+            elif event == 'hide_legend':
+                if values[event]:
+                    self.axis.get_legend().set_visible(False)
+                else:
+                    self.axis.get_legend().set_visible(True)
+                self.figure.canvas.draw_idle()
+
+        self._close()
+
+        return self.click_list
 
 
-    def create_circle(x, y, axis):
-        """
-        Places a circle at the designated x,y position.
+    def _update_plot(self):
+        """Updates the plot after events on the matplotlib figure."""
 
-        Parameters
-        ----------
-        x, y : float
-            The x, y position to place the center of the circle.
-        axis : plt.Axes
-            The axis to use.
-
-        """
-
-        ax_width = axis.get_xlim()
-        ax_height = axis.get_ylim()
-        circle_width = 0.05 * (ax_width[1] - ax_width[0])
-        circle_height = 0.05 * (ax_height[1] - ax_height[0])
-
-        circ = Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                       facecolor='green', picker=True)
-        axis.add_patch(circ)
-
-
-    def plot_total_peaks(x, axis):
-        """
-        Plots each selected peak and the sum of all peaks on the axis.
-
-        Parameters
-        ----------
-        x, y : array-like
-            The x and y values of the raw data.
-        axis : plt.Axes
-            The axis upon which to plot the peaks.
-        """
-
-        y_tot = 0 * x
-
-        for line in axis.lines[2:]:
+        for line in self.axis.lines[2:]:
             line.remove()
 
-        if click_list:
+        if self.click_list:
             # resets the color cycle to start at 0
-            axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
-            peaks = sorted(click_list, key=lambda cl: cl[1][0])
-            minx, maxx = [min(x), max(x)]
+            self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
 
-            middles = [0.0 for num in range(len(peaks)+1)]
-            middles[0] = minx
-            middles[-1] = maxx
-            for i in range(len(peaks)-1):
-                middles[i + 1] = np.mean([peaks[i][1][0], peaks[i + 1][1][0]])
-
-            for i, peak in enumerate(peaks):
-                center = peak[1][0]
-                height = peak[1][1]
-                width = peak[1][2]
-                prefix = f'peak_{i + 1}'
-
-                peak_model = getattr(lmfit.models, peak[0][0])(prefix=prefix)
-                if peak[0][0] != 'LognormalModel':
-                    peak_model.set_param_hint('center',value=center, min=-np.inf,
-                                              max=np.inf)
-                    peak_model.set_param_hint('height', min=0)
-                    peak_model.set_param_hint('amplitude',
-                                              value=peak[0][1][1](height, width))
-                    peak_model.set_param_hint('sigma',
-                                              value=peak[0][1][0](height, width))
-                else:
-                    xm2 = center**2 # xm2 denotes x_mode squared
-                    sigma = 0.85 * np.log((width + center * np.sqrt((4 * xm2 + width**2) / (xm2))) / (2 * center))
-                    mean = np.log(center) + sigma**2
-                    amplitude = (height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
-
-                    peak_model.set_param_hint('center', value=mean, min=1.e-19)
-                    peak_model.set_param_hint('sigma', value=sigma)
-                    peak_model.set_param_hint('amplitude', value=amplitude)
-
-                if peak[0][0] == 'SplitLorentzianModel':
-                    peak_model.set_param_hint('sigma_r',
-                                              value=peak[0][1][0](height, width))
-
+            models_dict = peak_transformer()
+            y_tot = 0 * self.x
+            for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[3])):
+                height = peak[1]
+                width = peak[2]
+                center = peak[3]
+                peak_model = f_utils.get_model_object(peak[0])(prefix=f'peak_{i + 1}')
                 peak_params = peak_model.make_params()
-                peak = peak_model.eval(peak_params, x=x)
-                axis.plot(x, peak + initial_bkrd, ':',
-                          lw=2, label=f'peak {i + 1}')
+                for param, equation in models_dict[peak[0]].items():
+                    peak_params[f'peak_{i + 1}{param}'].set(value=equation(height, width, center))
+
+                peak = peak_model.eval(peak_params, x=self.x)
+                self.axis.plot(self.x, peak + self.background, ':',
+                               lw=2, label=f'peak {i + 1}')
                 y_tot += peak
 
-            axis.plot(x, y_tot + initial_bkrd, color='k', ls='--',
-                      lw=2, label='total')
-        axis.legend()
+            self.axis.plot(self.x, y_tot + self.background, color='k', ls='--',
+                           lw=2, label='total')
+
+        self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
+        if self.window['hide_legend'].get():
+            self.axis.get_legend().set_visible(False)
+        self.figure.canvas.draw_idle()
 
 
-    def on_click(event):
-        """
-        The function to be executed whenever this is a button press event.
+    def _remove_circle(self):
+        """Removes the selected circle from the axis."""
 
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        1) If the button press is not within the 'ax' axis, then nothing is done
-        2) If a double left click is done, then a circle is place on the ax axis
-        3) If a double right click is done, and a circle is selected, then the circle
-           is deleted from the ax axis
-        4) If a single left or right click is done, it deselects any selected circle
-           if the click is not on the circle
-        Peaks will be (re)plotted if 2) or 3) occurs
-        """
-
-        if event.inaxes == ax:
-
-            if event.dblclick: # double click
-                if (event.button == 1) and (text_box.text): # left click
-                    for key in models_dict:
-                        if radio.value_selected == models_dict[key][0]:
-                            model = [key, models_dict[key][1]]
-                            break
-
-                    #[[lmfit model, sigma fct, aplitude fct], [peak center, peak height, peak width]]
-                    peak_center = event.xdata
-                    peak_height = event.ydata - initial_bkrd[np.argmin(np.abs(peak_center-x))]
-                    click_list.append([model, [peak_center, peak_height,
-                                               float(text_box.text)]])
-
-                    create_circle(event.xdata, event.ydata, ax)
-
-                    plot_total_peaks(x, ax)
-                    ax.figure.canvas.draw_idle()
-
-                elif event.button == 3: # right click
-                    if ax.picked_object is not None:
-                        remove_circle(ax)
-                        plot_total_peaks(x, ax)
-                        ax.figure.canvas.draw_idle()
-
-            elif event.button in (1, 3): # left or right click
-                if ax.picked_object is not None and not ax.picked_object.contains(event)[0]:
-                    ax.picked_object.set_facecolor('green')
-                    ax.picked_object = None
-                    ax.figure.canvas.draw_idle()
-
-
-    def on_pick(event):
-        """
-        The function to be executed whenever this is a button press event.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.MouseEvent
-            The button_press_event event.
-
-        Notes
-        -----
-        If a circle is selected, its color will change from green to red.
-        It assigns the circle artist as the attribute 'picked_object' to the ax axis,
-        which is just an easy way to keep the axis and the objects lumped together.
-        """
-
-        if ax.picked_object is not None and ax.picked_object != event.artist:
-            ax.picked_object.set_facecolor('green')
-            ax.picked_object = None
-        ax.picked_object = event.artist
-        ax.picked_object.set_facecolor('red')
-        ax.figure.canvas.draw_idle()
-
-
-    def on_key(event):
-        """
-        The function to be executed if a key is pressed.
-
-        Parameters
-        ----------
-        event : matplotlib.backend_bases.KeyEvent
-            key_press_event event.
-
-        Notes
-        -----
-        If the 'delete' key is pressed and a circle is selected, the circle
-        will be removed from the ax axis and the peaks will be replotted
-
-        """
-
-        if event.key == 'delete':
-            if ax.picked_object is not None:
-                remove_circle(ax)
-                plot_total_peaks(x, ax)
-                ax.figure.canvas.draw_idle()
-
-
-    x = np.array(x_input, float)
-    y = np.array(y_input, float)
-    click_list = click_list if click_list is not None else []
-    fig = plt.figure(num='Peak Selector')
-    #[left, bottom, width, height]
-    ax = plt.axes([0.32, 0.07, 0.64, 0.83])
-    ax.tick_params(labelbottom=False, labelleft=False)
-    ax.text(0.5, 1.01, 'Create peak: double left click.  Select peak: single click.\n'\
-            'Delete selected peak: double right click or delete key.',
-            ha='center', va='bottom', transform=ax.transAxes)
-    ax.picked_object = None
-    ax.plot(x, y, 'o-', color='dodgerblue', ms=2, label='raw data')
-
-    if subtract_background:
-        bkg_mask = (x > bkg_min) & (x < bkg_max)
-        if background_type == 'PolynomialModel':
-            background = getattr(
-                lmfit.models, background_type)(poly_n, prefix='background_')
-        else:
-            background = getattr(
-                lmfit.models, background_type)(prefix='background_')
-
-        init_bkrd_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkrd = background.eval(init_bkrd_params, x=x)
-
-    else:
-        initial_bkrd = np.array([0]*len(x))
-
-    ax.plot(x, initial_bkrd, 'r--', lw=2, label='background')
-    ax.legend()
-
-    #create references (cid#) to the events so they are not garbage collected
-    cid1 = fig.canvas.mpl_connect('button_press_event', on_click)
-    cid2 = fig.canvas.mpl_connect('pick_event', on_pick)
-    cid3 = fig.canvas.mpl_connect('key_press_event', on_key)
-
-    ax_text = plt.axes([0.1, 0.25, 0.1, 0.1])
-    ax_radio = plt.axes([0.02, 0.4, 0.26, 0.5])
-    text_box = TextBox(ax_text, 'Peak \nWidth', initial=f'{initial_peak_width}',
-                       label_pad=0.1)
-
-    models_dict = peak_transformer()
-    if default_model is not None:
-        default_index = 0
-        for index, key in enumerate(models_dict):
-            if default_model == key:
-                default_index = index
+        center, height = self.picked_object.get_center()
+        bkrd_height = self.background[np.argmin(np.abs(center - self.x))]
+        for i, value in enumerate(self.click_list):
+            if all(np.isclose([value[3], value[1]], [center, height - bkrd_height])):
+                del self.click_list[i]
                 break
-    else:
-        default_index = 0
-    display_values = [models_dict[model][0] for model in models_dict]
-    radio = RadioButtons(ax_radio, display_values, active=default_index)
 
-    if click_list:
-        plot_total_peaks(x, ax)
-        for peak in click_list:
-            center = peak[1][0]
-            height = peak[1][1] + initial_bkrd[np.argmin(np.abs(center - x))]
-            create_circle(center, height, ax)
-
-    ax.set_xlim(ax.get_xlim())
-    ax.set_ylim(ax.get_ylim())
-    plt.show(block=False)
-
-    return click_list
+        self.picked_object.remove()
+        self.picked_object = None
 
 
-def plot_confidence_intervals(x, y, fit_result, n_sig=3):
+    def _on_click(self, event):
+        """
+        The function to be executed whenever this is a button press event.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.MouseEvent
+            The button_press_event event.
+
+        Notes
+        -----
+        1) If the button press is not within the self.axis, then nothing is done.
+        2) If a double left click is done, then a circle is placed on self.axis.
+        3) If a double right click is done and a circle is selected, then the circle
+           is deleted from the self.axis.
+        4) If a single left or right click is done, it deselects any selected circle
+           if the click is not on the circle.
+
+        """
+
+        if event.inaxes == self.axis:
+            if event.dblclick: # a double click
+                if event.button == 1: # left click
+                    try:
+                        peak_width = float(self.window['peak_width'].get())
+                        if peak_width <= 0:
+                            raise ValueError
+                    except ValueError:
+                        self.window['peak_width'].update('')
+                    else:
+                        selected_model = f_utils.get_model_name(self.window['peak_model'].get())
+
+                        #[lmfit model, peak height, peak width, peak center]
+                        peak_center = event.xdata
+                        peak_height = event.ydata - self.background[np.argmin(np.abs(peak_center - self.x))]
+                        self.click_list.append([selected_model, peak_height, peak_width, peak_center])
+
+                        self._create_circle(event.xdata, event.ydata)
+                        self._update_plot()
+
+                # right click
+                elif event.button == 3 and self.picked_object is not None:
+                    self._remove_circle()
+                    self._update_plot()
+
+            # left or right single click
+            elif (event.button in (1, 3) and self.picked_object is not None
+                    and not self.picked_object.contains(event)[0]):
+                self.picked_object.set_facecolor('green')
+                self.picked_object = None
+                self.figure.canvas.draw_idle()
+
+
+def plot_confidence_intervals(fit_result, n_sig=3, return_figure=False):
     """
-    Plot the data, fit, and the fit +- n_sig*sigma confidence intervals.
+    Plot the data, the fit, and the fit +- n_sig * sigma confidence intervals.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
     fit_result : lmfit.ModelResult
         The ModelResult object for the fitting.
-    n_sig : int
-        An integer describing the multiple of the standard error to use
-        as the plotted error.
+    n_sig : float, optional
+        The multiple of the standard error to use as the plotted error.
+        The default is 3.
+    return_figure : bool, optional
+        If True, will return the created figure; otherwise, it will display
+        the figure using plt.show(block=False) (default).
+
+    Returns
+    -------
+    plt.Figure or None
+        If return_figure is True, the figure is returned; otherwise, None
+        is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
+    x = fit_result.userkws['x']
+    y = fit_result.data
     del_y = fit_result.eval_uncertainty(sigma=n_sig)
-    plt.figure()
+
+    figure = plt.figure()
     plt.fill_between(
-        x, fit_result.best_fit - del_y,
-        fit_result.best_fit+del_y, color='darkgrey',
-        label=f'best fit $\pm$ {n_sig}$\sigma$'
+        x, fit_result.best_fit - del_y, fit_result.best_fit + del_y,
+        color='darkgrey', label=fr'best fit $\pm$ {n_sig}$\sigma$'
     )
     plt.plot(x, y, 'o', ms=1.5, color='dodgerblue', label='data')
     plt.plot(x, fit_result.best_fit, 'k-', lw=1.5, label='best fit')
     plt.legend()
-    plt.show(block=False)
+
+    if return_figure:
+        return figure
+    else:
+        plt.show(block=False)
 
 
 def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
@@ -1634,8 +1684,10 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
+    x : array-like
+        x data used in the fitting.
+    y : array-like
+        y data used in the fitting.
     x_min : float or int
         Minimum x values used for the fitting procedure.
     x_max : float or int
@@ -1653,7 +1705,7 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
 
     """
 
-    fig, ax = plt.subplots()
+    ax = plt.subplots()[-1]
     legend = ['Rejected Peaks', 'Found Peaks', 'User Peaks']
     colors = ['r', 'g', 'purple']
     ax.plot(x, y, 'b-', ms=2)
@@ -1665,81 +1717,100 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
                                            & (np.array(additional_peaks)<x_max)]:
         ax.axvline(peak, 0, 0.9, c='purple', linestyle='--')
     for i in range(3):
-        plt.text(0.1+0.35*i, 0.95, legend[i], ha='left', va='center',
+        plt.text(0.1 + 0.35 * i, 0.95, legend[i], ha='left', va='center',
                  transform=ax.transAxes)
-        plt.hlines(0.95, 0.02+0.35*i, 0.08+0.35*i, color=colors[i], linestyle='--',
-                   transform=ax.transAxes)
-    plt.ylim(ax.get_ylim()[0], ax.get_ylim()[1]*1.1)
+        plt.hlines(0.95, 0.02 + 0.35 * i, 0.08 + 0.35 * i, color=colors[i],
+                   linestyle='--', transform=ax.transAxes)
+    ax.set_ylim(plot_utils.scale_axis(ax.get_ylim(), None, 0.1))
     plt.show(block=False)
 
 
-def plot_fit_results(x, y, fit_result, label_rsq=False, plot_initial=False):
+def plot_fit_results(fit_result, label_rsq=False, plot_initial=False, return_figure=False):
     """
     Plot the raw data, best fit, and residuals.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
-    fit_result : lmfit.ModelResult
+    fit_result : lmfit.ModelResult or list(lmfit.ModelResult)
         A ModelResult object from lmfit; can be a list of ModelResults,
         in which case, the initial fit will use fit_result[0], and the
         best fit will use fit_result[-1].
-    label_rsq : bool
+    label_rsq : bool, optional
         If True, will put a label with the adjusted r squared value of the fitting.
-    plot_initial : bool
+    plot_initial : bool, optional
         If True, will plot the initial fitting as well as the best fit.
+    return_figure : bool, optional
+        If True, will return the created figure; otherwise, it will display
+        the figure using plt.show(block=False) (default).
+
+    Returns
+    -------
+    plt.Figure or None
+        If return_figure is True, the figure is returned; otherwise, None
+        is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
     if not isinstance(fit_result, (list, tuple)):
         fit_result = [fit_result]
 
-    fig_a, (ax_resid, ax_1) = plt.subplots(
+    x = fit_result[-1].userkws['x']
+    y = fit_result[-1].data
+
+    figure, (ax_resid, ax_main) = plt.subplots(
         2, sharex=True, gridspec_kw={'height_ratios':[1, 5], 'hspace': 0}
     )
-    ax_1.plot(x, y, 'o', color='dodgerblue', ms=1.5, label='data')
+    ax_main.plot(x, y, 'o', color='dodgerblue', ms=1.5, label='data')
     if plot_initial:
-        ax_1.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
-    ax_1.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
-    ax_resid.plot(x, -fit_result[-1].residual, 'o', color='dodgerblue',
+        ax_main.plot(x, fit_result[0].init_fit, 'r--', label='initial fit')
+    ax_main.plot(x, fit_result[-1].best_fit, 'k-', label='best fit')
+    # don't plot fit_result.residual because it equals inf when there is a bad fit
+    ax_resid.plot(x, y - fit_result[-1].best_fit, 'o', color='green',
                   ms=1, label='residuals')
     ax_resid.axhline(0, color='k', linestyle='-')
-    ax_1.legend()
 
-    ax_1.set_ylabel('y')
-    ax_1.set_xlim(np.min(x)-5, np.max(x)+5)
-    ax_1.set_ylim(ax_1.get_ylim()[0] * (1 - 0.1), ax_1.get_ylim()[1] * (1 + 0.1))
+    ax_main.set_ylim(plot_utils.scale_axis(ax_main.get_ylim(), 0.05, 0.05))
+    ax_resid.set_ylim(plot_utils.scale_axis(ax_resid.get_ylim(), 0.05, 0.05))
+    ax_main.legend()
+    ax_main.set_ylabel('y')
+
     if label_rsq:
-        ax_1.text((ax_1.get_xlim()[1]-ax_1.get_xlim()[0])*0.05 + ax_1.get_xlim()[0],
-                  (ax_1.get_ylim()[1]-ax_1.get_ylim()[0])*0.95 + ax_1.get_ylim()[0],
-                   f'R$^2$= {r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
-                   ha='left', va='top')
+        ax_main.text(
+            plot_utils.scale_axis(ax_main.get_xlim(), -0.05, None)[0],
+            plot_utils.scale_axis(ax_main.get_ylim(), None, -0.05)[1],
+            f'R$^2$= {f_utils.r_squared(y, fit_result[-1].best_fit, fit_result[-1].nvarys)[1]:.3f}',
+            ha='left', va='top'
+        )
     ax_resid.tick_params(labelbottom=False, bottom=False, which='both')
-    ax_1.label_outer()
-
-    ax_1.set_xlabel('x')
-    ax_resid.set_ylabel('$y_{obs}-y_{calc}$')
-    ax_resid.set_ylim(ax_resid.get_ylim()[0] * (1 + 0.1), ax_resid.get_ylim()[1] * (1 + 0.1))
+    ax_main.label_outer()
+    ax_main.set_xlabel('x')
+    ax_resid.set_ylabel('$y_{data}-y_{fit}$')
     ax_resid.label_outer()
-    plt.show(block=False)
+
+    if return_figure:
+        return figure
+    else:
+        plt.show(block=False)
 
 
-def plot_individual_peaks(x, y, individual_peaks, fit_result, background_subtracted=False,
+def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=False,
                           plot_subtract_background=False, plot_separate_background=False,
-                          plot_w_background=False):
+                          plot_w_background=False, return_figures=False):
     """
     Plots each individual peak in the composite model and the total model.
 
     Parameters
     ----------
-    x, y : array-like
-        x and y data used in the fitting.
+    fit_result : lmfit.ModelResult
+        The ModelResult object from the fitting.
     individual_peaks : dict
         A dictionary with keys corresponding to the model prefixes
         in the fitting, and their values corresponding to their y values.
-    fit_result : lmfit.ModelResult
-        The ModelResult object from the fitting.
     background_subtracted : bool
         Whether or not the background was subtracted in the fitting.
     plot_subtract_background : bool
@@ -1752,166 +1823,94 @@ def plot_individual_peaks(x, y, individual_peaks, fit_result, background_subtrac
     plot_w_background : bool
         If True, has the background added to all peaks, i.e. it shows
         exactly how the composite model fits the raw data.
+    return_figures : bool, optional
+        If True, will return the created figures; otherwise, it will display
+        the figures using plt.show(block=False) (default).
+
+    Returns
+    -------
+    list(plt.Figure) or None
+        If return_figures is True, the list of created figures is returned.
+        Otherwise, None is returned.
+
+    Notes
+    -----
+    This function assumes that the independant variable in the fit_result
+    was labeled 'x', as is standard for all built-in lmfit models.
 
     """
 
-    #Creates a color cycle to override matplotlib's to prevent color clashing
+    x = fit_result.userkws['x']
+    y = fit_result.data
+
+    # Creates a color cycle to override matplotlib's to prevent color clashing
     COLORS = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b','#e377c2',
               '#bcbd22', '#17becf']
-    n_col = int(np.ceil(len(individual_peaks) / 5))
+    n_col = max(1, len(individual_peaks) // 5)
 
+    figures = []
     if background_subtracted:
         if plot_subtract_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
-            ax.plot(x, y-individual_peaks['background_'], 'o',
+            ax.plot(x, y - individual_peaks['background_'], 'o',
                     color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                    ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                             color=next(color_cycle))
                     i += 1
-            ax.plot(x, fit_result.best_fit-individual_peaks['background_'],
+            ax.plot(x, fit_result.best_fit - individual_peaks['background_'],
                     'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
         if plot_w_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak]+individual_peaks['background_'],
-                            label=f'peak {i+1}', color=next(color_cycle))
+                    ax.plot(x, individual_peaks[peak] + individual_peaks['background_'],
+                            label=f'peak {i}', color=next(color_cycle))
                     i += 1
             ax.plot(x, individual_peaks['background_'], 'k', label='background')
             ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
         if plot_separate_background:
             fig, ax = plt.subplots()
             color_cycle = itertools.cycle(COLORS)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-            i = 0
+            i = 1
             for peak in individual_peaks:
                 if peak != 'background_':
-                    ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                    ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                             color=next(color_cycle))
                     i += 1
             ax.plot(x, individual_peaks['background_'], 'k', label='background')
             ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
             ax.legend(ncol=n_col)
-            plt.show(block=False)
+            figures.append(fig)
 
     else:
         fig, ax = plt.subplots()
         color_cycle = itertools.cycle(COLORS)
         ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
-        for i, peak in enumerate(individual_peaks):
+        i = 1
+        for peak in individual_peaks:
             if peak != 'background_':
-                ax.plot(x, individual_peaks[peak], label=f'peak {i+1}',
+                ax.plot(x, individual_peaks[peak], label=f'peak {i}',
                         color=next(color_cycle))
+                i += 1
         ax.plot(x, fit_result.best_fit, 'k--', lw=1.5, label='best fit')
         ax.legend(ncol=n_col)
+        figures.append(fig)
+
+    if return_figures:
+        return figures
+    else:
         plt.show(block=False)
-
-
-if __name__ == '__main__':
-
-    import time
-
-    #data
-    x_array = np.linspace(0, 60, 100)
-    background = 0.1 * x_array
-    noise = 0.1 * np.random.randn(len(x_array))
-    peaks = lmfit.lineshapes.gaussian(x_array, 30, 15, 5) + lmfit.lineshapes.gaussian(x_array, 50, 35, 3)
-    y_array = background + noise + peaks
-
-    #inputs for plugNchug_fit function
-    rel_height = 0
-    prominence = np.inf
-    center_offset = 10
-    peak_width = 10
-    x_min = 5
-    x_max = 55
-    additional_peaks = [2, 10, 36]
-    subtract_background=True
-    model_list = []
-    min_method = 'least_squares'
-    background_type = 'PolynomialModel'
-    poly_n = 1
-    default_model='GaussianModel'
-    fit_kws = {}
-    vary_Voigt=False
-    fit_residuals=True
-    num_resid_fits=5
-    min_resid = 0.1
-    debug=True
-    bkg_min = 45
-
-    #options for plotting data after fitting
-    plot_data_wo_background=False
-    plot_data_w_background=True
-    plot_data_separatebackground=False
-    plot_fit_result=True
-    plot_CI=True
-    n_sig = 3
-    plot_peaks=True
-    plot_initial=False
-
-    time0 = time.time()
-
-    fitting_results = peak_fitting(
-        x_array, y_array, height=rel_height, prominence=prominence,
-        center_offset=center_offset, peak_width=peak_width, model_list=model_list,
-        subtract_background=subtract_background, x_min=x_min, x_max=x_max,
-        additional_peaks=additional_peaks, background_type=background_type,
-        poly_n=poly_n, min_method=min_method, default_model=default_model,
-        fit_kws=fit_kws, vary_Voigt=vary_Voigt, fit_residuals=fit_residuals,
-        num_resid_fits=num_resid_fits, min_resid=min_resid,
-        debug=debug, bkg_min=bkg_min
-    )
-
-    print('\n\n'+'-'*8+f' {time.time()-time0:.1f} seconds '+'-'*8)
-
-    #unpacks all of the data from the output of the plugNchug_fit function
-    output_list = [fitting_results[key] for key in fitting_results]
-    resid_found, resid_accept, peaks_found, peaks_accept, initial_fit, fit_results, individual_peaks, best_values = output_list
-    fit_result = fit_results[-1]
-    individual_peaks = individual_peaks[-1]
-    best_values = best_values[-1]
-
-    domain_mask = (x_array > x_min) & (x_array < x_max)
-    x_array = x_array[domain_mask]
-    y_array = y_array[domain_mask]
-
-    #Plot the peaks found or added, as well as if they were used in the fitting
-    if plot_peaks:
-        plot_peaks_for_model(x_array, y_array, x_min, x_max, peaks_found,
-                             peaks_accept, additional_peaks)
-
-    #Plot the initial model used for fitting
-    if plot_initial:
-        fig=plt.figure()
-        plt.plot(x_array, y_array, 'o', x_array, initial_fit[0], ms=2)
-        plt.legend(['data', 'initial guess'])
-        plt.show(block=False)
-
-    #Plot the best fit and residuals
-    if plot_fit_result:
-        plot_fit_results(x_array, y_array, fit_results, True, True)
-
-    #Plots individual peaks from the fitting
-    plot_individual_peaks(x_array, y_array, individual_peaks, fit_result, subtract_background,
-                          plot_data_wo_background, plot_data_separatebackground,
-                          plot_data_w_background)
-
-    #Plot the data, fit, and the fit +- n_sig*sigma confidence intervals
-    if plot_CI:
-        plot_confidence_intervals(x_array, y_array, fit_result, n_sig)
-
-    print('\n\n', fit_result.fit_report(min_correl=0.5))

@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Shows how to use peak_fitting_gui from mcetl.
+"""Shows how to use launch_fitting_gui from mcetl.
 
 Since no data is input into the function, it will launch a window
 that will prompt the user to select the data files to open and fit.
 
 @author: Donald Erb
-Created on Sat Aug 22 17:34:39 2020
+Created on Aug 22, 2020
 
 """
 
 import matplotlib.pyplot as plt
-from mcetl import launch_peak_fitting_gui
+from mcetl.fitting import launch_fitting_gui
 
+#from mcetl import plot_utils
+#plot_utils.CANVAS_SIZE = (700, 700) # Changes the size of the figures within the GUIs.
 
 # changes some defaults for the plot formatting so it looks nice
 changes = {
@@ -34,12 +36,11 @@ changes = {
     'lines.linewidth': 2,
     'lines.markersize': 5,
     'axes.linewidth': 0.6,
-    'legend.frameon': False,
     'figure.dpi': 150,
     'figure.figsize': (6, 4.5)
 }
 
-fit_results, gui_values, all_data_fit = launch_peak_fitting_gui(mpl_changes=changes)
+fit_results, gui_values, all_data_fit = launch_fitting_gui(mpl_changes=changes)
 
 # Ensures program will not end until all plots are closed
 if plt.get_fignums():

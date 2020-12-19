@@ -6,9 +6,6 @@ Created on Jun 28, 2020
 
 Attributes
 ----------
-CANVAS_SIZE : tuple(int, int)
-    A tuple specifying the size (in pixels) of the figure canvas in the GUI.
-    This can be modified if the user wishes a larger or smaller canvas.
 COLORS : tuple(str)
     A tuple with values that are used in GUIs to select the color to
     plot with in matplotlib.
@@ -27,6 +24,13 @@ TIGHT_LAYOUT_W_PAD : float
     The width (horizontal) padding between axes in a figure; used by
     matplotlib's tight_layout option.
 
+Notes
+-----
+The sympy import is within the _parse_equation function because sympy
+takes a significant time to load, is only used for that function, and
+the function is only used when making secondary axes with different scales
+than the main axes.
+
 """
 
 
@@ -37,18 +41,24 @@ from pathlib import Path
 import string
 import traceback
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
-import sympy as sp
 
-from . import utils
+from .. import plot_utils, utils
+
+# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
+try:
+    import PIL
+except ImportError:
+    _HAS_PIL = False
+else:
+    _HAS_PIL = True
+    del PIL
 
 
-CANVAS_SIZE = (800, 800)
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
     'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue'
@@ -79,42 +89,6 @@ _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information
 _THEME_EXTENSION = '.figtheme'
-
-
-class PlotToolbar(NavigationToolbar2Tk):
-    """
-    Custom toolbar without the subplots and save figure buttons.
-
-    Ensures that saving is done through the save menu in the window, which
-    gives better options for output image quality and ensures the figure
-    dimensions are correct. The subplots button is removed so that the
-    user does not mess with the plot layout since it is handled by using
-    matplotlib's tight layout.
-
-    """
-
-    def __init__(self, fig_canvas, canvas):
-        """
-
-        Parameters
-        ----------
-        fig_canvas : matplotlib.FigureCanvas
-            The figure canvas on which to operate.
-        canvas : tk.window
-            The parent window which owns this toolbar.
-
-        """
-
-        self.toolitems = (
-            ('Home', 'Reset original view', 'home', 'home'),
-            ('Back', 'Back to previous view', 'back', 'back'),
-            ('Forward', 'Forward to next view', 'forward', 'forward'),
-            (None, None, None, None),
-            ('Pan', 'Pan axes with left mouse, zoom with right', 'move', 'pan'),
-            ('Zoom', 'Zoom to rectangle', 'zoom_to_rect', 'zoom'),
-        )
-
-        super().__init__(fig_canvas, canvas)
 
 
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
@@ -191,7 +165,8 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                         'markersize': line.get_markersize(),
                         'linestyle': line.get_linestyle(),
                         'linewidth': line.get_linewidth(),
-                        'color': line.get_color()
+                        'color': line.get_color(),
+                        'alpha': line.get_alpha()
                     })
 
         if Path(filename).suffix != _THEME_EXTENSION:
@@ -224,14 +199,12 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 )
             else:
                 saved_data = []
-                # creates separator columns
-                for i, dataframe in enumerate(data):
+                # inserts separator columns between datasets
+                for dataframe in data[:-1]:
                     df = dataframe.copy()
-                    df.columns = [f'{col}_{i}' for col in df.columns]
-                    if i != len(data) - 1:
-                        df[f'{_FILLER_COLUMN_NAME}_{i}'] = pd.Series(np.nan,
-                                                                     dtype=np.float16)
+                    df[_FILLER_COLUMN_NAME] = pd.Series(np.nan, dtype=np.float16)
                     saved_data.append(df)
+                saved_data.append(data[-1])
 
                 filename = str(Path(filename).with_suffix('.csv'))
                 try:
@@ -300,10 +273,16 @@ def load_previous_figure(filename=None, new_rc_changes=None):
         # try standard utf-8 encoding first; will throw an error only if there is
         # unicode previously saved by this module using 'raw_unicode_escape' encoding.
         try:
-            dataframe = pd.read_csv(filename, header=0, index_col=False)
+            dataframe = pd.read_csv(filename, header=None, index_col=False)
         except UnicodeDecodeError:
-            dataframe = pd.read_csv(filename, header=0, index_col=False,
+            dataframe = pd.read_csv(filename, header=None, index_col=False,
                                     encoding='raw_unicode_escape')
+
+        # if column headers were repeated, read_csv would rename them,
+        # so set header=None and manually set the headers after reading
+        headers = utils.string_to_unicode(dataframe.loc[0].to_list())
+        dataframe = dataframe.drop(0).reset_index(drop=True)
+        dataframe.columns = headers
 
         # splits data into separate entries
         indices = []
@@ -317,10 +296,6 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             data.append(dataframe.iloc[:, row:entry])
             row += len(data[-1].columns) + 1
         data.append(dataframe.iloc[:, row:])
-        for dataframe in data:
-            dataframe.columns = [
-                '_'.join(col.split('_')[:-1]) for col in dataframe.columns
-            ]
 
         figures = launch_plotting_gui(
             [data], rc_changes, fig_kwargs, axes, gui_values
@@ -521,33 +496,30 @@ def _save_image_options(figure):
                         file_extension = selected_extension.lower()
 
                 file_name = str(Path(directory, file_path.stem + '.' + file_extension))
-                layout_2, param_types, use_pillow = _get_image_options(
+                layout_2, param_types = _get_image_options(
                     extension_mapping.get(file_extension.lower(), '')
                 )
 
                 if not layout_2:
-                    save_dict = {}
+                    pil_kwargs = None
                 else:
                     window_2 = sg.Window(f'Options for {file_extension.upper()}',
                                          layout_2)
-                    event_2, save_dict = window_2.read(close=True)
+                    event_2, pil_kwargs = window_2.read(close=True)
                     window_2 = None
                     if event_2 in (sg.WIN_CLOSED, 'Back'):
                         window_1.un_hide()
                         continue
 
-                for param in param_types:
-                    save_dict[param] = param_types[param](save_dict[param])
+                for param, function in param_types.items():
+                    pil_kwargs[param] = function(pil_kwargs[param])
+
+                if (extension_mapping[file_extension.lower()] == 'TIFF'
+                        and pil_kwargs['compression'] != 'jpeg'):
+                    pil_kwargs.pop('quality')
+
                 try:
-                    if not use_pillow:
-                        figure.savefig(file_name, **save_dict)
-                    else:
-                        if ((extension_mapping[file_extension.lower()] == 'TIFF')
-                                and (save_dict['compression'] != 'jpeg')):
-                            save_dict.pop('quality')
-
-                        figure.savefig(file_name, pil_kwargs=save_dict)
-
+                    figure.savefig(file_name, pil_kwargs=pil_kwargs)
                     sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
                     break
 
@@ -555,9 +527,7 @@ def _save_image_options(figure):
                     sg.popup(
                         (f'Save failed...\n\nSaving to "{file_extension}" may not '
                          'be supported by matplotlib, or an additional error may '
-                         'have occured.\nIf trying to save to tiff/tif, try saving '
-                         'without compression.'
-                         f'\n\nError:\n    {repr(e)}\n'),
+                         f'have occured.\n\nError:\n    {repr(e)}\n'),
                         title='Error'
                     )
                     window_1.un_hide()
@@ -569,6 +539,9 @@ def _save_image_options(figure):
 def _get_image_options(extension):
     """
     Constructs the layout for options to save to the given image extension.
+
+    Allows setting options for compressing and/or setting the quality of the
+    output image.
 
     Parameters
     ----------
@@ -584,11 +557,16 @@ def _get_image_options(extension):
         and values corresponding to a function that will convert the key values
         to a desired output. Usually used to change the type from string to
         the desired type.
-    use_pillow : bool
-        If True, will pass the dictionary from the PySimpleGUI window as "pil_kwargs";
-        if False, will simply pass the dictionary as "**kwargs".
+
+    Notes
+    -----
+    If Pillow is not installed (was not a requirement of matplotlib until v3.3.0),
+    then no options are given to compress/optimize the output image.
 
     """
+
+    if not _HAS_PIL:
+        return [], {}
 
     if extension == 'JPEG':
         extension_layout = [
@@ -599,7 +577,6 @@ def _get_image_options(extension):
             [sg.Check('Progressive', key='progressive')]
         ]
         param_types = {'quality': int}
-        use_pillow = True
 
     elif extension == 'PNG':
         extension_layout = [
@@ -608,7 +585,6 @@ def _get_image_options(extension):
             [sg.Check('Optimize', True, key='optimize')]
         ]
         param_types = {'compress_level': int}
-        use_pillow = True
 
     elif extension == 'TIFF':
         extension_layout = [
@@ -621,12 +597,10 @@ def _get_image_options(extension):
                        size=(30, 30), key='quality', orientation='h')],
         ]
         param_types = {'quality': int, 'compression': _convert_to_pillow_kwargs}
-        use_pillow = True
 
     else:
         extension_layout = []
         param_types = {}
-        use_pillow = False
 
     if extension_layout:
         layout = [
@@ -640,7 +614,7 @@ def _get_image_options(extension):
     else:
         layout = []
 
-    return layout, param_types, use_pillow
+    return layout, param_types
 
 
 def _convert_to_pillow_kwargs(arg):
@@ -679,7 +653,7 @@ def _create_figure_components(saving=False, **fig_kwargs):
     saving : bool
         If True, designate that the figure is being saved, so the figure dpi
         will not be adjusted. Otherwise, the figure dpi is adjusted so that
-        it fits on CANVAS_SIZE.
+        it fits on plot_utils.CANVAS_SIZE.
     fig_kwargs : dict
         Keyword arguments to pass on to the various functions. Unpacking
         is used so that the figure name can be easily specified without
@@ -717,8 +691,8 @@ def _create_figure(fig_kwargs, saving=False):
         Keyword arguments for creating the figure.
     saving : bool
         Designates whether the figure will be saved. If True, will use the input
-        figure size and dpi. If False, will scale and figure size and dpi to fit
-        onto the tkinter canvas with size = CANVAS_SIZE.
+        figure size and dpi. If False, will scale the dpi to fit the figure onto
+        the PySimpleGUI canvas with size = plot_utils.CANVAS_SIZE.
 
     Returns
     -------
@@ -730,40 +704,29 @@ def _create_figure(fig_kwargs, saving=False):
     Uses different dpi if not saving. When saving, matplotlib
     saves the correct size and dpi, regardless of the backend.
 
-    When not saving, the dpi needs to be scaled to fit the figure on
-    the GUI's canvas, and the scaling is called size_scale.
-    For example, if the desired size was 1600 x 1200 pixels with a dpi of 300,
-    the figure would be scaled down to 800 x 600 pixels to fit onto the canvas,
-    and the dpi would be changed to 150, with a size_scale of 0.5.
-
-    A dpi_scale correction is needed because the qt5Agg backend will change
-    the dpi to 2x the specified dpi when the display scaling in Windows is
-    not 100%. I am not sure how it works on non-Windows operating systems.
-
-    The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
-
     """
 
-    fig_name = fig_kwargs.get('fig_name', _PREVIEW_NAME)
-    plt.close(fig_name)
+    defaults = {
+        'fig_name': _PREVIEW_NAME,
+        'fig_width': plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi'],
+        'fig_height': plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi'],
+        'dpi': plt.rcParams['figure.dpi'],
+        'share_x': False,
+        'share_y': False
+    }
+    for key, value in defaults.items():
+        fig_kwargs.setdefault(key, value)
 
     if saving:
-        dpi = float(fig_kwargs['dpi'])
-
+        dpi = fig_kwargs['dpi']
     else:
-        dpi_scale = utils.get_dpi_correction(float(fig_kwargs['dpi']))
+        dpi = plot_utils.determine_dpi(fig_kwargs)
 
-        if float(fig_kwargs['fig_width']) >= float(fig_kwargs['fig_height']):
-            size_scale = CANVAS_SIZE[0] / float(fig_kwargs['fig_width'])
-        else:
-            size_scale = CANVAS_SIZE[1] / float(fig_kwargs['fig_height'])
-
-        dpi = float(fig_kwargs['dpi']) * dpi_scale * size_scale
-
+    plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(
-        num=fig_name, dpi=dpi,
-        figsize = (float(fig_kwargs['fig_width']) / float(fig_kwargs['dpi']),
-                   float(fig_kwargs['fig_height']) / float(fig_kwargs['dpi'])),
+        num=fig_kwargs['fig_name'], dpi=dpi,
+        figsize = (fig_kwargs['fig_width'] / fig_kwargs['dpi'],
+                   fig_kwargs['fig_height'] / fig_kwargs['dpi']),
         tight_layout={'pad': TIGHT_LAYOUT_PAD,
                       'w_pad': 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD,
                       'h_pad': 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD}
@@ -956,7 +919,7 @@ def _annotate_example_figure(axes, canvas, figure):
     ----------
     axes : dict
         A dictionary of axes in the figure.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The canvas for the figure.
     figure : plt.Figure
         The figure that will be shown.
@@ -981,7 +944,7 @@ def _annotate_example_figure(axes, canvas, figure):
             ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
             ax.xaxis.set_minor_locator(AutoMinorLocator(2))
 
-    _draw_figure_on_canvas(canvas, figure)
+    plot_utils.draw_figure_on_canvas(canvas, figure)
 
 
 def _create_advanced_layout(input_values, canvas, figure):
@@ -994,22 +957,27 @@ def _create_advanced_layout(input_values, canvas, figure):
         The dictionary containing the values describing the layout
         of axes within the figure. Will be modified inplace by
         this function.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The canvas for the figure.
     figure : plt.Figure
         The figure that will be shown.
 
     """
 
-    num_cols = int(input_values['num_cols'])
-    num_rows = int(input_values['num_rows'])
+    num_cols = input_values['num_cols']
+    num_rows = input_values['num_rows']
 
-    validations = {'floats': []}
-    validations['floats'].extend([[f'width_{i}', f'width {i + 1}'] for i in range(num_cols)])
-    validations['floats'].extend([[f'height_{i}', f'height {i + 1}'] for i in range(num_rows)])
+    validations = {'floats': [], 'constraints': []}
+    for i in range(num_cols):
+        validations['floats'].append([f'width_{i}', f'width {i + 1}'])
+        validations['constraints'].append( [f'width_{i}', f'width {i + 1}', '> 0'])
+
+    for i in range(num_rows):
+        validations['floats'].append([f'height_{i}', f'height {i + 1}'])
+        validations['constraints'].append([f'height_{i}', f'height {i + 1}', '> 0'])
 
     columm_layout =  [
-        [sg.Text(i+1, size=(2, 1), justification='right')]
+        [sg.Text(i + 1, size=(2, 1), justification='right')]
         + [sg.Input(input_values[f'gridspec_{i}_{j}'], size=(5, 1), pad=(1, 1),
                     justification='right', key=f'gridspec_{i}_{j}') for j in range(num_cols)]
         for i in range(num_rows)]
@@ -1023,7 +991,7 @@ def _create_advanced_layout(input_values, canvas, figure):
 
     header_layout = [
         [sg.Text('', size=(2, 1))] +
-        [sg.Text(j+1, size=(5,1), justification='center') for j in range(num_cols)]]
+        [sg.Text(j + 1, size=(5,1), justification='center') for j in range(num_cols)]]
 
     layout = [
         [sg.Text('Figure Layout\n')],
@@ -1049,15 +1017,13 @@ def _create_advanced_layout(input_values, canvas, figure):
     while True:
         event, values = window.read()
 
-        if event != sg.WIN_CLOSED:
-            input_values.update(values)
-        else:
+        if event == sg.WIN_CLOSED:
             break
 
-        if event in ('Preview', 'Submit'):
+        elif event in ('Preview', 'Submit'):
             window.TKroot.grab_release()
-            proceed = utils.validate_inputs(values, **validations)
-            if proceed:
+            if utils.validate_inputs(values, **validations):
+                input_values.update(values)
                 figure, axes = _create_figure_components(**input_values)
 
                 if event == 'Preview':
@@ -1091,8 +1057,8 @@ def _create_gridspec_labels(fig_kwargs):
 
     """
 
-    num_cols = int(fig_kwargs['num_cols'])
-    num_rows = int(fig_kwargs['num_rows'])
+    num_cols = fig_kwargs['num_cols']
+    num_rows = fig_kwargs['num_rows']
 
     new_kwargs = fig_kwargs.copy()
     # deletes previous gridspec values
@@ -1122,8 +1088,8 @@ def _create_gridspec_labels(fig_kwargs):
         current_col = 0
         current_row = 0
 
-    new_kwargs.update({f'width_{i}': '1' for i in range(current_col, num_cols)})
-    new_kwargs.update({f'height_{i}': '1' for i in range(current_row, num_rows)})
+    new_kwargs.update({f'width_{i}': 1 for i in range(current_col, num_cols)})
+    new_kwargs.update({f'height_{i}': 1 for i in range(current_row, num_rows)})
     letters = itertools.cycle(string.ascii_letters)
     for i in range(num_rows):
         for j in range(num_cols):
@@ -1146,7 +1112,7 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
     user_inputs : dict
         The dictionary containing the values needed to create the plt.Figure.
         Will be modified inplace by this function to include any twin axes.
-    canvas : tk.Canvas
+    canvas : tkinter.Canvas
         The tkinter canvas on which the figure resides.
 
     """
@@ -1177,12 +1143,12 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
                     [sg.Text(f'Row {val[0][0] + 1}, Column {val[1][0] + 1}   ')]
                 ]),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_x_{val[0][0]}_{val[1][0]}',
-                                 default=default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'])]
+                    [sg.Check('      ', default_inputs[f'twin_x_{val[0][0]}_{val[1][0]}'],
+                              key=f'twin_x_{val[0][0]}_{val[1][0]}')]
                 ], element_justification='center'),
                 sg.Column([
-                    [sg.Checkbox('      ', key=f'twin_y_{val[0][0]}_{val[1][0]}',
-                                 default=default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'])]
+                    [sg.Check('      ', default_inputs[f'twin_y_{val[0][0]}_{val[1][0]}'],
+                              key=f'twin_y_{val[0][0]}_{val[1][0]}')]
                 ], element_justification='center')
             ])
 
@@ -1219,7 +1185,7 @@ def _select_plot_type(user_inputs=None):
 
     Parameters
     ----------
-    user_inputs : dict
+    user_inputs : dict, optional
         A dictionary containing values to recreate a previous layout.
 
     Returns
@@ -1243,18 +1209,18 @@ def _select_plot_type(user_inputs=None):
         'scatter': False,
         'line': False,
         'line_scatter': True,
-        'num_rows': '1',
-        'num_cols': '1',
+        'num_rows': 1,
+        'num_cols': 1,
         'share_x': False,
         'share_y': False
     }
 
     default_inputs.update({key: num == 0 for num, key in enumerate(plot_types)})
     fig_kwargs = _create_gridspec_labels(default_inputs.copy())
+    if user_inputs is not None:
+        default_inputs.update(user_inputs)
+        fig_kwargs.update(user_inputs)
 
-    user_inputs = user_inputs if user_inputs is not None else {}
-    default_inputs.update(user_inputs)
-    fig_kwargs.update(user_inputs)
     fig_kwargs['fig_name'] = 'example'
 
     check_buttons = []
@@ -1308,8 +1274,9 @@ def _select_plot_type(user_inputs=None):
                        button_color=utils.PROCEED_COLOR)]
          ]),
          sg.Column([
-             [sg.Canvas(key='example_canvas', size=CANVAS_SIZE, pad=(0, 0))]
-         ], size=(CANVAS_SIZE[0] + 10, CANVAS_SIZE[1] + 10), pad=(20, 0))]
+             [sg.Canvas(key='example_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
+         ], size=(plot_utils.CANVAS_SIZE[0] + 10, plot_utils.CANVAS_SIZE[1] + 10),
+         pad=(20, 0))]
     ]
 
     fig = _create_figure(fig_kwargs)
@@ -1320,7 +1287,12 @@ def _select_plot_type(user_inputs=None):
 
     validations= {
         'floats': [['fig_width', 'Figure Width'], ['fig_height', 'Figure Height'],
-                   ['dpi', 'DPI']]
+                   ['dpi', 'DPI']],
+        'integers': [['num_rows', 'Number of rows'],
+                     ['num_cols', 'Number of columns']],
+        'constraints': [['fig_width', 'Figure Width', '> 0'],
+                        ['fig_height', 'Figure Height', '> 0'],
+                        ['dpi', 'DPI', '> 0']]
     }
 
     while True:
@@ -1329,33 +1301,33 @@ def _select_plot_type(user_inputs=None):
         if event == sg.WIN_CLOSED:
             plt.close('example')
             utils.safely_close_window(window)
-            break
-        elif event in ('Advanced Options', 'Next', 'Preview', 'Add Twin Axes'):
+
+        elif (event in ('Advanced Options', 'Next', 'Preview', 'Add Twin Axes')
+                and utils.validate_inputs(values, **validations)):
+
             fig_kwargs.update(values)
-            proceed = utils.validate_inputs(values, **validations)
-            if proceed:
-                fig_kwargs = _create_gridspec_labels(fig_kwargs)
-                fig = _create_figure(fig_kwargs)
-                gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
-                axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
+            fig_kwargs = _create_gridspec_labels(fig_kwargs)
+            fig = _create_figure(fig_kwargs)
+            gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
+            axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
 
-                if event == 'Preview':
-                    _annotate_example_figure(
-                        axes, window['example_canvas'].TKCanvas, fig
-                    )
+            if event == 'Preview':
+                _annotate_example_figure(
+                    axes, window['example_canvas'].TKCanvas, fig
+                )
 
-                elif event == 'Advanced Options':
-                    _create_advanced_layout(
-                        fig_kwargs, window['example_canvas'].TKCanvas, fig
-                    )
+            elif event == 'Advanced Options':
+                _create_advanced_layout(
+                    fig_kwargs, window['example_canvas'].TKCanvas, fig
+                )
 
-                elif event == 'Add Twin Axes':
-                    _set_twin_axes(
-                        gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas
-                    )
+            elif event == 'Add Twin Axes':
+                _set_twin_axes(
+                    gridspec_layout, fig_kwargs, window['example_canvas'].TKCanvas
+                )
 
-                elif event == 'Next':
-                    break
+            elif event == 'Next':
+                break
 
         elif event in plot_types:
             if values['Multiple Plots']:
@@ -1408,18 +1380,28 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
     -------
     window : sg.Window
         The window that contains the plotting options.
+    validations : dict
+        A dictionary containing all of the validations for the created
+        window for use in the utils.validate_inputs function.
 
     TODO set metadata for elements to determine whether they should be readonly when enabled
 
     """
 
     default_inputs = {}
+    validations = {
+        'integers': [],
+        'floats': [],
+        'user_inputs': [],
+        'constraints': []
+    }
     # generates default values based on the Axes and data length
     for i, key in enumerate(axes):
         if 'Invisible' in axes[key]['Main Axis'].get_label():
             continue
         for j, label in enumerate(axes[key]):
             axis = axes[key][label]
+            axis_label = axis.get_label()
             color_cyle = itertools.cycle(COLORS[1:])
 
             if kwargs['line']:
@@ -1494,6 +1476,27 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                 f'y_major_grid_{i}_{j}': False,
                 f'y_minor_grid_{i}_{j}': False,
             })
+
+            validations['floats'].extend([
+                [f'x_axis_min_{i}_{j}', f'x axis minimum for {axis_label}'],
+                [f'x_axis_max_{i}_{j}', f'x axis maximum for {axis_label}'],
+                [f'x_label_offset_{i}_{j}', f'x axis label offset for {axis_label}'],
+                [f'y_axis_min_{i}_{j}', f'y axis minimum for {axis_label}'],
+                [f'y_axis_max_{i}_{j}', f'y axis maximum for {axis_label}'],
+                [f'y_label_offset_{i}_{j}', f'y axis label offset for {axis_label}'],
+                [f'secondary_x_label_offset_{i}_{j}', f'secondary x axis label offset for {axis_label}'],
+                [f'secondary_y_label_offset_{i}_{j}', f'secondary y axis label offset for {axis_label}'],
+            ])
+            validations['user_inputs'].extend([
+                [f'x_axis_min_{i}_{j}', f'x axis minimum for {axis_label}', float, label == 'Twin X', None],
+                [f'x_axis_max_{i}_{j}', f'x axis maximum for {axis_label}', float, label == 'Twin X', None],
+                [f'x_label_offset_{i}_{j}', f'x axis label offset for {axis_label}', float, label == 'Twin X', None],
+                [f'y_axis_min_{i}_{j}', f'y axis minimum for {axis_label}', float, label == 'Twin Y', None],
+                [f'y_axis_max_{i}_{j}', f'y axis maximum for {axis_label}', float, label == 'Twin Y', None],
+                [f'y_label_offset_{i}_{j}', f'y axis label offset for {axis_label}', float, label == 'Twin Y', None],
+                [f'secondary_x_label_offset_{i}_{j}', f'secondary x axis label offset for {axis_label}'],
+                [f'secondary_y_label_offset_{i}_{j}', f'secondary y axis label offset for {axis_label}'],
+            ])
 
             # Options for each data entry
             for k in range(len(data)):
@@ -1867,7 +1870,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                             [sg.Text('')],
                             *column_layout
                         ], scrollable=True, vertical_scroll_only=True,
-                        size=(CANVAS_SIZE[0] - 50, CANVAS_SIZE[1] - 100))
+                        size=(750, plot_utils.CANVAS_SIZE[1] - 100))
                     ]],
                     key=f'label_tab_{i}_{j}')]
             )
@@ -1897,59 +1900,22 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                        button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
-            [sg.Canvas(key='controls_canvas', pad=(0, 0), size=(CANVAS_SIZE[0], 10))],
-            [sg.Canvas(key='fig_canvas', size=CANVAS_SIZE, pad=(0, 0))]
-         ], size=(CANVAS_SIZE[0] + 40, CANVAS_SIZE[1] + 50), pad=(10, 0))
+            [sg.Canvas(key='controls_canvas', pad=(0, 0),
+                       size=(plot_utils.CANVAS_SIZE[0], 10))],
+            [sg.Canvas(key='fig_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
+         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 50),
+         pad=(10, 0))
         ]
     ]
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True,
                        finalize=True, location=location)
-    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
-                           window['controls_canvas'].TKCanvas)
+    plot_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
+                                     window['controls_canvas'].TKCanvas, plot_utils.PlotToolbar)
     window['options_column'].expand(True, True) # expands the column when window changes size
 
-    return window
-
-
-def _draw_figure_on_canvas(canvas, figure, toolbar_canvas=None):
-    """
-    Places the figure and toolbar onto the tkinter canvas.
-
-    Parameters
-    ----------
-    canvas : tk.Canvas
-        The tkinter Canvas element for the figure.
-    figure : plt.Figure
-        The figure to be place on the canvas.
-    toolbar_canvas: tk.Canvas
-        The tkinter Canvas element for the toolbar.
-
-    """
-
-    if canvas.children:
-        for child in canvas.winfo_children():
-            child.destroy()
-
-    figure_canvas_agg = FigureCanvasTkAgg(figure, master=canvas)
-    if toolbar_canvas is not None:
-        if toolbar_canvas.children:
-            for child in toolbar_canvas.winfo_children():
-                child.destroy()
-
-        toolbar = PlotToolbar(figure_canvas_agg, toolbar_canvas)
-        toolbar.update()
-
-    try:
-        figure_canvas_agg.draw()
-        figure_canvas_agg.get_tk_widget().pack(side='left', anchor='nw')
-    except Exception as e:
-        sg.popup(
-            ('Exception occurred during figure creation. Could be due to '
-             f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
-            title='Plotting Error'
-        )
+    return window, validations
 
 
 def _plot_data(data, axes, old_axes=None, **kwargs):
@@ -2000,8 +1966,8 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                         x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
                         y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
-                        x_data = dataset[dataset.columns[x_index]].astype(float) #TODO should change this to .loc since could be duplicate column names
-                        y_data = dataset[dataset.columns[y_index]].astype(float)
+                        x_data = dataset.iloc[:, x_index].astype(float).to_numpy()
+                        y_data = dataset.iloc[:, y_index].astype(float).to_numpy()
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
@@ -2073,16 +2039,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend.set_in_layout(False)
 
                 if 'Twin' not in label and kwargs[f'secondary_x_{i}_{j}']:
-                    if not kwargs[f'secondary_x_expr_{i}_{j}']:
-                        functions = None
+                    if kwargs[f'secondary_x_expr_{i}_{j}']:
+                        functions = _parse_equation(kwargs[f'secondary_x_expr_{i}_{j}'])
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_x_expr_{i}_{j}'])
-                        forward_eqn = sp.lambdify(['x'], eqn_a, ['numpy'])
-                        eqn_b = sp.solve([sp.Symbol('y') - eqn_a],
-                                         [sp.Symbol('x')])[sp.Symbol('x')]
-                        backward_eqn = sp.lambdify(['y'], eqn_b, ['numpy'])
-
-                        functions = (forward_eqn, backward_eqn)
+                        functions = None
 
                     sec_x_axis = axis.secondary_xaxis('top', functions=functions)
                     sec_x_axis.set_xlabel(
@@ -2096,16 +2056,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}_{j}'] + 1))
 
                 if 'Twin' not in label and kwargs[f'secondary_y_{i}_{j}']:
-                    if not kwargs[f'secondary_y_expr_{i}_{j}']:
-                        functions = None
+                    if kwargs[f'secondary_y_expr_{i}_{j}']:
+                        functions = _parse_equation(kwargs[f'secondary_y_expr_{i}_{j}'], False)
                     else:
-                        eqn_a = sp.parse_expr(kwargs[f'secondary_y_expr_{i}_{j}'])
-                        forward_eqn = sp.lambdify(['y'], eqn_a, ['numpy'])
-                        eqn_b = sp.solve([sp.Symbol('x') - eqn_a],
-                                         [sp.Symbol('y')])[sp.Symbol('y')]
-                        backward_eqn = sp.lambdify(['x'], eqn_b, ['numpy'])
-
-                        functions = (forward_eqn, backward_eqn)
+                        functions = None
 
                     sec_y_axis = axis.secondary_yaxis('right', functions=functions)
                     sec_y_axis.set_ylabel(
@@ -2154,6 +2108,51 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         markersize=peak.get_markersize(),
                         label=peak.get_label()
                     )
+
+
+def _parse_equation(expression, x_axis=True):
+    """
+    Uses sympy to parse a string expression and obtain the function and its inverse.
+
+    Used to create forward and backward equations for secondary axes.
+
+    Parameters
+    ----------
+    expression : str
+        The string to parse and turn into a function. Must have the variable
+        'x' or 'y'. For example, 'x + 50' would mean the values of the secondary
+        x-axis would be equal to the main x-axis values + 50.
+    x_axis : bool
+        True designates that the expression is for the x-axis, in which case the
+        main variable will be 'x' in the input expression. If False, the main
+        variable in the input expression is 'y'
+
+    Returns
+    -------
+    equation : function
+        The function corresponding to the input expression.
+    inverse : function
+        The inverse function of the input expression.
+
+    Notes
+    -----
+    sympy is imported within the function because this function will rarely
+    be used, and sympy takes a significant time to import.
+
+    """
+
+    import sympy as sp
+
+    var_a, var_b = ('x', 'y') if x_axis else ('y', 'x')
+
+    eqn_a = sp.parse_expr(expression)
+    equation = sp.lambdify([var_a], eqn_a, ['numpy'])
+
+    eqn_b = sp.solve([sp.Symbol(var_b) - eqn_a],
+                     [sp.Symbol(var_a)], dict=True)[0][sp.Symbol(var_a)]
+    inverse = sp.lambdify([var_b], eqn_b, ['numpy'])
+
+    return equation, inverse
 
 
 def _add_remove_dataset(current_data, plot_details, data_list=None,
@@ -2299,8 +2298,8 @@ def _add_remove_annotations(axis, add_annotation):
     """
 
     remove_annotation = False
-    validations = {'text': {'floats': [], 'user_inputs': []},
-                   'arrows': {'floats': []}}
+    validations = {'text': {'floats': [], 'user_inputs': [], 'constraints': []},
+                   'arrows': {'floats': [], 'constraints': []}}
 
     if add_annotation:
         window_text = 'Add Annotation'
@@ -2368,6 +2367,9 @@ def _add_remove_annotations(axis, add_annotation):
             ['fontsize', 'fontsize'],
             ['rotation', 'rotation'],
         ])
+        validations['text']['constraints'].extend([
+            ['fontsize', 'fontsize', '> 0'],
+        ])
         validations['text']['user_inputs'].extend([
             ['text', 'Text', utils.string_to_unicode, False, None]
         ])
@@ -2380,6 +2382,11 @@ def _add_remove_annotations(axis, add_annotation):
             ['linewidth', 'linewidth'],
             ['head_scale', 'head-size multiplier'],
         ])
+        validations['arrows']['constraints'].extend([
+            ['linewidth', 'linewidth', '> 0'],
+            ['head_scale', 'head-size multiplier', '> 0'],
+        ])
+
 
     elif add_annotation is None:
         window_text = 'Edit Annotations'
@@ -2393,15 +2400,12 @@ def _add_remove_annotations(axis, add_annotation):
                 annotations['arrows'].append(annotation)
 
         for i, annotation in enumerate(annotations['text']):
-            text = annotation.get_text()
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                text = text.replace(*replacement)
-
             annotations['text_layout'].extend([
                 [sg.Text(f'{i + 1})')],
                 [sg.Column([
                     [sg.Text('Text:', size=(8, 1)),
-                     sg.Input(text, key=f'text_{i}', size=(10, 1))],
+                     sg.Input(utils.stringify_backslash(annotation.get_text()),
+                              key=f'text_{i}', size=(10, 1))],
                     [sg.Text('x-position:', size=(8, 1)),
                      sg.Input(annotation.get_position()[0], key=f'x_{i}', size=(10, 1))],
                     [sg.Text('y-position:', size=(8, 1)),
@@ -2427,7 +2431,9 @@ def _add_remove_annotations(axis, add_annotation):
                 [f'fontsize_{i}', f'fontsize for Text {i + 1}'],
                 [f'rotation_{i}', f'rotation for Text {i + 1}'],
             ])
-
+            validations['text']['constraints'].extend([
+                [f'fontsize_{i}', f'fontsize for Text {i + 1}', '> 0'],
+            ])
             validations['text']['user_inputs'].extend([
                 [f'text_{i}', f'text in Text {i + 1}',
                  utils.string_to_unicode, False, None]
@@ -2485,6 +2491,10 @@ def _add_remove_annotations(axis, add_annotation):
                 [f'tail_y_{i}', f'tail y position for Arrow {i + 1}'],
                 [f'linewidth_{i}', f'linewidth for Arrow {i + 1}'],
                 [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}'],
+            ])
+            validations['arrows']['constraints'].extend([
+                [f'linewidth_{i}', f'linewidth for Arrow {i + 1}', '> 0'],
+                [f'head_scale_{i}', f'head-size multiplier for Arrow {i + 1}', '> 0'],
             ])
 
         tab_layout = [[
@@ -2593,19 +2603,19 @@ def _add_remove_annotations(axis, add_annotation):
     if add_annotation:
         if values['radio_text']:
             axis.annotate(
-                utils.string_to_unicode(values['text']),
-                xy=(float(values['x']), float(values['y'])),
-                fontsize=float(values['fontsize']), rotation=float(values['rotation']),
-                color=values['text_color_'], annotation_clip=False, in_layout=False
+                values['text'],
+                xy=(values['x'], values['y']), fontsize=values['fontsize'],
+                rotation=values['rotation'], color=values['text_color_'],
+                annotation_clip=False, in_layout=False
             )
         else:
             axis.annotate(
-                '', xy=(float(values['head_x']), float(values['head_y'])),
-                xytext=(float(values['tail_x']), float(values['tail_y'])),
+                '', xy=(values['head_x'], values['head_y']),
+                xytext=(values['tail_x'], values['tail_y']),
                 annotation_clip=False, in_layout=False,
                 arrowprops={
-                    'linewidth': float(values['linewidth']),
-                    'mutation_scale': 10 * float(values['head_scale']), # *10 b/c the connectionpatch defaults to 10 rather than 1
+                    'linewidth': values['linewidth'],
+                    'mutation_scale': 10 * values['head_scale'], # *10 b/c the connectionpatch defaults to 10 rather than 1
                     'arrowstyle': values['arrow_style'],
                     'color': values['arrow_color_'],
                     'linestyle': LINE_MAPPING[values['linestyle']]}
@@ -2613,27 +2623,25 @@ def _add_remove_annotations(axis, add_annotation):
 
     elif add_annotation is None:
         for i, annotation in enumerate(annotations['text']):
-            annotation.update(
-                dict(
-                    text=utils.string_to_unicode(values[f'text_{i}']),
-                    color=values[f'text_color_{i}'],
-                    position=(float(values[f'x_{i}']), float(values[f'y_{i}'])),
-                    fontsize=float(values[f'fontsize_{i}']), in_layout=False,
-                    rotation=float(values[f'rotation_{i}']), annotation_clip=False
-                )
-            )
+            annotation.update({
+                'text': values[f'text_{i}'],
+                'color': values[f'text_color_{i}'],
+                'position': (values[f'x_{i}'], values[f'y_{i}']),
+                'fontsize': values[f'fontsize_{i}'],
+                'rotation': values[f'rotation_{i}'],
+                'in_layout': False, 'annotation_clip': False
+            })
 
         for i, annotation in enumerate(annotations['arrows']):
             # not able to move arrow head location, so have to create new annotations
             axis.texts[axis.texts.index(annotation)].remove()
-
             axis.annotate(
-                '', xy=(float(values[f'head_x_{i}']), float(values[f'head_y_{i}'])),
-                xytext=(float(values[f'tail_x_{i}']), float(values[f'tail_y_{i}'])),
+                '', xy=(values[f'head_x_{i}'], values[f'head_y_{i}']),
+                xytext=(values[f'tail_x_{i}'], values[f'tail_y_{i}']),
                 annotation_clip=False, in_layout=False,
                 arrowprops={
-                    'linewidth': float(values[f'linewidth_{i}']),
-                    'mutation_scale': 10 * float(values[f'head_scale_{i}']),
+                    'linewidth': values[f'linewidth_{i}'],
+                    'mutation_scale': 10 * values[f'head_scale_{i}'],
                     'arrowstyle': values[f'arrow_style_{i}'],
                     'color': values[f'arrow_color_{i}'],
                     'linestyle': LINE_MAPPING[values[f'linestyle_{i}']]}
@@ -2668,8 +2676,8 @@ def _add_remove_peaks(axis, add_peak):
     """
 
     remove_peak = False
-    validations = {'line': {'floats': [], 'user_inputs': []},
-                   'marker': {'floats': [], 'user_inputs': []}}
+    validations = {'line': {'floats': [], 'user_inputs': [], 'constraints': []},
+                   'marker': {'floats': [], 'user_inputs': [], 'constraints': []}}
 
     peaks = {}
     non_peaks = {}
@@ -2755,24 +2763,27 @@ def _add_remove_peaks(axis, add_peak):
             validations[key]['floats'].append(
                 [f'{key}_size', f'{key} size']
             )
+            validations[key]['constraints'].append(
+                [f'{key}_size', f'{key} size', '> 0']
+            )
         validations['marker']['user_inputs'].append(
             ['marker_style', 'marker style', utils.string_to_unicode, True, None]
         )
         validations['marker']['floats'].append(['edge_width', 'edge line width'])
+        validations['marker']['constraints'].append(
+            ['edge_width', 'edge line width', '> 0']
+        )
 
     elif add_peak is None:
         window_text = 'Edit Peaks'
 
         column_layout = []
         for i, peak in enumerate(peaks):
-            label_text = peak
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                label_text = label_text.replace(*replacement)
-
             column_layout.extend([
                 [sg.Text(f'Peak #{i + 1}', relief='ridge', justification='center')],
                 [sg.Text('Peak Label:'),
-                 sg.Input(label_text, key=f'label_{i}', size=(10, 1))],
+                 sg.Input(utils.stringify_backslash(peak),
+                          key=f'label_{i}', size=(10, 1))],
                 [sg.Text('Positions:')]
             ])
 
@@ -2823,13 +2834,12 @@ def _add_remove_peaks(axis, add_peak):
                 validations['marker']['floats'].append(
                     [f'line_size_{i}', f'line width for peak #{i + 1}']
                 )
+                validations['marker']['constraints'].append(
+                    [f'line_size_{i}', f'line width for peak #{i + 1}', '> 0']
+                )
 
             else: # a marker
-                marker = line.get_marker()
-                for replacement in (('\\', '\\\\'), ('\n', '\\n'),
-                                    ('\t', '\\t'), ('\r', '\\r')):
-                    marker = marker.replace(*replacement)
-
+                marker = utils.stringify_backslash(line.get_marker())
                 for j, mark in enumerate(MARKERS):
                     if mark[0] == marker:
                         marker = MARKERS[j]
@@ -2861,6 +2871,10 @@ def _add_remove_peaks(axis, add_peak):
                     [f'marker_size_{i}', f'marker size for peak #{i + 1}'],
                     [f'edge_width_{i}', f'edge line width for peak #{i + 1}']
                 ])
+                validations['marker']['constraints'].extend([
+                    [f'marker_size_{i}', f'marker size for peak #{i + 1}', '> 0'],
+                    [f'edge_width_{i}', f'edge line width for peak #{i + 1}', '> 0']
+                ])
                 validations['marker']['user_inputs'].append(
                     [f'marker_style_{i}', f'marker style for peak #{i + 1}',
                      utils.string_to_unicode, True, None]
@@ -2877,14 +2891,11 @@ def _add_remove_peaks(axis, add_peak):
 
         labels = {}
         for peak in peaks:
-            label_text = peak
-            for replacement in (('\\', '\\\\'), ('\n', '\\n'), ('\t', '\\t'), ('\r', '\\r')):
-                label_text = label_text.replace(*replacement)
-            labels[label_text] = peak
+            labels[utils.stringify_backslash(peak)] = peak
 
         inner_layout = [
             [sg.Text('All markers and text for selected peaks will be deleted!\n')],
-            [sg.Listbox(list(labels), select_mode='multiple', size=(20, 5),
+            [sg.Listbox(list(labels.keys()), select_mode='multiple', size=(20, 5),
                         key='peak_listbox')]
         ]
 
@@ -2933,7 +2944,7 @@ def _add_remove_peaks(axis, add_peak):
                     close = utils.validate_inputs(values, **validations['line'])
 
                 if close:
-                    if utils.string_to_unicode(values['label']) in peaks:
+                    if values['label'] in peaks:
                         close = False
                         sg.popup(
                             'The selected peak label is already a peak.\n',
@@ -2973,7 +2984,7 @@ def _add_remove_peaks(axis, add_peak):
 
     if add_peak:
         # main designates defining axis, secondary designates non-defining axis
-        positions = [float(value.strip()) for value in values['positions'].split(',')]
+        positions = values['positions']
         secondary_limits = getattr(
             axis, f'get_{"xy".replace(values["defining_axis"], "")}lim')()
         offset = 0.05 * (secondary_limits[1] - secondary_limits[0])
@@ -3003,14 +3014,14 @@ def _add_remove_peaks(axis, add_peak):
         for data in zip(plot_data['x'], plot_data['y']):
             axis.plot(
                 *data,
-                label='-PEAK-' + utils.string_to_unicode(values['label']),
-                marker=utils.string_to_unicode(values['marker_style'].split(' ')[0]) if values['radio_marker'] else 'None',
-                markersize=float(values['marker_size']) if values['radio_marker'] else None,
+                label='-PEAK-' + values['label'],
+                marker=values['marker_style'].split(' ')[0] if values['radio_marker'] else 'None',
+                markersize=values['marker_size'] if values['radio_marker'] else None,
                 markerfacecolor=values['face_color_'] if values['radio_marker'] else 'None',
                 markeredgecolor=values['edge_color_'] if values['radio_marker'] else 'None',
-                markeredgewidth=float(values[f'edge_width']) if values['radio_marker'] else None,
+                markeredgewidth=values[f'edge_width'] if values['radio_marker'] else None,
                 color=values['line_color_'] if values['radio_line'] else 'None',
-                linewidth=float(values['line_size']) if values['radio_line'] else None,
+                linewidth=values['line_size'] if values['radio_line'] else None,
                 linestyle=LINE_MAPPING[values['line_style']] if values['radio_line'] else ''
             )
 
@@ -3020,7 +3031,7 @@ def _add_remove_peaks(axis, add_peak):
                     data[1][-1] + offset if values['defining_axis'] == 'x' else data[1][-1]
                 )
                 axis.annotate(
-                    utils.string_to_unicode(values['label']),
+                    values['label'],
                     xy=annotation_position,
                     rotation=90 if values['defining_axis'] == 'x' else 0,
                     horizontalalignment='center' if values['defining_axis'] == 'x' else 'left',
@@ -3032,9 +3043,7 @@ def _add_remove_peaks(axis, add_peak):
     elif add_peak is None:
         for i, key in enumerate(peaks):
             for annotation in peaks[key]['annotations']:
-                annotation.update({
-                    'text': utils.string_to_unicode(values[f'label_{i}']),
-                })
+                annotation.update({'text': values[f'label_{i}']})
 
             deleted_peaks = []
             for j, line in enumerate(peaks[key]['peaks']):
@@ -3042,16 +3051,16 @@ def _add_remove_peaks(axis, add_peak):
                     deleted_peaks.append(line)
                 else:
                     line.update({
-                        'xdata': [float(values[entry]) for entry in values if entry.startswith(f'x_{i}_{j}_')],
-                        'ydata': [float(values[entry]) for entry in values if entry.startswith(f'y_{i}_{j}_')],
-                        'label': '-PEAK-' + utils.string_to_unicode(values[f'label_{i}']),
-                        'marker': utils.string_to_unicode(values.get(f'marker_style_{i}', 'None').split(' ')[0]),
+                        'xdata': [values[entry] for entry in values if entry.startswith(f'x_{i}_{j}_')],
+                        'ydata': [values[entry] for entry in values if entry.startswith(f'y_{i}_{j}_')],
+                        'label': '-PEAK-' + values[f'label_{i}'],
+                        'marker': values.get(f'marker_style_{i}', 'None').split(' ')[0],
                         'markerfacecolor': values.get(f'face_color_{i}', 'None'),
                         'markeredgecolor': values.get(f'edge_color_{i}', 'None'),
-                        'markeredgewidth': float(values.get(f'edge_width_{i}', 0)),
-                        'markersize': float(values.get(f'marker_size_{i}', 0)),
+                        'markeredgewidth': values.get(f'edge_width_{i}', 0),
+                        'markersize': values.get(f'marker_size_{i}', 0),
                         'linestyle': LINE_MAPPING[values.get(f'line_style_{i}', 'None')],
-                        'linewidth': float(values.get(f'line_size_{i}', 0)),
+                        'linewidth': values.get(f'line_size_{i}', 0),
                         'color': values.get(f'line_color_{i}', 'None'),
                     })
 
@@ -3105,13 +3114,15 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
             if i == 0 and input_axes is not None: # loading a previous figure
                 fig_kwargs = input_fig_kwargs.copy()
                 fig, axes = _create_figure_components(**fig_kwargs)
-                window = _create_plot_options_gui(
+                window, validations = _create_plot_options_gui(
                     data, fig, axes, input_values, input_axes, **fig_kwargs
                 )
             else:
                 fig_kwargs = _select_plot_type()
                 fig, axes = _create_figure_components(**fig_kwargs)
-                window = _create_plot_options_gui(data, fig, axes, **fig_kwargs)
+                window, validations = _create_plot_options_gui(
+                    data, fig, axes, **fig_kwargs
+                )
 
             while True:
                 event, values = window.read()
@@ -3163,7 +3174,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         plt.close(_PREVIEW_NAME)
                         old_axes, values, fig_kwargs = new_figure_theme
                         fig, axes = _create_figure_components(**fig_kwargs)
-                        window = _create_plot_options_gui(
+                        window, validations = _create_plot_options_gui(
                             data, fig, axes, values, old_axes, old_location, **fig_kwargs
                         )
                 # show tables of data
@@ -3195,7 +3206,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     old_location = window.current_location()
                     window.close()
                     window = None
-                    window = _create_plot_options_gui(
+                    window, validations = _create_plot_options_gui(
                         data, fig, axes, values, axes, old_location, **fig_kwargs
                     )
                 # add/edit/remove annotations
@@ -3213,8 +3224,11 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_annotations(axes[key][label], add_annotation)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plot_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
+                    )
 
                     window[f'edit_annotation_{index[0]}_{index[1]}'].update(
                         disabled=not axes[key][label].texts
@@ -3237,8 +3251,11 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     _add_remove_peaks(axes[key][label], add_peak)
 
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plot_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
+                    )
 
                     window[f'edit_peak_{index[0]}_{index[1]}'].update(
                         disabled=not any(
@@ -3263,14 +3280,17 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                     fig_kwargs = _select_plot_type(fig_kwargs)
                     old_axes = axes
                     fig, axes = _create_figure_components(**fig_kwargs)
-                    window = _create_plot_options_gui(
+                    window, validations = _create_plot_options_gui(
                         data, fig, axes, values, old_axes, old_location, **fig_kwargs
                     )
                 # update the figure
                 elif event == 'Update Figure':
                     _plot_data(data, axes, axes, **values, **fig_kwargs)
-                    _draw_figure_on_canvas(window['fig_canvas'].TKCanvas, fig,
-                                           window['controls_canvas'].TKCanvas)
+                    plot_utils.draw_figure_on_canvas(
+                        window['fig_canvas'].TKCanvas, fig,
+                        window['controls_canvas'].TKCanvas,
+                        plot_utils.PlotToolbar
+                    )
                 # resets all options to their defaults
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
@@ -3283,7 +3303,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                         window.close()
                         window = None
                         fig, axes = _create_figure_components(**fig_kwargs)
-                        window = _create_plot_options_gui(
+                        window, validations = _create_plot_options_gui(
                             data, fig, axes, location=old_location, **fig_kwargs
                         )
                 # toggles legend options

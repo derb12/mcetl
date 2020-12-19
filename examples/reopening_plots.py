@@ -2,11 +2,11 @@
 """Shows how to use reopen a figure previously saved using mcetl.
 
 @author: Donald Erb
-Created on Sat Aug 22 17:34:39 2020
+Created on Aug 22, 2020
 
 """
 
-from mcetl import load_previous_figure
+from mcetl.plotting import load_previous_figure
 
 
 # changes some defaults for the plot formatting

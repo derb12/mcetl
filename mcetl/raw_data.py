@@ -305,7 +305,7 @@ def _generate_Raman_data(directory, num_data=6, show_plots=True):
                                          key=lambda x: x[1])
 
         pd.DataFrame(data).to_csv(
-            Path(file_path, f'{sample_name}.csv'),
+            Path(file_path, f'{sample_name}.txt'),
             columns=['x', 'y'], float_format='%.2f',
             header=None, index=False, sep="\t"
         )

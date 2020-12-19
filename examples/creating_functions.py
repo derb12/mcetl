@@ -5,13 +5,13 @@ The steps for processing are more clearly broken down so that each step can be u
 
 
 @author: Donald Erb
-Created on Sat Aug 22 13:49:50 2020
+Created on Aug 22, 2020
 
 """
 
 import numpy as np
 import pandas as pd
-from mcetl import (DataSource, SeparationFunction, CalculationFunction,
+from mcetl import (DataSource, PreprocessFunction, CalculationFunction,
                    SummaryFunction, utils)
 
 
@@ -96,7 +96,8 @@ def func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offs
 
 def func2(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
     """Example CalculationFunction with named kwargs"""
-
+    print(target_indices)
+    print(calc_indices)
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             if excel_columns is not None:
@@ -143,9 +144,9 @@ def func3(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs)
 calculation = CalculationFunction('calc', ['x', 'y'], func, 2, {'offset': 10})
 calculation2 = CalculationFunction('calc2', ['x', 'y'], func2, 1, {'offset': 5})
 calculation3 = CalculationFunction('calc3', ['calc2'], func3, 'calc2', {'offset': 1})
-separator = SeparationFunction('sep', 'x', split, None)
+separator = PreprocessFunction('sep', 'x', split, None)
 sum1 = SummaryFunction('sum', 'x', f, added_columns=2)
-sum3 = SummaryFunction('sum3', 'x', f2, sample_summary=False)
+sum3 = SummaryFunction('sum3', 'x', f2, 1, sample_summary=False)
 
 #Data Source
 xrd = DataSource(
@@ -173,11 +174,11 @@ import_vals = [[[] for sample in dataset] for dataset in dataframes]
 for i, dataset in enumerate(dataframes):
     for j, sample in enumerate(dataset):
         for k, measurement in enumerate(sample):
-            import_vals[i][j].append({'index_x': 1, 'index_y': 0})
+            import_vals[i][j].append({'x': 1, 'y': 0})
             sample[k] = utils.optimize_memory(measurement)
 
 #perform separation calcs
-dataframes, import_vals = data_source.do_separation_functions(
+dataframes, import_vals = data_source.do_preprocessing(
     dataframes, import_vals
 )
 #assign reference indices for all relevant columns
