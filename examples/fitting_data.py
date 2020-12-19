@@ -5,7 +5,7 @@ Since no data is input into the function, it will launch a window
 that will prompt the user to select the data files to open and fit.
 
 @author: Donald Erb
-Created on Sat Aug 22 17:34:39 2020
+Created on Aug 22, 2020
 
 """
 
@@ -36,7 +36,6 @@ changes = {
     'lines.linewidth': 2,
     'lines.markersize': 5,
     'axes.linewidth': 0.6,
-    'legend.frameon': False,
     'figure.dpi': 150,
     'figure.figsize': (6, 4.5)
 }

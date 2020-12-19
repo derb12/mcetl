@@ -704,5 +704,5 @@ if __name__ == '__main__':
     # Put all DataSource objects in this tuple in order to use them
     data_sources = (xrd, ftir, raman, tga, dsc, rheometry, tensile, pore_size, other)
 
-    # Call the main function with data_sources as the input
+    # Call the launch_main_gui function with data_sources as the input
     output = mcetl.launch_main_gui(data_sources)
