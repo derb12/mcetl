@@ -127,6 +127,39 @@ def excel_column_name(index):
     return col_name
 
 
+def get_min_size(default_size, scale, dimension='both'):
+    """
+    Returns the minimum size for a GUI element to match the screen size.
+
+    Parameters
+    ----------
+    default_size : int
+        The default number of pixels to use. Needed because sg.Window.get_screen_size()
+        can return the total screen size when using multiple screens on some linux
+        systems.
+    scale : float
+        The scale factor to apply to the screen size as reported by
+        sg.Window.get_screen_size. For example, if the element size was
+        desired to be at most 50% of the minimum screen dimension, then
+        the scale factor is 0.5.
+    dimension : str
+        The screen dimension to compare. Can be either 'width', 'height', or 'both'.
+
+    Returns
+    -------
+    int
+        The minimum pixel count among scale * screen height, scale * screen width,
+        and default_size.
+
+    """
+
+    indices = {'width': [0], 'height': [1], 'both': [0, 1]}
+
+    screen_size = sg.Window.get_screen_size()
+    print(screen_size)
+    return int(min(scale * screen_size[0], scale * screen_size[1], default_size))
+
+
 def string_to_unicode(input_list):
     r"""
     Converts strings to unicode by replacing '\\' with '\'.
