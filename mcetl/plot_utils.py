@@ -29,7 +29,7 @@ import PySimpleGUI as sg
 from . import utils
 
 
-CANVAS_SIZE = (800, 800)
+CANVAS_SIZE = (utils.get_min_size(800, 0.70),) * 2
 
 
 class PlotToolbar(NavigationToolbar2Tk):
@@ -300,7 +300,7 @@ class EmbeddedFigure:
 
         self.axis.add_patch(
             Ellipse((x, y), circle_width, circle_height, edgecolor='black',
-                    facecolor='green', picker=True)
+                    facecolor='green', picker=True, zorder=3, alpha=0.7)
         )
 
 
