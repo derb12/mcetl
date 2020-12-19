@@ -19,7 +19,7 @@ by allowing the user to define DataSource objects which contain the information
 for reading files, the calculations that will be performed on the data, and the
 options for writing the data to Excel.
 
-In addition, mcetl provides peak fitting and plotting user interfaces that
+In addition, mcetl provides fitting and plotting user interfaces that
 can be used without creating any DataSource objects. Peak fitting is done using
 lmfit, and plotting is done with matplotlib.
 

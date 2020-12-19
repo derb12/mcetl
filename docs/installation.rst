@@ -12,7 +12,7 @@ To install mcetl, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install mcetl
+    $ pip install --upgrade mcetl
 
 This is the preferred method to install mcetl, as it will always install the most recent stable release.
 
