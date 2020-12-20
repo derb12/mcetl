@@ -8,7 +8,7 @@ Notes
 -----
 The imports for the fitting and plotting guis are within their respective
 functions to reduce the time it takes for this module to be imported. Likewise,
-openpyxl is imported within _write_to_excel
+openpyxl is imported within _write_to_excel.
 
 """
 
@@ -17,6 +17,7 @@ import itertools
 import json
 from pathlib import Path
 import sys
+import textwrap
 import traceback
 
 import pandas as pd
@@ -252,7 +253,7 @@ def _select_processing_options(data_sources):
 
     Parameters
     ----------
-    data_sources : list or tuple
+    data_sources : list(DataSource) or tuple(DataSource)
         A container (list, tuple) of DataSource objects.
 
     Returns
@@ -298,16 +299,17 @@ def _select_processing_options(data_sources):
     ]
 
     data_sources_radios = [
-        [sg.Radio(f'{j + 1}) {source.name}', 'radio', key=f'source_{source.name}',
+        [sg.Radio(textwrap.fill(f'{source.name}', 30), 'radio', key=f'source_{source.name}',
                   enable_events=True)] for j, source in enumerate(data_sources)
     ]
 
     layout = [
         [sg.TabGroup([
             [sg.Tab('Data Sources', [
-                [sg.Text('Select Data Source:', relief='ridge',
+                [sg.Text('Select Data Source', relief='ridge',
                          justification='center', size=(40, 1))],
-                *data_sources_radios,
+                [sg.Column(data_sources_radios, scrollable=True, vertical_scroll_only=True,
+                           element_justification='left', key='DataSource_column')]
              ], key='tab1'),
              sg.Tab('Options', options_layout, key='tab2')]
         ], tab_background_color=sg.theme_background_color(), key='tab')],
@@ -315,7 +317,8 @@ def _select_processing_options(data_sources):
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Main Menu', layout)
+    window = sg.Window('Main Menu', layout, finalize=True)
+    window['DataSource_column'].expand(expand_x=True, expand_y=True)
     data_source = None
     while True:
         event, values = window.read()

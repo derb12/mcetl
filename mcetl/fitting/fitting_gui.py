@@ -231,20 +231,6 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
     def _create_window(self, fit_result):
         """Creates a GUI with the figure canvas and two buttons."""
 
-        # measures the font size in order to estimate the dimensions for the results element
-        try:
-            temp = sg.Window('temp', [[sg.Text('')]], alpha_channel=0, finalize=True)
-            font = sg.tk.font.Font(font=sg.DEFAULT_FONT)
-        except:
-            width = 15
-            height = 25
-        else:
-            width = font.measure('A') # 'M' is the largest, but use 'A' to get closer to average
-            height = font.metrics('linespace')
-        finally:
-            temp.close()
-            del temp
-
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
                                         size=(self.canvas_size[0], 10))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
@@ -263,9 +249,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
                         f'adjusted R\u00B2: {r_sq_adj:.5f}\n\n{fit_result.fit_report()}')
 
         results_tab = sg.Tab(
-            'Results', [[sg.Multiline(results_text, disabled=True, pad=(0, 0),
-                                      size=(self.canvas_size[0] // width,
-                                            (self.canvas_size[1] + 20) // height))]]
+            'Results', [[sg.Multiline(results_text, disabled=True, key='results_output')]]
         )
 
         layout = [
@@ -280,6 +264,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
         self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0)
+        self.window['results_output'].expand(expand_x=True, expand_y=True)
 
 
     def event_loop(self):
@@ -731,16 +716,7 @@ def _process_fitting_kwargs(dataframe, values):
 
     if subtract_bkg and values['manual_bkg']:
         subtract_bkg = False
-        y_subtracted = y_data.copy()
-        if len(values['selected_bkg']) > 1:
-            points = sorted(values['selected_bkg'], key=lambda x: x[0])
-            for i in range(len(points) - 1):
-                x_points, y_points = zip(*points[i:i + 2])
-                boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                y_line = y_data[boundary]
-                y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
-
-        y_data = y_subtracted
+        y_data = f_utils.subtract_linear_background(x_data, y_data, values['selected_bkg'])
 
     fitting_results = peak_fitting.fit_peaks(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
@@ -1020,16 +996,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
 
             if subtract_bkg and values['manual_bkg']:
                 subtract_bkg = False
-                y_subtracted = y_data.copy()
-                if len(bkg_points) > 1:
-                    points = sorted(bkg_points, key=lambda x: x[0])
-                    for i in range(len(points) - 1):
-                        x_points, y_points = zip(*points[i:i + 2])
-                        boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                        y_line = y_data[boundary]
-                        y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
-
-                y_data = y_subtracted
+                y_data = f_utils.subtract_linear_background(x_data, y_data, bkg_points)
 
             domain_mask = (x_data > x_min) & (x_data < x_max)
             try:

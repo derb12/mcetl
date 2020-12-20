@@ -1480,12 +1480,16 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                       default_value=initial_model),
              sg.Text('    Peak FWHM:'),
              sg.Input(peak_width, key='peak_width', size=(10, 1))],
-            [sg.Column([
-                [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
-                        bind_return_key=True, pad=(5, (15, 0))),
-                sg.Button('Clear Points', key='clear', pad=(5, (15, 0))),
-                sg.Check('Hide legend', key='hide_legend', enable_events=True)]
-            ], vertical_alignment='bottom')]
+            [sg.Column([[
+                sg.Column([[
+                    sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
+                            bind_return_key=True),
+                    sg.Button('Clear Points', key='clear'),
+                ]], pad=(0, 0)),
+                sg.Column([[
+                    sg.Check('Hide legend', key='hide_legend', enable_events=True)
+                ]], pad=(0, 0))
+            ]], vertical_alignment='center', pad=(5, (15, 0)))]
         ]
 
         self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
