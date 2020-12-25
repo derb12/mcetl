@@ -156,8 +156,8 @@ def get_min_size(default_size, scale, dimension='both'):
     indices = {'width': [0], 'height': [1], 'both': [0, 1]}
 
     screen_size = sg.Window.get_screen_size()
-    print(screen_size)
-    return int(min(scale * screen_size[0], scale * screen_size[1], default_size))
+
+    return int(min(*(scale * screen_size[index] for index in indices[dimension]), default_size))
 
 
 def string_to_unicode(input_list):
@@ -354,7 +354,7 @@ def validate_inputs(window_values, integers=None, floats=None,
             if separator is None:
                 inputs = [window_values[entry[0]]] if window_values[entry[0]] else []
             else:
-                inputs = [val.strip() for val in window_values[entry[0]].split(separator) if val]
+                inputs = [val.strip() for val in window_values[entry[0]].split(separator) if val.strip()]
 
             try:
                 if inputs:
@@ -803,7 +803,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     disable_bottom = True
     dataframes = None # TODO wil be passed to raw_data_import to prevent opening excel files multiple times
 
-    if file is not None: # data_source would also not be None
+    if file is not None:
         disable_bottom = False
 
         if not Path(file).suffix in excel_formats:
@@ -926,7 +926,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         variable_elements = []
         for variable, index in default_inputs['variable_indices'].items():
             variable_elements.append([
-                sg.Column([[sg.Text(textwrap.fill('Variable: ' + variable, 15))]], expand_x=True),
+                sg.Column([[sg.Text(textwrap.fill(variable, 15))]], expand_x=True),
                 sg.Column([[
                     sg.Text('  Column #'),
                     sg.Combo(default_inputs['initial_total_indices'],
@@ -1194,6 +1194,99 @@ def _assign_indices(window, columns, variables):
         )
 
 
+def _manual_file_selector(d_index, s_index, selected_files=None, frame_title='', **kwargs):
+    """
+    Creates the layout to select files for a single sample in a dataset.
+
+    Parameters
+    ----------
+    d_index : int
+        The dataset index. Used to create the keys for the elements.
+    s_index : int
+        The sample index for this sample. Used to create the keys for the elements.
+    selected_files : list(str), optional
+        The previously selected files for this sample. Should be None or an empty
+        list if no files were previously selected.
+    frame_title : str, optional
+        The title of the frame element.
+    **kwargs
+        Any additional keyword argmuments to pass to sg.Frame.
+
+    Returns
+    -------
+    sg.Frame
+        The Frame element containing all of the internal elements for selecting
+        files for this sample.
+
+    """
+
+    files = selected_files if selected_files is not None else []
+
+    layout = [
+        [sg.T(f'Files ({len(files)} total, 0 selected)        ',
+              pad=(5, 0), key=f'sample_summary_{d_index}_{s_index}')],
+        [
+            sg.Column([[
+                sg.Listbox(files, select_mode='multiple', pad=(0, 0), size=(40, 5),
+                           key=f'listbox_{d_index}_{s_index}', enable_events=True)
+            ]], pad=((5, 0), (0, 5))),
+            sg.Column([
+                [sg.Button('Add Files', key=f'add_files_{d_index}_{s_index}', pad=(0, 0))],
+                [sg.Button('Del  Files', key=f'remove_files_{d_index}_{s_index}', pad=(0, 0))]
+            ], pad=((0, 5), (0, 5)))
+        ]
+    ]
+
+    return sg.Frame(frame_title, layout, title_location=sg.TITLE_LOCATION_TOP, **kwargs)
+
+
+def _manual_file_partial_event_loop(window, event, file_types):
+    """
+    A partial event loop for manual file selection that updates the file listbox.
+
+    Parameters
+    ----------
+    window : sg.Window
+        The window containing the elements.
+    event : str
+        The event from the window. Relevant events for this function
+        start with 'listbox_', 'add_files_', or 'remove_files_'.
+    file_types : tuple(tuple(str, str))
+        A tuple of the file types to display in the sg.popup_get_file popup.
+
+    Notes
+    -----
+    All changes are done to the window inplace.
+
+    """
+
+    index = '_'.join(event.split('_')[-2:])
+
+    if event.startswith('listbox_'):
+        selected = len(window[event].get_indexes())
+        total = len(window[f'listbox_{index}'].get_list_values())
+        window[f'sample_summary_{index}'].update(f'Files ({total} total, {selected} selected)')
+
+    elif event.startswith('add_files_'):
+        files = sg.popup_get_file('', multiple_files=True, no_window=True, file_types=file_types)
+        if files:
+            current_values = window[f'listbox_{index}'].get_list_values()
+            current_values.extend(files)
+            window[f'listbox_{index}'].update(values=current_values)
+            window[f'sample_summary_{index}'].update(
+                f'Files ({len(current_values)} total, 0 selected)'
+            )
+
+    elif event.startswith('remove_files_'):
+        removed_indices = window[f'listbox_{index}'].get_indexes()
+        current_values = window[f'listbox_{index}'].get_list_values()
+        new_values = [
+            value for idx, value in enumerate(current_values) if idx not in removed_indices
+        ]
+        window[f'listbox_{index}'].update(values=new_values)
+        window[f'sample_summary_{index}'].update(f'Files ({len(new_values)} total, 0 selected)')
+
+
 def open_multiple_files():
     """
     Creates a prompt to open multiple files and add their contents to a dataframe.
@@ -1206,43 +1299,46 @@ def open_multiple_files():
 
     """
 
-    layout = [
-        [sg.Text('Enter number of files to open:'),
-         sg.Input('1', size=(10, 1), key='num_files')],
-        [sg.Text('')],
-        [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]
+    file_types = [
+        ('All Files', '*.*'), ('CSV', '*.csv'),
+        ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
+        ('Excel Macro-Enabled Workbook', '*.xlsm')
     ]
+    if _HAS_XLRD:
+        file_types.append(('Excel 97-2003 Workbook', '*.xls'))
 
-    validations = {
-        'integers': [['num_files', 'number of files']],
-        'constraints': [['num_files', 'number of files', '> 0']]
-    }
-
-    window = sg.Window('Get Files', layout)
+    window = sg.Window(
+        'Select Files',
+        [[_manual_file_selector(0, 0)], [sg.Button('Next', button_color=PROCEED_COLOR)]]
+    )
     while True:
-        event, values = window.read()
+        event = window.read()[0]
 
         if event == sg.WIN_CLOSED:
-            num_files = False
             safely_close_window(window)
-        else:
-            if validate_inputs(values, **validations):
-                num_files = values['num_files']
+
+        elif any(event.startswith(key) for key in ('listbox_', 'add_files_', 'remove_files_')):
+            _manual_file_partial_event_loop(window, event, file_types)
+
+        elif event == 'Next':
+            files = window['listbox_0_0'].get_list_values()
+            if files:
                 break
+            else:
+                sg.popup('Must add at least one file.\n', title='Error')
 
     window.close()
     del window
 
     dataframes = []
-    if num_files:
-        import_values = None
+    import_values = None
+    for file in files:
         try:
-            for _ in range(num_files):
-                import_values = select_file_gui(previous_inputs=import_values)
-                dataframes.extend(
-                    raw_data_import(import_values, import_values['file'], False)
-                )
+            import_values = select_file_gui(file=file, previous_inputs=import_values)
+            dataframes.extend(
+                raw_data_import(import_values, import_values['file'], False)
+            )
         except WindowCloseError:
-            pass
+            break # exits as soon as user exits
 
     return dataframes
