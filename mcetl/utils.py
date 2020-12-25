@@ -389,14 +389,21 @@ def validate_inputs(window_values, integers=None, floats=None,
                 upper_key = '<='
                 upper_bound = float('inf')
 
-            if not (operators[lower_key](window_values[entry[0]], lower_bound)
-                    and operators[upper_key](window_values[entry[0]], upper_bound)):
-                sg.popup(
-                    (f'"{entry[1]}" must be {lower_key} {lower_bound} and '
-                     f'{upper_key} {upper_bound}.\n'),
-                    title='Error'
-                )
-                return False
+            # to allow for constraining iterative values
+            if isinstance(window_values[entry[0]], (int, float)):
+                values = [window_values[entry[0]]]
+            else:
+                values = window_values[entry[0]]
+
+            for value in values:
+                if not (operators[lower_key](value, lower_bound)
+                        and operators[upper_key](value, upper_bound)):
+                    sg.popup(
+                        (f'"{entry[1]}" must be {lower_key} {lower_bound} and '
+                        f'{upper_key} {upper_bound}.\n'),
+                        title='Error'
+                    )
+                    return False
 
     return True
 
