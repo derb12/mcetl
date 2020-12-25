@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from . import utils
+from .excel_writer import ExcelWriterHandler
 from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 
 
@@ -821,3 +822,32 @@ class DataSource:
             f'Dataset summary labels: {len(labels[3])}\n\n'
             f'column_labels template for {self} = {label_template}'
         ))
+
+
+    @staticmethod
+    def test_excel_styles(styles):
+        """
+        Tests whether the input styles create valid Excel styles with openpyxl.
+
+        Parameters
+        ----------
+        styles : dict(str : dict or openpyxl.styles.NamedStyle)
+            The dictionary of styles to test. Values in the dictionary can
+            either be nested dictionaries with the necessary keys and values
+            to create an openpyxl NamedStyle, or openpyxl.styles.NamedStyle
+            objects.
+
+        Returns
+        -------
+        bool
+            Returns True if all input styles successfully create openpyxl
+            NamedStyle objects; otherwise, returns False.
+
+        Notes
+        -----
+        This is just a wrapper of ExcelWriterHandler.test_excel_styles,
+        and is included because DataSource is the main-facing object of
+        mcetl and will be used more often.
+
+        """
+        return ExcelWriterHandler.test_excel_styles(styles)
