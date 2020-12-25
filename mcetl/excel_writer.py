@@ -156,6 +156,19 @@ class ExcelWriterHandler:
 
     def _create_writer(self, file_name, new_file, **kwargs):
         """
+        Creates the pandas ExcelWriter.
+
+        Parameters
+        ----------
+        file_name : str or Path
+            The file name or path for the Excel file to be created.
+        new_file : bool
+            If False (default), will append to an existing file. If True, or if
+            no file currently exists with the given file_name, a new file will
+            be created, even if a file with the same name currently exists.
+        **kwargs
+            Any additional keyword arguments to pass to pd.ExcelWriter.
+
         Notes
         -----
         If appending to a file, makes the user close the file before proceeding
@@ -409,7 +422,7 @@ class ExcelWriterHandler:
 
         Parameters
         ----------
-        styles : dict(dict or openpyxl.styles.NamedStyle)
+        styles : dict(str : dict or openpyxl.styles.NamedStyle)
             The dictionary of styles to test. Values in the dictionary can
             either be nested dictionaries with the necessary keys and values
             to create an openpyxl NamedStyle, or openpyxl.styles.NamedStyle
@@ -417,7 +430,7 @@ class ExcelWriterHandler:
 
         Returns
         -------
-        bool
+        success : bool
             Returns True if all input styles successfully create openpyxl
             NamedStyle objects; otherwise, returns False.
 

@@ -32,12 +32,10 @@ Created on Jul 15, 2020
 """
 
 
-__author__ = 'Donald Erb'
 __version__ = '0.3.0'
 
 
 from .data_source import DataSource
-from .excel_writer import ExcelWriterHandler
 from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 from .main_gui import launch_main_gui
 
