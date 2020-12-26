@@ -26,19 +26,22 @@ import PySimpleGUI as sg
 from . import utils
 from .data_source import DataSource
 from .excel_writer import ExcelWriterHandler
-from .file_organizer import file_finder, file_mover
+from .file_organizer import file_finder, file_mover, manual_file_finder
 # openpyxl is imported within _write_to_excel
+
+
+# the prefix of the filename used for saving previous files
+_FILE_PREFIX = 'previous_files_'
 
 
 def get_save_location():
     """
-    Gets the correct filepath to save the previous_search.json depending on the operating system.
+    Gets the filepath for saving the previous files depending on the operating system.
 
     Returns
     -------
     pathlib.Path
-        The absolute path to where the previous_search.json file will
-        be saved.
+        The absolute path to where the previous file json will be saved.
 
     """
 
@@ -264,14 +267,13 @@ def _select_processing_options(data_sources):
     """
 
     options_layout = [
-        [sg.Text('Select Input', relief='ridge', justification='center',
+        [sg.Text('File Selection', relief='ridge', justification='center',
                  size=(40, 1))],
-        [sg.Radio('Multiple Files', 'options_radio', default=True,
-                  key='multiple_files', enable_events=True)],
-        [sg.Check('Use Previous Search', key='use_last_search',
-                  disabled=True, pad=((40, 0), (1, 0)))],
-        [sg.Radio('Single File', 'options_radio', key='single_file',
-                  enable_events=True)],
+        [sg.Radio('Manually Select Files', 'options_radio', default=True,
+                  key='manual_search')],
+        [sg.Radio('Search Files Using Keywords', 'options_radio', key='keyword_search')],
+        [sg.Radio('Use Previous Files', 'options_radio', key='use_last_search',
+                  disabled=True)],
         [sg.Text('Select All Boxes That Apply', relief='ridge',
                  justification='center', size=(40, 1))],
         [sg.Check('Process Data', key='process_data', default=True,
@@ -291,11 +293,8 @@ def _select_processing_options(data_sources):
         [sg.Check('Plot Fit Results in Excel', key='plot_fit_excel',
                   disabled=True, pad=((40, 0), (1, 0)))],
         [sg.Input('', key='file_name', visible=False),
-         sg.Input('', key='save_as', visible=False,
-                  enable_events=True, do_not_clear=False),
-         sg.SaveAs(file_types=(("Excel Workbook (xlsx)", "*.xlsx"),),
-                   key='file_save_as', target='save_as',
-                   pad=((40, 0), 5))],
+         sg.Input('', key='display_name', disabled=True, size=(20, 1), pad=((40, 0), 5)),
+         sg.Button('Save As', key='save_as')],
     ]
 
     data_sources_radios = [
@@ -332,38 +331,12 @@ def _select_processing_options(data_sources):
                     data_source = source
                     break
 
-            if (values['multiple_files']
-                    and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
+            if get_save_location().joinpath(f'{_FILE_PREFIX}{data_source.name}.json').exists():
                 window['use_last_search'].update(disabled=False)
             else:
                 window['use_last_search'].update(value=False, disabled=True)
-
-        elif event == 'Next':
-            if any((values['fit_data'], values['plot_python'], values['save_excel'],
-                    values['move_files'], values['process_data'])):
-
-                if any(values[f'source_{source.name}'] for source in data_sources):
-                    if not values['save_excel'] or values['file_name']:
-                        break
-                    else:
-                        sg.popup(
-                            'Please select a filename for the output Excel file.\n',
-                            title='Error'
-                        )
-                else:
-                    sg.popup('Please select a data source.\n', title='Error')
-
-            elif values['move_files']:
-                break
-            else:
-                sg.popup('Please select a data processing option.\n', title='Error')
-
-        if (event == 'multiple_files' and data_source is not None
-                and get_save_location().joinpath(f'previous_search_{data_source.name}.json').exists()):
-            window['use_last_search'].update(disabled=False)
-
-        elif event == 'single_file':
-            window['use_last_search'].update(value=False, disabled=True)
+                if values['use_last_search']:
+                    window['manual_search'].update(value=True)
 
         elif event == 'fit_data':
             if values['fit_data'] and values['save_excel']:
@@ -381,6 +354,8 @@ def _select_processing_options(data_sources):
 
         elif event == 'save_excel':
             if values['save_excel']:
+                window['display_name'].update(value=Path(values['file_name']).name)
+                window['save_as'].update(disabled=False)
                 window['append_file'].update(readonly=True)
                 window['plot_data_excel'].update(disabled=False)
 
@@ -388,6 +363,8 @@ def _select_processing_options(data_sources):
                     window['save_fitting'].update(value=True, disabled=False)
                     window['plot_fit_excel'].update(disabled=False)
             else:
+                window['display_name'].update(value='')
+                window['save_as'].update(disabled=True)
                 window['append_file'].update(
                     value='Append to existing file', disabled=True
                 )
@@ -395,20 +372,33 @@ def _select_processing_options(data_sources):
                 window['plot_fit_excel'].update(value=False, disabled=True)
                 window['save_fitting'].update(value=False, disabled=True)
 
-        elif event == 'save_as' and values['save_as']:
-            file_path = Path(values['save_as'])
-            if file_path.suffix.lower() != '.xlsx':
-                file_path = Path(file_path.parent, file_path.stem + '.xlsx')
-            window['file_name'].update(value=str(file_path))
+        elif event == 'save_as':
+            file_name = sg.popup_get_file(
+                '', save_as=True, default_path=values['display_name'], no_window=True,
+                file_types=(("Excel Workbook (xlsx)", "*.xlsx"),)
+            )
+            if file_name:
+                file_path = Path(file_name)
+                if file_path.suffix.lower() != '.xlsx':
+                    file_path = Path(file_path.parent, file_path.stem + '.xlsx')
+                window['file_name'].update(value=str(file_path))
+                window['display_name'].update(value=file_path.name)
+
+        elif event == 'Next':
+            if data_source is None:
+                sg.popup('Please select a data source.\n', title='Error')
+            elif (not any(values[key] for key in ('process_data', 'fit_data', 'plot_python',
+                    'move_files', 'save_excel'))):
+                sg.popup('Please select a data processing option.\n', title='Error')
+            elif values['save_excel'] and not values['file_name']:
+                sg.popup('Please select a filename for the output Excel file.\n', title='Error')
+            else:
+                break
 
     window.close()
     del window
 
     values['append_file'] = values['append_file'] == 'Append to existing file'
-
-    # removes unneeded keys
-    for key in ('file_save_as', 'save_as', 'single_file', 'tab'):
-        values.pop(key, None)
 
     return values
 
@@ -1089,63 +1079,50 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 data_source.excel_formats
             )
 
-        # Selection of raw data files
-        if processing_options['multiple_files']:
-            if processing_options['use_last_search']:
-                with get_save_location().joinpath(f'previous_search_{data_source.name}.json').open('r') as fp:
-                    files = json.load(fp)
-            else:
+        # Selection of data files
+        save_path = get_save_location()
+        if processing_options['use_last_search']:
+            with save_path.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('r') as fp:
+                files = json.load(fp)
+        else:
+            if processing_options['keyword_search']:
                 files = file_finder(
                     file_type=data_source.file_type, num_files=data_source.num_files
                 )
+            else:
+                files = manual_file_finder(data_source.file_type)
 
-                # Saves the last search to a json file so it can be used again to bypass the search.
-                save_path = get_save_location()
-                save_path.mkdir(exist_ok=True)
-                with save_path.joinpath(f'previous_search_{data_source.name}.json').open('w') as fp:
-                    json.dump(files, fp, indent=2)
+            # Saves the file paths to a json file so they can be used again to bypass the search.
+            save_path.mkdir(exist_ok=True)
+            with save_path.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('w') as fp:
+                json.dump(files, fp, indent=2)
 
-            # Imports the raw data from the files
-            if any((processing_options['process_data'],
-                    processing_options['save_excel'],
-                    processing_options['fit_data'],
-                    processing_options['plot_python'])):
-
-                output['dataframes'] = [[[] for sample in dataset] for dataset in files]
-                import_vals = [[[] for sample in dataset] for dataset in files]
-                import_values = None
-                for i, dataset in enumerate(files):
-                    for j, sample in enumerate(dataset):
-                        for entry in sample:
-                            if import_values is None or not import_values['same_values']:
-                                import_values = utils.select_file_gui(
-                                    data_source, entry, import_values,
-                                    processing_options['process_data']
-                                )
-
-                            added_dataframes = utils.raw_data_import(import_values, entry, False)
-                            output['dataframes'][i][j].extend(added_dataframes)
-                            references = {}
-                            for var in data_source.unique_variables:
-                                # use .get() since keys will not exist if not processing
-                                references[var] = import_values.get(f'index_{var}')
-                            import_vals[i][j].extend([references] * len(added_dataframes))
-
-        else:
-            import_values = utils.select_file_gui(data_source, assign_columns=processing_options['process_data'])
-            output['dataframes'] = [[utils.raw_data_import(import_values, import_values['file'],
-                                                           False)]]
-            files = [[[import_values['file']]]]
-            references = {}
-            for var in data_source.unique_variables:
-                references[var] = import_values.get(f'index_{var}')
-            import_vals = [[[references] * len(output['dataframes'][0][0])]]
-
-        # Specifies column names
+        # Imports the raw data from the files and specifies column names
         if any((processing_options['process_data'],
                 processing_options['save_excel'],
                 processing_options['fit_data'],
                 processing_options['plot_python'])):
+
+            output['dataframes'] = [[[] for sample in dataset] for dataset in files]
+            references = [[[] for sample in dataset] for dataset in files]
+            import_values = {}
+            for i, dataset in enumerate(files):
+                for j, sample in enumerate(dataset):
+                    for entry in sample:
+                        if (not import_values.get('same_values', False)
+                                or Path(entry).suffix in ('.xlsx', '.xlsm', '.xls')):
+                            import_values = utils.select_file_gui(
+                                data_source, entry, import_values,
+                                processing_options['process_data']
+                            )
+
+                        added_dataframes = utils.raw_data_import(import_values, entry, False)
+                        output['dataframes'][i][j].extend(added_dataframes)
+                        import_vals = {}
+                        for var in data_source.unique_variables:
+                            # use .get() since keys will not exist if not processing
+                            import_vals[var] = import_values.get(f'index_{var}')
+                        references[i][j].extend([import_vals] * len(added_dataframes))
 
             if processing_options['process_data']:
                 # Perform preprocessing functions before assigning column labels
@@ -1226,12 +1203,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
             output['dataframes'] = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
-        # Assigns column names to the dataframes
-        if any((processing_options['process_data'],
-                processing_options['fit_data'],
-                processing_options['plot_python'])):
-
-            pass #TODO later assign column headers for all dfs based on labels['total_columns']
+        #TODO later assign column headers for all dfs based on labels['total_columns']
 
         """
         #renames dataframe columns if there are repeated terms,
