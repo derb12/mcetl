@@ -48,13 +48,15 @@ class PlotToolbar(NavigationToolbar2Tk):
         The figure canvas on which to operate.
     canvas : tkinter.Canvas
         The Canvas element which owns this toolbar.
+    **kwargs
+        Any additional keyword arguments to pass to NavigationToolbar2Tk.
 
     """
 
     toolitems = tuple(ti for ti in NavigationToolbar2Tk.toolitems if ti[0] not in ('Subplots', 'Save'))
 
-    def __init__(self, fig_canvas, canvas):
-        super().__init__(fig_canvas, canvas)
+    def __init__(self, fig_canvas, canvas, **kwargs):
+        super().__init__(fig_canvas, canvas, **kwargs)
 
 
 class EmbeddedFigure:
@@ -208,7 +210,7 @@ class EmbeddedFigure:
         """
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         layout = [
@@ -407,7 +409,7 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
 
     toolbar = None
     packing_kwargs = {'canvas': {'side': 'top', 'anchor': 'nw'},
-                      'toolbar': {'side': 'top', 'anchor': 'nw'}}
+                      'toolbar': {'side': 'top', 'anchor': 'nw', 'fill': 'x'}}
     if kwargs is not None:
         packing_kwargs.update(kwargs)
 
@@ -431,7 +433,11 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
             _clean_canvas(toolbar_canvas,
                           first_index=1 if canvas is toolbar_canvas else 0,
                           last_index=-1 if canvas is toolbar_canvas else None)
-            toolbar = toolbar_class(figure_canvas, toolbar_canvas)
+            try: # pack_toolbar keyword added in matplotlib v3.3.0
+                toolbar = toolbar_class(figure_canvas, toolbar_canvas, pack_toolbar=False)
+            except:
+                toolbar = toolbar_class(figure_canvas, toolbar_canvas)
+                toolbar.pack_forget()
             toolbar.pack(**packing_kwargs['toolbar'])
 
         figure_canvas.get_tk_widget().pack(**packing_kwargs['canvas'])

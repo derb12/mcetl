@@ -1272,7 +1272,7 @@ def _select_plot_type(user_inputs=None):
             [sg.Button('Preview'),
              sg.Button('Next', bind_return_key=True, size=(6, 1),
                        button_color=utils.PROCEED_COLOR)]
-         ]),
+         ], vertical_alignment='top'),
          sg.Column([
              [sg.Canvas(key='example_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
          ], size=(plot_utils.CANVAS_SIZE[0] + 10, plot_utils.CANVAS_SIZE[1] + 10),
@@ -1869,8 +1869,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                                      justification='center')],
                             [sg.Text('')],
                             *column_layout
-                        ], scrollable=True, vertical_scroll_only=True,
-                        size=(750, plot_utils.CANVAS_SIZE[1] - 100))
+                        ], scrollable=True,
+                        size=(utils.get_min_size(750, 0.5, 'width'), plot_utils.CANVAS_SIZE[1] - 100))
                     ]],
                     key=f'label_tab_{i}_{j}')]
             )
@@ -1892,18 +1892,17 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
         ], key='menu')],
         [sg.Column([
             [sg.TabGroup(axes_tabs, key='axes_tabgroup',
-                         tab_background_color=sg.theme_background_color())],
-            [sg.Button('Back', pad=(5, 10)),
-             sg.Button('Update Figure', pad=(5, 10)),
-             sg.Button('Reset to Defaults', pad=(5, 10)),
-             sg.Button('Continue', bind_return_key=True, pad=(5, 10),
-                       button_color=utils.PROCEED_COLOR)]
+                         tab_background_color=sg.theme_background_color(), pad=(5, (5, 10)))],
+            [sg.Button('Back'),
+             sg.Button('Update Figure'),
+             sg.Button('Reset to Defaults'),
+             sg.Button('Continue', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
             [sg.Canvas(key='controls_canvas', pad=(0, 0),
-                       size=(plot_utils.CANVAS_SIZE[0], 10))],
+                       size=(plot_utils.CANVAS_SIZE[0], 50))],
             [sg.Canvas(key='fig_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
-         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 50),
+         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 70),
          pad=(10, 0))
         ]
     ]
@@ -3390,9 +3389,9 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     Parameters
     ----------
-    dataframes : list
-        A nested list of pandas DataFrames. Each list of DataFrames will
-        create one figure.
+    dataframes : list(list(pd.DataFrame))
+        A nested list of lists of pandas DataFrames. Each list of DataFrames
+        will create one figure.
     mpl_changes : dict
         Changes to matplotlib's rcParams file to alter the figure.
     input_fig_kwargs : dict, optional
@@ -3405,7 +3404,7 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     Returns
     -------
-    figures : list
+    figures : list(list(plt.Figure, dict(str : plt.Axes)))
         A nested list of lists, with each entry containing the matplotlib Figure,
         and a dictionary containing the Axes.
 
@@ -3420,12 +3419,17 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
     if dataframes is not None:
         plot_data = dataframes
     else:
-        plot_data = [utils.open_multiple_files()]
-        for dataframe in plot_data[0]:
-            dataframe.columns = [
-                f'Column {num}' for num in range(len(dataframe.columns))
-            ]
+        data = utils.open_multiple_files()
+        if not data:
+            plot_data = []
+        else:
+            for dataframe in data:
+                dataframe.columns = [
+                    f'Column {num}' for num in range(len(dataframe.columns))
+                ]
+            plot_data = [data]
 
+    figures = []
     if plot_data:
         with plt.rc_context(rc_params):
             figures = _plot_options_event_loop(
