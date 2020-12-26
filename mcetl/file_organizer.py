@@ -90,18 +90,15 @@ def _generate_num_keyword_window(file_directory=None, file_type=None, num_files=
          sg.FolderBrowse(key='search', target='folder',
                          initial_folder=default_inputs['folder_initial'])],
         [sg.Text('Number of datasets:', size=(28, 1)),
-         sg.Input(key='num_datasets', do_not_clear=True, size=(5, 1), focus=True,
-                  default_text=default_inputs['num_datasets'])],
+         sg.Input(default_inputs['num_datasets'], key='num_datasets',
+                  size=(5, 1), focus=True)],
         [sg.Text('File extension (eg. csv or txt):', size=(28, 1)),
-         sg.Input(key='file_type', do_not_clear=True, size=(5, 1),
-                  default_text=default_inputs['file_type'])],
+         sg.Input(default_inputs['file_type'], key='file_type', size=(5, 1))],
         [sg.Text('Number of files per search term:')],
         [sg.Text('    Minimum:', size=(14, 1)),
-         sg.Input(key='min_files', do_not_clear=True, size=(5, 1),
-                  default_text=default_inputs['min_files'])],
+         sg.Input(default_inputs['min_files'], key='min_files', size=(5, 1))],
         [sg.Text('    Maximum:', size=(14, 1)),
-         sg.Input(key='max_files', do_not_clear=True, size=(5, 1),
-                  default_text=default_inputs['max_files'])],
+         sg.Input(default_inputs['max_files'], key='max_files', size=(5, 1))],
         [sg.Text('')],
         [sg.Button('Help'),
          sg.Button('Next', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
@@ -622,13 +619,13 @@ def _create_manual_window(datasets, previous_files=None):
     return sg.Window('File Selection', layout)
 
 
-def manual_file_finder(file_extension=None):
+def manual_file_finder(file_type=None):
     """
     Allows manual selection for the files for the selected samples and datasets.
 
     Parameters
     ----------
-    file_extension : str, optional
+    file_type : str, optional
         The desired file extension for all files.
 
     Returns
@@ -644,7 +641,7 @@ def manual_file_finder(file_extension=None):
     # time the window is made; will restore value after exiting function
     sg.ENABLE_TREEVIEW_869_PATCH = False
 
-    file_types, dataset_values = _manual_options(file_extension)
+    file_types, dataset_values = _manual_options(file_type)
     window = _create_manual_window(dataset_values['num_samples'])
     visible_index = '0_0'
     while True:
@@ -741,7 +738,7 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
     if not new_folder:
         layout = [
             [sg.Text('Choose the folder to move files to:', size=(35, 1))],
-            [sg.InputText('', disabled=True),
+            [sg.Input('', disabled=True),
              sg.FolderBrowse(key='folder')],
             [sg.Button('Submit', bind_return_key=True,
                        button_color=utils.PROCEED_COLOR)]

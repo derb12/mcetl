@@ -785,7 +785,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         for key in unwanted_keys:
             previous_inputs.pop(key, None)
 
-        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs.get('columns', []))
+        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs.get('columns', [0, 1]))
         previous_inputs['fixed_width_columns'] = ', '.join(str(num) for num in previous_inputs.get('fixed_width_columns', []))
         default_inputs.update(previous_inputs)
 
@@ -793,7 +793,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         'integers': [['row_start', 'start row'], ['row_end', 'end row']],
         'user_inputs': [['columns', 'data columns', int]],
         'constraints': [['row_start', 'start row', '>= 0'],
-                        ['row_end', 'end row', '>= 0']]
+                        ['row_end', 'end row', '>= 0'],
+                        ['columns', 'data columns', '>= 0']]
     }
     if default_inputs['fixed_width_file']:
         validations['user_inputs'].append(['fixed_width_columns', 'fixed width columns', int])
@@ -832,7 +833,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                 'same_values': False,
                 'total_indices': list(range(sheet_0_len)),
             })
-            if any(index >= sheet_0_len for index in default_inputs['variable_indices'].values()):
+            if (assign_column_indices
+                    and any(index >= sheet_0_len for index in default_inputs['variable_indices'].values())):
                 default_inputs['variable_indices'] = {key: 0 for key in default_inputs['variable_indices'].keys()}
 
             validations['integers'].append(
@@ -946,7 +948,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
             sg.Column([
                 [sg.Check('Same options\nfor all files', default_inputs['same_values'],
                         key='same_values', disabled=disable_other,
-                        visible=None not in (data_source, file))]
+                        visible=file is not None and Path(file).suffix not in excel_formats)]
                 ]),
             sg.Column([
                 [sg.Button('Test Import'),
@@ -1013,7 +1015,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                         del validations['user_inputs'][i]
                         break
 
-                if data_source is not None:
+                if assign_column_indices:
                     _assign_indices(
                         window, list(range(sheet_0_len)), default_inputs['variable_indices']
                     )
@@ -1060,7 +1062,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                         del validations['constraints'][i]
                         break
 
-                if data_source is not None:
+                if assign_column_indices:
                     for variable in data_source.unique_variables:
                         window[f'index_{variable}'].update(
                             values=default_inputs['total_indices'], readonly=True,
@@ -1076,7 +1078,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                 value=', '.join(str(i) for i in range(len(dataframes[values['sheet']].columns)))
             )
 
-            if data_source is not None:
+            if assign_column_indices:
                 _assign_indices(
                     window, [num for num in range(len(dataframes[values['sheet']].columns))],
                     default_inputs['variable_indices']
@@ -1110,7 +1112,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                     value=', '.join(str(elem) for elem in update_text)
                 )
 
-                if data_source is not None:
+                if assign_column_indices:
                     _assign_indices(window, update_text,
                                     default_inputs['variable_indices'])
 
@@ -1121,7 +1123,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                     value=', '.join(str(elem) for elem in update_text)
                 )
 
-                if data_source is not None:
+                if assign_column_indices:
                     _assign_indices(window, update_text,
                                     default_inputs['variable_indices'])
             except ValueError:
@@ -1129,13 +1131,12 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                 sg.popup('Please enter an integer in "number of columns per dataset"',
                          title='Error')
 
-        elif event == 'columns':
-            if data_source is not None:
-                update_text = [
-                    entry for entry in values['columns'].replace(' ', '').split(',') if entry
-                ]
-                _assign_indices(window, update_text,
-                                default_inputs['variable_indices'])
+        elif event == 'columns' and assign_column_indices:
+            update_text = [
+                entry.strip() for entry in values['columns'].split(',') if entry.strip()
+            ]
+            _assign_indices(window, update_text,
+                            default_inputs['variable_indices'])
 
         elif event in ('Next', 'Test Import'):
             if file is None and values['file'] == 'Choose a file':
@@ -1309,7 +1310,8 @@ def open_multiple_files():
 
     window = sg.Window(
         'Select Files',
-        [[_manual_file_selector(0, 0)], [sg.Button('Next', button_color=PROCEED_COLOR)]]
+        [[_manual_file_selector(0, 0)],
+         [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]]
     )
     while True:
         event = window.read()[0]
@@ -1331,12 +1333,14 @@ def open_multiple_files():
     del window
 
     dataframes = []
-    import_values = None
+    import_values = {}
     for file in files:
         try:
-            import_values = select_file_gui(file=file, previous_inputs=import_values)
+            if (not import_values.get('same_values', False)
+                    or Path(file).suffix in ('.xlsx', '.xlsm', '.xls')):
+                import_values = select_file_gui(file=file, previous_inputs=import_values)
             dataframes.extend(
-                raw_data_import(import_values, import_values['file'], False)
+                raw_data_import(import_values, file, False)
             )
         except WindowCloseError:
             break # exits as soon as user exits
