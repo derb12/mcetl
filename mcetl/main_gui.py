@@ -1081,7 +1081,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 break
         # Removes unique variables that are only used in preprocessing
         if not processing_options['process_data']:
-            data_source.remove_unneeded_variables()
+            data_source._remove_unneeded_variables()
         # Create the writer handler and read the Excel file if appending.
         if processing_options['save_excel']:
             writer_handler = ExcelWriterHandler(
@@ -1148,9 +1148,10 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 processing_options['plot_python'])):
 
             if processing_options['process_data']:
-                # Perform preprocessing functions
-                output['dataframes'], import_vals = data_source.do_preprocessing(
-                    output['dataframes'], import_vals
+                # Perform preprocessing functions before assigning column labels
+                # since columns could be added/removed
+                output['dataframes'], references = data_source._do_preprocessing(
+                    output['dataframes'], references
                 )
 
             label_values = _select_column_labels(
@@ -1201,14 +1202,14 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
         if processing_options['save_excel'] or processing_options['process_data']:
             if processing_options['process_data']:
                 # Assign reference indices for all relevant columns
-                data_source.set_references(output['dataframes'], import_vals)
+                data_source._set_references(output['dataframes'], references)
 
             # Merge dataframes for each dataset
             merged_dataframes = data_source.merge_datasets(output['dataframes'])
             output['dataframes'] = None # Frees up memory
 
             if processing_options['save_excel'] and processing_options['process_data']:
-                merged_dataframes = data_source.do_excel_functions(merged_dataframes)
+                merged_dataframes = data_source._do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
                 output['writer'] = writer_handler.writer
@@ -1219,7 +1220,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 )
 
             if processing_options['process_data']:
-                merged_dataframes = data_source.do_python_functions(merged_dataframes)
+                merged_dataframes = data_source._do_python_functions(merged_dataframes)
 
             # Split data back into individual dataframes
             output['dataframes'] = data_source.split_into_entries(merged_dataframes)

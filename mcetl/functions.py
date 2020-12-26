@@ -105,7 +105,7 @@ class PreprocessFunction(FunctionBase):
             self.deleted_columns = ()
 
 
-    def preprocess_data(self, dataset, column_reference):
+    def _preprocess_data(self, dataset, column_reference):
         """
         Calls self.function to process each dataframe for each sample in the dataset.
 
@@ -265,7 +265,7 @@ class CalculationFunction(FunctionBase):
             self.function_kwargs = function_kwargs
 
 
-    def do_function(self, dataset, reference, index, first_column, first_row):
+    def _do_function(self, dataset, reference, index, excel_columns, first_row):
         """
         Calls self.functions[index] to process each dataframe for each sample in the dataset.
 
@@ -281,9 +281,9 @@ class CalculationFunction(FunctionBase):
             dataframe as values.
         index : int
             Either 0 or 1. If 0, do Excel formulas; if 1, do python formulas.
-        first_column : int
-            The first Excel column to use; corresponds to the actual column
-            number in Excel (ie is 1-based rather than 0-based), so 1 denotes 'A'.
+        excel_columns : list(str) or None
+            A list of the Excel column names (eg. ['A', 'B', 'C']) that cover
+            the columns of the dataset if index is 0. Is None if index is 1.
         first_row : int
             The first Excel row to use; corresponds to the actual row number
             in Excel (ie is 1-based rather than 0-based), so 1 denotes the
@@ -295,13 +295,6 @@ class CalculationFunction(FunctionBase):
             The input dataframe modified by the function.
 
         """
-
-        if index == 1:
-            excel_columns = None
-        else:
-            excel_columns = [
-                excel_column_name(num) for num in range(first_column, len(dataset.columns) + first_column)
-            ]
 
         target_columns = [reference[target] for target in self.target_columns]
         added_columns = reference[self.name]
