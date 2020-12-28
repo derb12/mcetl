@@ -1355,9 +1355,9 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
             'fitting_descriptors_even', 'fitting_descriptors_odd'
         The values for each key must be a dictionary, with keys in this internal
-        dictionary representing keyword arguments for openpyxl's NamedStyle. See
-        DEFAULT_FITTING_FORMATS in mcetl.utils as an example.
-
+        dictionary representing keyword arguments for openpyxl's NamedStyle or
+        openpyxl.styles.NamedStyle objects. See
+        mcetl.excel_writer.ExcelWriterHandler.styles as an example for the dictionary.
 
     Returns
     -------
@@ -1394,7 +1394,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
     if save_excel and fit_dataframes:
         if excel_writer is not None:
-            writer_handler = ExcelWriterHandler(writer=excel_writer)
+            writer_handler = ExcelWriterHandler(writer=excel_writer, styles=excel_formats)
         else:
             layout = [
                 [sg.Text('File name for peak fitting results')],
@@ -1428,7 +1428,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
                 if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
                     values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
 
-                writer_handler = ExcelWriterHandler(values['file'], values['new_file'])
+                writer_handler = ExcelWriterHandler(values['file'], values['new_file'], excel_formats)
 
     fit_results = []
     proceed = True
