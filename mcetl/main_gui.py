@@ -165,6 +165,18 @@ def _write_to_excel(dataframes, data_source, labels,
             y_max = plot_options[i]['y_max']
             last_row = len(dataset) + 1 + first_row
 
+            # Prevents an error in Excel if using log scale and specified values are <= 0
+            if plot_options[i]['x_log_scale']:
+                if x_min is not None and x_min <= 0:
+                    x_min = None
+                if x_max is not None and x_max <= 0:
+                    x_max = None
+            if plot_options[i]['y_log_scale']:
+                if y_min is not None and y_min <= 0:
+                    y_min = None
+                if y_max is not None and y_max <= 0:
+                    y_max = None
+
             # Reverses x or y axes if min > max
             if None not in (x_min, x_max) and x_min > x_max:
                 x_reverse = True
