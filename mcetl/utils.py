@@ -779,7 +779,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         'initial_total_indices': None if data_source is None else [''] * len(data_source.column_numbers),
     }
 
-    if previous_inputs is not None:
+    if previous_inputs:
         unwanted_keys = ('file', 'sheets', 'sheet', 'excel_columns',
                          'first_column', 'last_column', 'repeat_unit')
         for key in unwanted_keys:
