@@ -790,10 +790,10 @@ def _select_column_labels(dataframes, data_source, processing_options):
         window.close()
         window = None
 
-    plot_options = []
+    plot_options = [{} for _ in label_values]
     if processing_options['plot_data_excel']:
-        for values in label_values:
-            plot_options.append({
+        for i, values in enumerate(label_values):
+            plot_options[i].update({
                 'x_label': values['x_label'],
                 'y_label': values['y_label'],
                 'chart_title' : values['chart_title'],
@@ -804,7 +804,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
                 'x_log_scale': values['x_log_scale'],
                 'y_log_scale': values['y_log_scale']
             })
-            plot_options[-1].update(
+            plot_options[i].update(
                 {key: value for key, value in values.items()
                 if any(key.startswith(prefix) for prefix in ('plot_', 'x_plot_index', 'y_plot_index'))}
             )
@@ -854,7 +854,6 @@ def _collect_column_labels(label_values, plot_options, data_source, options):
             labels[num]['sample_names'].append(label_dict['summary_name'])
 
         plot_indices = {key: value for key, value in plot_options[num].items() if 'plot_index_' in key}
-
         labels[num]['column_names'] =  []
         labels[num]['dataframe_names'] =  []
         column_index = 0
@@ -979,12 +978,11 @@ def _fit_data(datasets, data_source, labels,
 
         for i, dataset in enumerate(datasets):
             default_inputs.update({
-                'x_label': labels[i]['column_labels'][data_source.x_plot_index],
-                'y_label': labels[i]['column_labels'][data_source.y_plot_index]
+                'x_label': labels[i]['column_names'][data_source.x_plot_index],
+                'y_label': labels[i]['column_names'][data_source.y_plot_index]
             })
-
+            sample_names = labels[i]['sample_names']
             for j, sample in enumerate(dataset):
-                sample_names = labels[i]['sample_names'] + labels[i]['summary_name']
                 for k, entry in enumerate(sample):
                     if len(sample) > 1:
                         name = f'{sample_names[j]}_{k + 1}_fit'
@@ -1291,24 +1289,17 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
             output['dataframes'] = data_source.split_into_entries(merged_dataframes)
             del merged_dataframes
 
-        #TODO later assign column headers for all dfs based on labels['total_columns']
+        # Assign column headers for all dataframes
+        if any((processing_options['process_data'],
+                processing_options['save_excel'],
+                processing_options['fit_data'],
+                processing_options['plot_python'])):
 
-        """
-        #renames dataframe columns if there are repeated terms,
-        #since it causes issues for plotting and fitting
-        if any((plot_python, fit_data)):
-
-            for k, dataframe in enumerate(dataframes):
-                header_list = dataframe.columns.tolist()
-                for i, header in enumerate(header_list):
-                    num = 1
-                    if header in header_list[i+1:]:
-                        for j, elem in enumerate(header_list[i+1:]):
-                            if header == elem:
-                                header_list[i+1+j] = f'{header}_{num}'
-                                num += 1
-                dataframes[k].columns = header_list
-        """
+            for i, dataset in enumerate(output['dataframes']):
+                column_names = iter(labels[i]['dataframe_names'])
+                for sample in dataset:
+                    for entry in sample:
+                        entry.columns = [next(column_names) for _ in range(len(entry.columns))]
 
         # Handles peak fitting
         if processing_options['fit_data']:
