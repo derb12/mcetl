@@ -771,7 +771,7 @@ class DataSource:
         return split_dataframes
 
 
-    def _create_imported_data_labels(self, df_length=None):
+    def _create_data_labels(self, df_length=None, processing=True):
         """
         Calculates the necessary column labels for imported data.
 
@@ -781,11 +781,17 @@ class DataSource:
         ----------
         df_length : int, optional
             The number of columns in the imported dataframe.
+        processing : bool, optional
+            If True, designates that the imported data will be processed
+            and only assigns the minimum column labels for the imported
+            data. If False, assumes that the data already contains the columns
+            from calculations and will fill as many columns as possible with
+            self.column_labels.
 
         Returns
         -------
         imported_data_labels : list(str)
-            A list of strings
+            A list of strings corresponding to the labels for the imported data.
 
         """
 
@@ -797,14 +803,15 @@ class DataSource:
             if df_length <= len(self.column_numbers) - self._deleted_columns:
                 imported_data_labels = imported_data_labels[:df_length]
             else:
+                filler = itertools.cycle(['']) if processing else specified_labels
                 imported_data_labels.extend(
-                    '' for _ in range(df_length - len(self.column_numbers) + self._deleted_columns)
+                    next(filler) for _ in range(df_length - len(self.column_numbers) + self._deleted_columns)
                 )
 
         return imported_data_labels
 
 
-    def _create_calculation_labels(self):
+    def _create_function_labels(self):
         """
         Calculates the necessary column labels for the DataSource's Functions.
 
@@ -812,7 +819,7 @@ class DataSource:
 
         Returns
         ----------
-        calculation_labels : list(list(str))
+        function_labels : list(list(str))
             A list with three lists, containing all the needed column labels
             for functions: index 0 is for CalculationFunctions labels, index 1
             is for sample SummaryFunctions labels, and index 2 is for dataset
@@ -824,14 +831,14 @@ class DataSource:
         # discard the column labels that correspond to imported data
         unneeded = [next(specified_labels) for _ in range(len(self.column_numbers) - self._deleted_columns)]
 
-        calculation_labels = [[], [], []]
+        function_labels = [[], [], []]
         functions = (self.calculation_functions, self.sample_summary_functions, self.dataset_summary_functions)
         for i, function_type in enumerate(functions):
             for function in function_type:
                 if isinstance(function.added_columns, int):
-                    calculation_labels[i].extend(next(specified_labels) for _ in range(function.added_columns))
+                    function_labels[i].extend(next(specified_labels) for _ in range(function.added_columns))
 
-        return calculation_labels
+        return function_labels
 
 
     def print_column_labels_template(self):
@@ -842,9 +849,15 @@ class DataSource:
         columns added by CalculationFunctions, and the columns added by
         SummaryFunctions.
 
+        Returns
+        -------
+        label_template : list(str)
+            The list of strings that serves as a template for the necessary input
+            for column_labels for the DataSource.
+
         """
 
-        labels = [self._create_imported_data_labels(), *self._create_calculation_labels()]
+        labels = [self._create_data_labels(), *self._create_function_labels()]
         label_template = list(itertools.chain.from_iterable(labels))
 
         print((
@@ -854,6 +867,8 @@ class DataSource:
             f'Dataset summary labels: {len(labels[3])}\n\n'
             f'column_labels template for {self} = {label_template}'
         ))
+
+        return label_template
 
 
     @staticmethod
