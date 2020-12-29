@@ -9,14 +9,14 @@ with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
 requirements = [
+    'asteval',
     'lmfit>=1.0',
     'matplotlib>=3.1',
     'numpy>=1.8',
     'openpyxl>=2.4',
     'pandas>=0.24',
     'pysimplegui>=4.29',
-    'scipy',
-    'sympy',
+    'scipy'
 ]
 
 setup_requirements = [

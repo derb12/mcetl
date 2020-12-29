@@ -24,13 +24,6 @@ TIGHT_LAYOUT_W_PAD : float
     The width (horizontal) padding between axes in a figure; used by
     matplotlib's tight_layout option.
 
-Notes
------
-The sympy import is within the _parse_equation function because sympy
-takes a significant time to load, is only used for that function, and
-the function is only used when making secondary axes with different scales
-than the main axes.
-
 """
 
 
@@ -41,6 +34,7 @@ from pathlib import Path
 import string
 import traceback
 
+import asteval
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
@@ -1450,10 +1444,12 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                 f'secondary_x_label_{i}_{j}': '',
                 f'secondary_x_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
                 f'secondary_x_expr_{i}_{j}': '',
+                f'secondary_x_expr_backward_{i}_{j}': '',
                 f'secondary_y_{i}_{j}': False,
                 f'secondary_y_label_{i}_{j}': '',
                 f'secondary_y_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
                 f'secondary_y_expr_{i}_{j}': '',
+                f'secondary_y_expr_backward_{i}_{j}': '',
                 f'show_legend_{i}_{j}': True,
                 f'legend_cols_{i}_{j}': 1 if len(data) < 5 else 2,
                 f'legend_auto_{i}_{j}': True,
@@ -1550,7 +1546,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     f'secondary_y_{i}_{j}': False,
                     f'secondary_y_label_{i}_{j}': '',
                     f'secondary_y_label_offset_{i}_{j}': '',
-                    f'secondary_y_expr_{i}_{j}': ''
+                    f'secondary_y_expr_{i}_{j}': '',
+                    f'secondary_y_expr_backward_{i}_{j}': ''
                 })
             else:
                 secondary_y_disabled = False
@@ -1561,7 +1558,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     f'secondary_x_{i}_{j}': False,
                     f'secondary_x_label_{i}_{j}': '',
                     f'secondary_x_label_offset_{i}_{j}': '',
-                    f'secondary_x_expr_{i}_{j}': ''
+                    f'secondary_x_expr_{i}_{j}': '',
+                    f'secondary_x_expr_backward_{i}_{j}': ''
                 })
             else:
                 secondary_x_disabled = False
@@ -1785,9 +1783,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         sg.Input(default_inputs[f'secondary_x_label_offset_{i}_{j}'],
                                  key=f'secondary_x_label_offset_{i}_{j}',
                                  disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
-                        [sg.Text('    Expression, using "x" as the variable (eg. x + 200):'),
+                        [sg.Text('    Forward Expression, using "x" as the variable (eg. x + 200):'),
                         sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}_{j}'],
                                  key=f'secondary_x_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
+                        [sg.Text('    Backward Expression, using "x" as the variable (eg. x - 200):'),
+                        sg.Input(default_text=default_inputs[f'secondary_x_expr_backward_{i}_{j}'],
+                                 key=f'secondary_x_expr_backward_{i}_{j}', size=(15, 1),
                                  disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
                         [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}_{j}'],
                                   key=f'secondary_y_{i}_{j}', enable_events=True,
@@ -1799,9 +1801,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         sg.Input(default_inputs[f'secondary_y_label_offset_{i}_{j}'],
                                  key=f'secondary_y_label_offset_{i}_{j}',
                                  disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
-                        [sg.Text('    Expression, using "y" as the variable (eg. y - 50):'),
+                        [sg.Text('    Forward Expression, using "y" as the variable (eg. y - 50):'),
                         sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}_{j}'],
                                  key=f'secondary_y_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
+                        [sg.Text('    Backward Expression, using "y" as the variable (eg. y + 50):'),
+                        sg.Input(default_text=default_inputs[f'secondary_y_expr_backward_{i}_{j}'],
+                                 key=f'secondary_y_expr_backward_{i}_{j}', size=(15, 1),
                                  disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
                         [sg.Text('')],
                         [sg.Text('Tick Marks')],
@@ -1965,8 +1971,8 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                         x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
                         y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
-                        x_data = dataset.iloc[:, x_index].astype(float).to_numpy()
-                        y_data = dataset.iloc[:, y_index].astype(float).to_numpy()
+                        x_data = utils.series_to_numpy(dataset.iloc[:, x_index])
+                        y_data = utils.series_to_numpy(dataset.iloc[:, y_index])
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
@@ -2038,8 +2044,12 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend.set_in_layout(False)
 
                 if 'Twin' not in label and kwargs[f'secondary_x_{i}_{j}']:
-                    if kwargs[f'secondary_x_expr_{i}_{j}']:
-                        functions = _parse_equation(kwargs[f'secondary_x_expr_{i}_{j}'])
+                    if kwargs[f'secondary_x_expr_{i}_{j}'] and kwargs[f'secondary_x_expr_backward_{i}_{j}']:
+                        functions = _parse_expressions(
+                            (kwargs[f'secondary_x_expr_{i}_{j}'],
+                             kwargs[f'secondary_x_expr_backward_{i}_{j}']),
+                            'x'
+                        )
                     else:
                         functions = None
 
@@ -2055,8 +2065,12 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}_{j}'] + 1))
 
                 if 'Twin' not in label and kwargs[f'secondary_y_{i}_{j}']:
-                    if kwargs[f'secondary_y_expr_{i}_{j}']:
-                        functions = _parse_equation(kwargs[f'secondary_y_expr_{i}_{j}'], False)
+                    if kwargs[f'secondary_y_expr_{i}_{j}'] and kwargs[f'secondary_y_expr_backward_{i}_{j}']:
+                        functions = _parse_expressions(
+                            (kwargs[f'secondary_y_expr_{i}_{j}'],
+                             kwargs[f'secondary_y_expr_backward_{i}_{j}']),
+                            'y'
+                        )
                     else:
                         functions = None
 
@@ -2109,49 +2123,43 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     )
 
 
-def _parse_equation(expression, x_axis=True):
+def _parse_expressions(expressions, symbol='x'):
     """
-    Uses sympy to parse a string expression and obtain the function and its inverse.
-
-    Used to create forward and backward equations for secondary axes.
+    Parses string expressions to obtain the functions for secondary axes.
 
     Parameters
     ----------
-    expression : str
-        The string to parse and turn into a function. Must have the variable
+    expressions : tuple(str, str)
+        The strings to parse and turn into functions. Must have the variable
         'x' or 'y'. For example, 'x + 50' would mean the values of the secondary
-        x-axis would be equal to the main x-axis values + 50.
-    x_axis : bool
-        True designates that the expression is for the x-axis, in which case the
-        main variable will be 'x' in the input expression. If False, the main
-        variable in the input expression is 'y'
+        x-axis would be equal to the main x-axis values + 50. The first item in
+        the tuple is for converting the main axis values to secondary axis values,
+        and the second item is for converting secondary axis values to main axis
+        values, so the two equations should be inverse. For example
+        ('x + 50', 'x - 50') or ('x * 9 / 5 + 32', '(x - 32) * 5 / 9').
+    symbol : str, optional
+        The symbol in the expression to replace with the axis values.
+        Default is 'x'.
 
     Returns
     -------
-    equation : function
-        The function corresponding to the input expression.
-    inverse : function
-        The inverse function of the input expression.
-
-    Notes
-    -----
-    sympy is imported within the function because this function will rarely
-    be used, and sympy takes a significant time to import.
+    forward_function : function
+        The function to convert the main axis values to the secondary axis
+        values.
+    backward_function : function
+        The function to convert the secondary axis values to the main axis
+        values.
 
     """
 
-    import sympy as sp
+    kwargs = {'minimal': True, 'no_print': True, 'builtins_readonly': True}
 
-    var_a, var_b = ('x', 'y') if x_axis else ('y', 'x')
+    forward_function = lambda vals: asteval.Interpreter(
+        {symbol: vals}, **kwargs).eval(expressions[0])
+    backward_function = lambda vals: asteval.Interpreter(
+        {symbol: vals}, **kwargs).eval(expressions[1])
 
-    eqn_a = sp.parse_expr(expression)
-    equation = sp.lambdify([var_a], eqn_a, ['numpy'])
-
-    eqn_b = sp.solve([sp.Symbol(var_b) - eqn_a],
-                     [sp.Symbol(var_a)], dict=True)[0][sp.Symbol(var_a)]
-    inverse = sp.lambdify([var_b], eqn_b, ['numpy'])
-
-    return equation, inverse
+    return forward_function, backward_function
 
 
 def _add_remove_dataset(current_data, plot_details, data_list=None,
@@ -3324,7 +3332,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                             window[f'legend_{prop}_{index}'].update(disabled=True)
                 # toggles secondary axis options
                 elif event.startswith('secondary'):
-                    properties = ('label', 'label_offset', 'expr')
+                    properties = ('label', 'label_offset', 'expr', 'expr_backward')
                     index = '_'.join(event.split('_')[-2:])
                     if 'secondary_x' in event:
                         prefix = 'secondary_x'
