@@ -44,12 +44,12 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
     def __init__(self, dataframe, gui_values):
 
-        x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
-        y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
+        x_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['x_fit_index']])
+        y_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['y_fit_index']])
         super().__init__(x_data, y_data, enable_events=False)
 
-        x_min = max(gui_values['x_min'], min(x_data))
-        x_max = min(gui_values['x_max'], max(x_data))
+        x_min = max(gui_values['x_min'], np.nanmin(x_data))
+        x_max = min(gui_values['x_max'], np.nanmax(x_data))
         bkg_min = max(gui_values['bkg_x_min'], x_min)
         bkg_max = min(gui_values['bkg_x_max'], x_max)
 
@@ -232,7 +232,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         """Creates a GUI with the figure canvas and two buttons."""
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
         plot_tab = sg.Tab(
             'Plot', [
@@ -358,11 +358,11 @@ def _find_peaks(dataframe, gui_values):
 
     """
 
-    x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
-    y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
+    x_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['x_fit_index']])
+    y_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['y_fit_index']])
     nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
-    x_min = max(gui_values['x_min'], min(x_data))
-    x_max = min(gui_values['x_max'], max(x_data))
+    x_min = max(gui_values['x_min'], np.nanmin(x_data))
+    x_max = min(gui_values['x_max'], np.nanmax(x_data))
 
     additional_peaks = np.array(gui_values['peak_list'])
     additional_peaks = additional_peaks[(additional_peaks > x_min)
@@ -407,14 +407,20 @@ def _get_background_kwargs(gui_values):
 
 def _create_peak_fitting_gui(dataframe, default_inputs):
     """
-    [summary]
+    Creates the peak fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type]
-        [description]
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict
+        A dictionary of values to construct the GUI.
+
+    Returns
+    -------
+    layout : list(list(sg.Element))
+        A list of lists of elements for the peak fitting portion
+        of the fitting GUI.
 
     """
 
@@ -537,33 +543,41 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
 
 def _create_general_fitting_gui(dataframe, user_inputs):
     """
-    [summary]
+    Creates the general fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type]
-        [description]
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict
+        A dictionary of values to construct the GUI.
+
+    Returns
+    -------
+    layout : list(list(sg.Element))
+        A list of lists of elements for the general fitting portion
+        of the fitting GUI.
 
     """
 
 
 def _create_fitting_gui(dataframe, user_inputs=None):
     """
-    [summary]
+    Creates the fitting gui.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type], optional
-        [description], by default None
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict, optional
+        A dictionary of values to override the default inputs for the GUI.
 
     Returns
     -------
-    [type]
-        [description]
+    window : sg.Window
+        The fitting GUI.
+    default_inputs : dict
+        A dictionary of the values used to create the window.
 
     """
 
@@ -674,11 +688,27 @@ def _create_fitting_gui(dataframe, user_inputs=None):
 
 
 def _process_fitting_kwargs(dataframe, values):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    dataframe : [type]
+        [description]
+    values : [type]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+
+    """
 
     x_label = values['x_label']
     y_label = values['y_label'] if values['y_label'] != x_label else values['y_label'] + '_1'
-    x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-    y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
+    x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+    y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
     x_min = values['x_min']
     x_max = values['x_max']
     default_model = values['default_model']
@@ -833,7 +863,7 @@ def fit_dataframe(dataframe, user_inputs=None):
     while gui_values is not None:
         try:
             individual_models, *fit_results = _process_fitting_kwargs(dataframe, gui_values)
-        except: # error during fitting
+        except:
             sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
@@ -853,19 +883,20 @@ def fit_dataframe(dataframe, user_inputs=None):
 
 def _fitting_gui_event_loop(dataframe, user_inputs):
     """
-    [summary]
+    Handles the event loop for the fitting gui.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type], optional
-        [description], by default None
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict, optional
+        A dictionary of inputs , by default None
 
     Returns
     -------
-    values : dict
-        [description]
+    values : dict or None
+        A dictionary of values from the GUI after the event loop. If
+        fitting for the dataframe was skipped, values is None.
 
     """
 
@@ -955,12 +986,16 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         elif (event == 'Test Plot'
                 and utils.validate_inputs(values, **validations['plotting'])):
             window.hide()
-            SimpleEmbeddedFigure(dataframe, values).event_loop()
+            try:
+                SimpleEmbeddedFigure(dataframe, values).event_loop()
+            except:
+                sg.popup(f'Error creating plot:\n    {repr(e)}')
+
             window.un_hide()
 
         elif event == 'Show Data':
             data_window = utils.show_dataframes(dataframe)
-            if data_window is not None:
+            if data_window is not None: #TODO check if this is still needed
                 data_window.finalize().TKroot.grab_set()
                 data_window.read(close=True)
                 data_window = None
@@ -969,10 +1004,13 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['bkg_selector'])):
             window.hide()
 
-            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
-            bkg_points = peak_fitting.BackgroundSelector(
-                x_data, y_data, bkg_points).event_loop()
+            x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+            y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
+            try:
+                bkg_points = peak_fitting.BackgroundSelector(
+                    x_data, y_data, bkg_points).event_loop()
+            except Exception as e:
+                sg.popup(f'Error launching Background Selector:\n    {repr(e)}')
 
             window.un_hide()
 
@@ -980,8 +1018,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['peak_selector'])):
             window.hide()
 
-            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
+            x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+            y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
             x_min = values['x_min']
             x_max = values['x_max']
             bkg_min = values['bkg_x_min']
@@ -998,7 +1036,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 subtract_bkg = False
                 y_data = f_utils.subtract_linear_background(x_data, y_data, bkg_points)
 
-            domain_mask = (x_data > x_min) & (x_data < x_max)
+            domain_mask = (x_data >= x_min) & (x_data <= x_max)
             try:
                 peak_list = peak_fitting.PeakSelector(
                     x_data[domain_mask], y_data[domain_mask], peak_list,
@@ -1006,7 +1044,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                     background_kwargs, bkg_min, bkg_max, default_model
                 ).event_loop()
             except Exception as e:
-                sg.popup(f'Error creating plot:\n    {repr(e)}')
+                sg.popup(f'Error launching Peak Selector:\n    {repr(e)}')
             else:
                 # updates values in the window from the peak selector plot
                 sorted_peaks = [[val[0], val[3]] for val in sorted(peak_list, key=lambda x: x[3])]
@@ -1052,7 +1090,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['manual_bkg'].update(disabled=False)
                 window['bkg_selector'].update(disabled=False)
             else:
-                # set bkg to 'Gaussian' b/c it has no init kwargs and its GUI name will not change
+                # set bkg to 'Constant' b/c it has no init kwargs and its GUI name will not change
                 window['bkg_type'].update(visible=False, value='Constant')
                 window['bkg_x_min'].update(visible=False, value='-inf')
                 window['bkg_x_max'].update(visible=False, value='inf')
@@ -1206,7 +1244,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     # Write and format all headers
     headers = (
         {'name': 'Values', 'start': 1, 'end': len(peaks_dataframe.columns)},
-        {'name': 'Peak Parameters', 'start': len(peaks_dataframe.columns) + 1,
+        {'name': 'Model Parameters', 'start': len(peaks_dataframe.columns) + 1,
          'end': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1},
         {'name': 'Fit Description',
          'start': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
