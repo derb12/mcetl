@@ -23,6 +23,7 @@ import operator
 from pathlib import Path
 import textwrap
 
+import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -553,15 +554,12 @@ def optimize_memory(dataframe, convert_objects=False):
 
     Notes
     -----
-    Only converts int and float numeric types, not numpy types like float64,
-    float 32, int16, etc.
-
     convert_objects is needed because currently, when object columns
     are converted to a dtype of string, the row becomes a StringArray object,
     which does not have the tolist() method curently implemented
     (as of pandas version 1.0.5). openpyxl's dataframe_to_rows method
-    uses each row's tolist() method to convert the dataframe into a
-    generator of rows, so having a StringArray row without a tolist
+    uses each series's series.values.tolist() method to convert the dataframe
+    into a generator of rows, so having a StringArray row without a tolist
     method causes an exception when using openpyxl's dataframe_to_rows.
     This could be alleviated by using dataframe.to_excel to write to
     Excel directly rather than using dataframe_to_rows, but using the
@@ -595,6 +593,64 @@ def optimize_memory(dataframe, convert_objects=False):
         )
 
     return optimized_df
+
+
+def series_to_numpy(series, dtype=float):
+    """
+    Tries to convert a pandas Series to a numpy array with the desired dtype.
+
+    If initial conversion does not work, tries to convert series to object first.
+    If that is not successful and if the first item is a string, assumes the
+    first item is a header, converts it to None, and tries the conversion. If
+    that is still unsuccessful, then an array of the series is returned without
+    changing the dtype.
+
+    Parameters
+    ----------
+    series : pd.Series
+        The series to convert to numpy with the desired dtype.
+    dtype : type, optional
+        The dtype to use in the numpy array of the series. Default
+        is float.
+
+    Returns
+    -------
+    output : np.ndarray
+        The input series with the specified dtype if conversion was successful.
+        Otherwise, the output is an ndarray of the input series without dtype
+        conversion.
+
+    Notes
+    -----
+    This function is needed because pandas's pd.NA and extension arrays do not work
+    well with other modules and can be difficult to convert.
+
+    """
+
+    if int(pd.__version__.split('.')[0]) > 0:
+        kwargs = {'na_value': np.nan if dtype == float else None}
+    else:
+        kwargs = {}
+
+    output = None
+    try:
+        output = np.asarray(series.to_numpy(**kwargs), dtype)
+    except (TypeError, ValueError):
+        try: # try converting to object before conversion
+            output = np.asarray(series.to_numpy(object, **kwargs), dtype)
+        except (TypeError, ValueError):
+            if isinstance(series[0], str):
+                try: # try removing the first item if it's a string, maybe it's a header
+                    copy = series.copy()
+                    copy[0] = None
+                    output = np.asarray(copy.to_numpy(object, **kwargs), dtype)
+                except (TypeError, ValueError):
+                    pass
+
+    if output is None:
+        output = series.to_numpy()
+
+    return output
 
 
 def raw_data_import(window_values, file, show_popup=True):

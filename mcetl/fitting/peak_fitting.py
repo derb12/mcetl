@@ -344,9 +344,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         use_middles = True
 
     # finds the position between peak centers
-    minx, maxx = (np.min(x), np.max(x))
     middles = [0.0 for num in range(len(peak_centers) + 1)]
-    middles[0], middles[-1] = minx, maxx
+    middles[0], middles[-1] = (np.min(x), np.max(x))
     for i in range(len(peak_centers) - 1):
         middles[i + 1] = np.mean([peak_centers[i], peak_centers[i + 1]])
 
@@ -551,6 +550,9 @@ def find_peak_centers(x, y, additional_peaks=None, height=None,
     and adds those peaks to a list of additionally specified peaks.
 
     """
+
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
 
     additional_peaks = np.array(additional_peaks) if additional_peaks is not None else np.empty(0)
     if additional_peaks.size > 0:
@@ -1233,7 +1235,7 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         """Creates the GUI."""
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         layout = [
@@ -1403,9 +1405,6 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                  background_kwargs=None, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
 
         super().__init__(x, y, click_list)
-        nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
-        self.x = self.x[nan_mask]
-        self.y = self.y[nan_mask]
 
         # reduce canvas size a little since the gui has buttons under the figure
         self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
@@ -1458,7 +1457,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         """Creates the GUI."""
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         models_dict = peak_transformer()

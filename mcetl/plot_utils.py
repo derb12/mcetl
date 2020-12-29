@@ -149,8 +149,12 @@ class EmbeddedFigure:
     def __init__(self, x, y, click_list=None, enable_events=True,
                  enable_keybinds=True):
 
-        self.x = np.asarray(x, float)
-        self.y = np.asarray(y, float)
+        x_array = np.asarray(x, float)
+        y_array = np.asarray(y, float)
+        nan_mask = (~np.isnan(x_array)) & (~np.isnan(y_array))
+
+        self.x = x[nan_mask]
+        self.y = y[nan_mask]
         self.click_list = click_list if click_list is not None else []
         self.enable_keybinds = enable_keybinds
 
