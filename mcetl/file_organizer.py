@@ -501,15 +501,15 @@ def _manual_options(file_extension=None, previous_inputs=None):
 
     layout = [
         [sg.Text('Number of Datasets'),
-        sg.Input(default_inputs['num_datasets'], size=(5, 1),
-                 key='num_datasets', enable_events=True)],
+         sg.Input(default_inputs['num_datasets'], size=(5, 1),
+                  key='num_datasets', enable_events=True)],
         [sg.Text('Number of Samples for each Dataset\n(separate datasets with a comma)')],
         [sg.Text('  '),
          sg.Input(default_inputs['num_samples'],
                   size=(20, 1), key='num_samples')],
         [sg.Text('')],
         [sg.Text('File extension (eg. csv or txt)'),
-        sg.Input(default_inputs['file_type'], key='file_type', size=(5, 1))],
+         sg.Input(default_inputs['file_type'], key='file_type', size=(5, 1))],
         [sg.Text('')],
         [sg.Button('Next', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
@@ -584,6 +584,11 @@ def _create_manual_window(datasets, previous_files=None):
 
     """
 
+    original_setting = sg.ENABLE_TREEVIEW_869_PATCH
+    # set sg.ENABLE_TREEVIEW_869_PATCH to False because it prints out each
+    # time the window is made; will restore value after creating window
+    sg.set_options(enable_treeview_869_patch=False)
+
     tree_data = sg.TreeData()
     listbox_layout = []
     for i, num_samples in enumerate(datasets):
@@ -616,7 +621,10 @@ def _create_manual_window(datasets, previous_files=None):
          sg.Button('Finish', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    return sg.Window('File Selection', layout)
+    window = sg.Window('File Selection', layout, finalize=True)
+    sg.set_options(enable_treeview_869_patch=original_setting)
+
+    return window
 
 
 def manual_file_finder(file_type=None):
@@ -636,11 +644,6 @@ def manual_file_finder(file_type=None):
 
     """
 
-    original_setting = sg.ENABLE_TREEVIEW_869_PATCH
-    # set sg.ENABLE_TREEVIEW_869_PATCH to false because it prints out each
-    # time the window is made; will restore value after exiting function
-    sg.ENABLE_TREEVIEW_869_PATCH = False
-
     file_types, dataset_values = _manual_options(file_type)
     window = _create_manual_window(dataset_values['num_samples'])
     visible_index = '0_0'
@@ -648,7 +651,6 @@ def manual_file_finder(file_type=None):
         event, values = window.read()
 
         if event == sg.WIN_CLOSED:
-            sg.ENABLE_TREEVIEW_869_PATCH = original_setting
             utils.safely_close_window(window)
 
         elif event == 'tree':
@@ -704,7 +706,6 @@ def manual_file_finder(file_type=None):
 
     window.close()
     del window
-    sg.ENABLE_TREEVIEW_869_PATCH = original_setting
 
     return files
 

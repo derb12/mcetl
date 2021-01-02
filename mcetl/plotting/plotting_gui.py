@@ -6,23 +6,38 @@ Created on Jun 28, 2020
 
 Attributes
 ----------
-COLORS : tuple(str)
+COLORS : tuple(str, ...)
     A tuple with values that are used in GUIs to select the color to
-    plot with in matplotlib.
+    plot with in matplotlib. The default is ('None', 'Black', 'Blue', 'Red',
+    Green', 'Chocolate', 'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue').
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
-    are used by matplotlib to specify the line style.
-MARKERS : tuple(str)
-    A tuple of strings for the default markers to use for plotting.
+    are used by matplotlib to specify the line style. The default is
+    {
+        'None': '',
+        'Solid': '-',
+        'Dashed': '--',
+        'Dash-Dot': '-.',
+        'Dot': ':',
+        'Dash-Dot-Dot': (0,
+                        [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
+                        + plt.rcParams['lines.dashdot_pattern'][1:]
+                        + plt.rcParams['lines.dashdot_pattern'][-2:])
+    }
+MARKERS : tuple(str, ...)
+    A tuple of strings for the default markers to use for plotting. The default
+    is (' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond', 'v Triangle-Down',
+    'p Pentagon', '< Triangle-Left', '> Triangle-Right', '* Star').
 TIGHT_LAYOUT_PAD : float
     The padding placed between the edge of the figure and the edge of
-    the canvas; used by matplotlib's tight_layout option.
+    the canvas; used by matplotlib's tight_layout option. Default
+    is 0.3.
 TIGHT_LAYOUT_H_PAD : float
     The height (vertical) padding between axes in a figure; used by
-    matplotlib's tight_layout option.
+    matplotlib's tight_layout option. Default is 0.6.
 TIGHT_LAYOUT_W_PAD : float
     The width (horizontal) padding between axes in a figure; used by
-    matplotlib's tight_layout option.
+    matplotlib's tight_layout option. Default is 0.6.
 
 """
 

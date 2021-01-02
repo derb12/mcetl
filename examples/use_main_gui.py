@@ -19,20 +19,22 @@ def offset_data(df, target_indices, calc_indices, excel_columns,
                 start_row, offset=None, *args, **kwargs):
     """Example CalculationFunction with named kwargs"""
 
+    total_count = 0
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             if excel_columns is not None:
                 y = df[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[0][i][j]]
                 calc = [
-                    f'= {y_col}{k + start_row} + {offset * i}' for k in range(len(y))
+                    f'= {y_col}{k + start_row} + {offset * total_count}' for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
 
             else:
                 y_col = df[df.columns[target_indices[0][i][j]]]
-                df[df.columns[calc_col]] = y_col + (offset * i)
+                df[df.columns[calc_col]] = y_col + (offset * total_count)
+            total_count += 1
 
     return df
 

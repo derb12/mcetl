@@ -17,11 +17,11 @@ can be used without creating any DataSource objects.
 
 Subpackages
 -----------
-fitting
+:mod:`mcetl.fitting`
     Contains functions that ease the fitting of data. The main entry is through
     mcetl.fitting.launch_fitting_gui, but also contains useful functions without
     needing to launch a GUI.
-plotting
+:mod:`mcetl.plotting`
     Contains functions that ease the plotting of data. The main entry is through
     mcetl.plotting.launch_plotting_gui. Can also reopen a previouly saved figure
     using mcetl.plotting.load_previous_figure.

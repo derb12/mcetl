@@ -988,7 +988,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             window.hide()
             try:
                 SimpleEmbeddedFigure(dataframe, values).event_loop()
-            except:
+            except Exception as e:
                 sg.popup(f'Error creating plot:\n    {repr(e)}')
 
             window.un_hide()
