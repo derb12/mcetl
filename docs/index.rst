@@ -31,14 +31,17 @@ lmfit, and plotting is done with matplotlib.
 
    description
    installation
-   usage
+   quickstart
+   tutorials/index
+   api/index
+   gallery
    contributing
    changes
    license
    authors
 
 
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`

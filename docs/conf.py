@@ -30,18 +30,16 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
+    #'sphinx.ext.autodoc',
+    #'sphinx.ext.autosummary',
     'autoapi.extension',
     'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode'
+    'sphinx.ext.todo',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
 ]
 
-# Settings for autoapi extension
-# autoapi gets the docstrings for all public modules in the package
-autoapi_type = 'python'
-autoapi_dirs = ['../mcetl']
-#autoapi_root = '/api'
-autoapi_options = ['private_members']
-#autoapi_add_toctree_entry = False
+#autosummary_generate = True # enables autosummary extension
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -57,7 +55,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'mcetl'
-copyright = "2020, Donald Erb"
+copyright = "2020-2021, Donald Erb"
 author = "Donald Erb"
 
 # The version info for the project you're documenting, acts as replacement
@@ -87,6 +85,28 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
+# -- Settings for autoapi extension ----------------------------
+
+# autoapi gets the docstrings for all public modules in the package
+autoapi_type = 'python'
+autoapi_dirs = ['../mcetl']
+autoapi_template_dir = '_templates/autoapi'
+autoapi_root = 'api'
+autoapi_options = [
+    'members',
+    'inherited-members',
+    #'undoc-members',
+    #'private_members',
+    'show-inheritance',
+    'show-module-summary',
+    #'special-members', # show things like __str__
+    #'imported-members', # document things imported within each module
+]
+autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
+autoapi_python_class_content = 'both' # include class docstring from both class and __init__
+#autoapi_keep_files = True # keep the files after generation
+#autoapi_add_toctree_entry = False # need to manually add to toctree if False
+#autoapi_generate_api_docs = False # will not generate new docs when False
 
 # -- Options for HTML output -------------------------------------------
 
@@ -143,10 +163,28 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass
 # [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'mcetl.tex',
+    (master_doc, 'mcetl',
      'mcetl Documentation',
      'Donald Erb', 'manual'),
 ]
+
+#latex_logo = os.path.abspath('./images/logo.png')
+
+# For "manual" documents, if this is true, then toplevel headings are parts,
+# not chapters.
+#latex_use_parts = True
+
+# If true, show page references after internal links.
+latex_show_pagerefs = True
+
+# If true, show URL addresses after external links.
+latex_show_urls = 'footnote'
+
+# Documents to append as an appendix to all manuals.
+#latex_appendices = []
+
+# If false, no module index is generated.
+latex_domain_indices = True
 
 
 # -- Options for manual page output ------------------------------------
