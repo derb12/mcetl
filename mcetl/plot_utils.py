@@ -12,7 +12,8 @@ Attributes
 CANVAS_SIZE : tuple(int, int)
     A tuple specifying the size (in pixels) of the figure canvas used in
     various GUIs for mcetl. This can be modified if the user wishes a
-    larger or smaller canvas.
+    larger or smaller canvas. The default is (800, 800), but will scale
+    down according to the screen size.
 
 """
 
@@ -81,6 +82,9 @@ class EmbeddedFigure:
     enable_keybinds : bool, optional
         If True (default), will connect the matplotlib keybind events to
         the figure.
+    toolbar_class : NavigationToolbar2Tk, optional
+        The class of the toolbar to place in the window. The default
+        is NavigationToolbar2Tk.
 
     Attributes
     ----------
@@ -147,7 +151,7 @@ class EmbeddedFigure:
     """
 
     def __init__(self, x, y, click_list=None, enable_events=True,
-                 enable_keybinds=True):
+                 enable_keybinds=True, toolbar_class=NavigationToolbar2Tk):
 
         x_array = np.asarray(x, float)
         y_array = np.asarray(y, float)
@@ -157,8 +161,8 @@ class EmbeddedFigure:
         self.y = y[nan_mask]
         self.click_list = click_list if click_list is not None else []
         self.enable_keybinds = enable_keybinds
+        self.toolbar_class = toolbar_class
 
-        self.toolbar_class = NavigationToolbar2Tk
         self.figure = None
         self.axis = None
         self.window = None

@@ -14,6 +14,7 @@ Attributes
 ----------
 PROCEED_COLOR : tuple(str, str)
     The button color for all buttons that proceed to the next window.
+    The default is ('white', '#00A949'), where '#00A949' is a bright green.
 
 """
 
@@ -825,7 +826,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         'repeat_unit': '',
         'fixed_width_file': False,
         'fixed_width_columns': '',
-        'same_values': True if file is not None else False,
+        'same_values': True if None not in (data_source, file) else False,
         'initial_separator': '',
         'initial_columns': '',
         'initial_fixed_width_file': False,

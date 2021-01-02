@@ -72,7 +72,7 @@ fitting_results = fitting.fit_peaks(
 
 print('\n\n'+'-'*8+f' {time.time()-time0:.1f} seconds '+'-'*8)
 
-# unpacks all of the data from the output of the plugNchug_fit function
+# unpacks all of the data from the output of the fit_peaks function
 output_list = [fitting_results[key] for key in fitting_results]
 resid_found, resid_accept, peaks_found, peaks_accept, initial_fit, fit_results, individual_peaks, best_values = output_list
 fit_result = fit_results[-1]
