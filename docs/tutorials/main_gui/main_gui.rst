@@ -1,6 +1,6 @@
-=====
-Usage
-=====
+===========
+Basic Usage
+===========
 
 To use mcetl in a project:
 
