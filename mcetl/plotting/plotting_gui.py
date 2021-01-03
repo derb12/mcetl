@@ -13,17 +13,11 @@ COLORS : tuple(str, ...)
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
     are used by matplotlib to specify the line style. The default is
-    {
-        'None': '',
-        'Solid': '-',
-        'Dashed': '--',
-        'Dash-Dot': '-.',
-        'Dot': ':',
-        'Dash-Dot-Dot': (0,
-                        [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
-                        + plt.rcParams['lines.dashdot_pattern'][1:]
-                        + plt.rcParams['lines.dashdot_pattern'][-2:])
-    }
+    {'None': '', 'Solid': '-', 'Dashed': '--', 'Dash-Dot': '-.',
+     'Dot': ':', 'Dash-Dot-Dot': (0,
+     [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
+      + plt.rcParams['lines.dashdot_pattern'][1:]
+      + plt.rcParams['lines.dashdot_pattern'][-2:])}
 MARKERS : tuple(str, ...)
     A tuple of strings for the default markers to use for plotting. The default
     is (' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond', 'v Triangle-Down',
@@ -97,7 +91,7 @@ _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 # the default figure name used by matplotlib
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information
-_THEME_EXTENSION = '.figtheme'
+_THEME_EXTENSION = '.figjson'
 
 
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
@@ -124,7 +118,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     Notes
     -----
     The gui_values, fig_kwargs, rc_changes, and axes annotations are saved to
-    a .figtheme file (just a json file).
+    a .figjson file (just a json file).
 
     If saving the data for the figure, the data is saved to a csv file
     containing all of the data, separated by columns labeled with the
@@ -195,7 +189,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                 )
         except PermissionError:
             sg.popup(
-                ('The .figtheme file is currently open.\n'
+                (f'The {_THEME_EXTENSION} file is currently open.\n'
                  'Please close and try to save again.\n'),
                 title='Save Failed'
             )
@@ -253,7 +247,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     Notes
     -----
     Will load the data from the csv file specified by filename. If there also
-    exists a .figtheme file with the same name as the csv file, it will be
+    exists a .figjson file with the same name as the csv file, it will be
     loaded to set the figure layout. Otherwise, a new figure is created.
 
     """
