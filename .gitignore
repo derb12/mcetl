@@ -57,7 +57,6 @@ target/
 # pyenv
 .python-version
 
-
 # dotenv
 .env
 
@@ -73,17 +72,13 @@ ENV/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
-
 # mypy
 .mypy_cache/
 
 # IDE settings
 .vscode/
 
-# files output by code
+# files output by code/miscellaneous files
 Raw Data/
-*.xlsx
-*.json
-*.bat
+*.doc*
+*.xls*
