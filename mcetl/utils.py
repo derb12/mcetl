@@ -282,7 +282,8 @@ def validate_inputs(window_values, integers=None, floats=None,
 
     Notes
     -----
-    Inputs for integers, floats, and strings are [[key, display text],].
+    Inputs for integers, floats, and strings are
+        [[key, display text],].
     For example: [['peak_width', 'peak width']]
 
     Inputs for user_inputs are
@@ -717,7 +718,7 @@ def raw_data_import(window_values, file, show_popup=True):
             dataframes = [
                 pd.read_fwf(
                     file, skiprows=row_start, skipfooter=row_end, header=None,
-                    sep=separator, usecols=column_numbers, engine='python',
+                    delimiter=separator, usecols=column_numbers,
                     widths=window_values['fixed_width_columns']
                 )[column_numbers]
             ]
