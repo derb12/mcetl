@@ -1203,7 +1203,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
         if processing_options['save_excel']:
             writer_handler = ExcelWriterHandler(
                 processing_options['file_name'], not processing_options['append_file'],
-                data_source.excel_formats
+                data_source.excel_styles
             )
 
         # Selection of data files
