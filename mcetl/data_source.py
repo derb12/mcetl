@@ -62,7 +62,7 @@ class DataSource:
     figure_rcParams : dict, optional
         A dictionary containing any changes to matplotlib's rcParams.
         Used if plotting in python through the launch_main_gui function.
-    excel_writer_formats : dict(dict or openpyxl.style.NamedStyle), optional
+    excel_writer_styles : dict(dict or openpyxl.style.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
         The following keys are used when writing data from files to Excel:
             'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
@@ -93,6 +93,9 @@ class DataSource:
 
     Attributes
     ----------
+    excel_styles : dict(dict)
+        A nested dictionary of dictionaries, used to create openpyxl
+        NamedStyle objects to format the output Excel file.
     lengths : list
         A list of lists of lists of integers, corresponding to the number of columns
         in each individual entry in the total dataframes for the DataSource.
@@ -105,7 +108,7 @@ class DataSource:
 
     """
 
-    excel_formats = {
+    excel_styles = {
         'header_even': {
             'font': dict(size=12, bold=True),
             'fill': dict(fill_type='solid', start_color='F9B381', end_color='F9B381'),
@@ -139,7 +142,8 @@ class DataSource:
             'fill': dict(fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'),
             'alignment': dict(horizontal='center', vertical='center'),
             'number_format': '0.00'
-        }
+        },
+        **ExcelWriterHandler.styles
     }
 
     def __init__(
@@ -157,7 +161,7 @@ class DataSource:
             unique_variable_indices=None,
             xy_plot_indices=None,
             figure_rcParams=None,
-            excel_writer_formats=None,
+            excel_writer_styles=None,
             excel_row_offset=0,
             excel_column_offset=0,
             entry_separation=0,
@@ -279,7 +283,7 @@ class DataSource:
             self.y_plot_index = 1
 
         # sets styles for writing to Excel
-        self.excel_formats = self._create_excel_writer_formats(excel_writer_formats)
+        self.excel_styles = self._create_excel_writer_styles(excel_writer_styles)
 
 
     def __str__(self):
@@ -287,25 +291,27 @@ class DataSource:
 
 
     @classmethod
-    def _create_excel_writer_formats(cls, styles=None):
+    def _create_excel_writer_styles(cls, styles=None):
         """
-        Sets the excel_formats attribute for the DataSource.
+        Sets the styles for the ouput Excel file.
+
+        Ensures that at least cls.excel_styles are included in the style dictionary.
 
         Parameters
         ----------
         styles : dict, optional
-            The input dictionary to override the default formats.
+            The input dictionary to override the default styles.
 
         Returns
         -------
         format_kwargs : dict
             The input styles dictionary with any missing keys from
-            DataSource.excel_formats added.
+            DataSource.excel_styles added.
 
         """
 
         format_kwargs = styles if styles is not None else {}
-        for key, value in cls.excel_formats.items():
+        for key, value in cls.excel_styles.items():
             if key not in format_kwargs:
                 format_kwargs[key] = value
 
