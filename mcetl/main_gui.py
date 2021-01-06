@@ -765,7 +765,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
             elif (event in ('Back', 'Next', 'Finish')
                     and utils.validate_inputs(values, **validations)):
 
-                label_values[j].update(values)
+                label_values[j] = values
                 location = window.current_location()
                 window.close()
 
@@ -782,7 +782,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
                 else:
                     if i < len(dataframes) - 1:
                         transfer_keys = set(
-                            key for key in values.keys() if isinstance(key, str) and not any(key.startswith(name) for name in non_transferred_keys)
+                            key for key in values.keys() if not any(key.startswith(name) for name in non_transferred_keys)
                         )
                         label_values[i + 1].update({key: val for key, val in values.items() if key in transfer_keys})
                     break
