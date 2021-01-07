@@ -1169,7 +1169,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
 
 
 def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
-                 excel_writer, sheet_name=None, plot_excel=False):
+                 excel_writer_handler, sheet_name=None, plot_excel=False):
     """
     Outputs the relevant data from peak fitting to an Excel file.
 
@@ -1188,9 +1188,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         Currently has the adjusted r squared, reduced chi squared, the Akaike
         information criteria, the Bayesian information criteria, and the minimization
         method used for fitting.
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
+    excel_writer_handler : mcetl.excel_writer.ExcelWriterHandler
+        The ExcelWriterHandler that contains the pandas ExcelWriter object for
+        writing to Excel, and the styles for styling the cells in Excel.
     sheet_name: str, optional
         The Excel sheet name.
     plot_excel : bool, optional
@@ -1202,6 +1202,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
 
     from openpyxl.chart import Reference, Series, ScatterChart
     from openpyxl.utils.dataframe import dataframe_to_rows
+
+    excel_writer = excel_writer_handler.writer
+    style_cache = excel_writer_handler.style_cache
 
     # Ensures that the sheet name is unique so it does not overwrite data;
     # not needed for openpyxl, but just a precaution
@@ -1253,17 +1256,17 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     suffix = itertools.cycle(['even', 'odd'])
     for header in headers:
         cell = worksheet.cell(row=1, column=header['start'], value=header['name'])
-        cell.style = 'fitting_header_' + next(suffix)
+        setattr(cell, *style_cache['fitting_header_' + next(suffix)])
         worksheet.merge_cells(
             start_row=1, start_column=header['start'], end_row=1, end_column=header['end']
         )
 
     # Subheaders for peaks_dataframe
     cell = worksheet.cell(row=2, column=1, value='Raw Data')
-    cell.style = 'fitting_header_odd'
-    cell = worksheet.cell(row=2, column=3, value='Fit Data')
-    cell.style = 'fitting_header_even'
+    setattr(cell, *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
+    cell = worksheet.cell(row=2, column=3, value='Fit Data')
+    setattr(cell, *style_cache['fitting_header_even'])
     worksheet.merge_cells(start_row=2, start_column=3, end_row=2,
                           end_column=len(peaks_dataframe.columns))
 
@@ -1271,14 +1274,14 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     suffix = itertools.cycle(['even', 'odd'])
     for i, peak_name in enumerate(peaks_dataframe.columns, 1):
         cell = worksheet.cell(row=3, column=i, value=peak_name)
-        cell.style = 'fitting_subheader_' + next(suffix)
+        setattr(cell, *style_cache['fitting_subheader_' + next(suffix)])
 
     rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
             cell = worksheet.cell(row=row_index, column=column_index, value=value)
-            cell.style = 'fitting_columns_' + next(suffix)
+            setattr(cell, *style_cache['fitting_columns_' + next(suffix)])
 
     # Formatting for params_dataframe
     for index, subheader in enumerate(param_names):
@@ -1288,31 +1291,31 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             prefix = 'fitting_columns_' if index == 0 else 'fitting_subheader_'
             column = len(peaks_dataframe.columns) + 1 + index
             cell = worksheet.cell(row=2, column=column, value=subheader)
-            cell.style = prefix + style_suffix
+            setattr(cell, *style_cache[prefix + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=3, end_column=column
             )
             prefix = 'fitting_descriptors_' if index == 0 else 'fitting_columns_'
             for row in range(len(params_dataframe)):
                 cell = worksheet.cell(row=4 + row, column=column)
-                cell.style = prefix + style_suffix
+                setattr(cell, *style_cache[prefix + style_suffix])
         else:
             column = len(peaks_dataframe.columns) + 1 + (2 * (index - 1))
             cell = worksheet.cell(row=2, column=column, value=subheader)
-            cell.style = 'fitting_subheader_' + style_suffix
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=2, end_column=column + 1
             )
             cell = worksheet.cell(row=3, column=column, value='value')
-            cell.style = 'fitting_subheader_' + style_suffix
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
             cell = worksheet.cell(row=3, column=column + 1, value='standard error')
-            cell.style = 'fitting_subheader_' + style_suffix
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
 
             for row in range(len(params_dataframe)):
                 cell = worksheet.cell(row=4 + row, column=column)
-                cell.style = 'fitting_columns_' + style_suffix
+                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
                 cell = worksheet.cell(row=4 + row, column=column + 1)
-                cell.style = 'fitting_columns_' + style_suffix
+                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
 
     # Formatting for descriptors_dataframe
     for column in range(2):
@@ -1322,7 +1325,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
                 row=2 + row,
                 column=column + len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2
             )
-            cell.style = style
+            setattr(cell, *style_cache[style])
 
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
@@ -1490,7 +1493,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
             if save_excel:
                 fit_to_excel(peak_df, params_df, descriptors_df,
-                             writer_handler.writer, gui_values['sample_name'], plot_excel)
+                             writer_handler, gui_values['sample_name'], plot_excel)
 
     if save_excel and save_when_done and not all(entry is None for entry in fit_results):
         writer_handler.save_excel_file()

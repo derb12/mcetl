@@ -61,7 +61,7 @@ def get_save_location():
 
 
 def _write_to_excel(dataframes, data_source, labels,
-                    excel_writer, plot_excel, plot_options):
+                    excel_writer_handler, plot_excel, plot_options):
     """
     Creates an Excel sheet from data within a list of dataframes.
 
@@ -76,9 +76,9 @@ def _write_to_excel(dataframes, data_source, labels,
         A list of dictionaries containing all of the sheet names, sample names,
         and subheader names. Each dictionary is for one dataset/Excel sheet.
         Relevant keys are 'sheet_name', 'sample_names', 'column_names'.
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
+    excel_writer_handler : mcetl.excel_writer.ExcelWriterHandler
+        The ExcelWriterHandler that contains the pandas ExcelWriter object for
+        writing to Excel, and the styles for styling the cells in Excel.
     plot_excel : bool
         If True, will create a simple plot in Excel using the data_source's
         x_plot_index and y_plot_index.
@@ -92,6 +92,9 @@ def _write_to_excel(dataframes, data_source, labels,
     from openpyxl.chart.series import SeriesLabel, StrRef
     from openpyxl.utils.dataframe import dataframe_to_rows
 
+
+    excel_writer = excel_writer_handler.writer
+    style_cache = excel_writer_handler.style_cache
 
     # openpyxl uses 1-based indices
     first_row = data_source.excel_row_offset + 1
@@ -112,7 +115,6 @@ def _write_to_excel(dataframes, data_source, labels,
                 num += 1
 
         worksheet = excel_writer.book.create_sheet(sheet_name)
-
         # Header values and formatting
         for j, header in enumerate(labels[i]['sample_names']):
             suffix = 'even' if j % 2 == 0 else 'odd'
@@ -121,7 +123,7 @@ def _write_to_excel(dataframes, data_source, labels,
                 column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
                 value=header
             )
-            cell.style = 'header_' + suffix
+            setattr(cell, *style_cache['header_' + suffix])
             worksheet.merge_cells(
                 start_row=first_row,
                 start_column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
@@ -140,7 +142,7 @@ def _write_to_excel(dataframes, data_source, labels,
                     column=first_column + col_index + sum(flattened_lengths[:j]),
                     value=next(subheaders)
                 )
-                cell.style = 'subheader_' + suffix
+                setattr(cell, *style_cache['subheader_' + suffix])
 
         # Dataset values and formatting
         rows = dataframe_to_rows(dataset, index=False, header=False)
@@ -153,7 +155,7 @@ def _write_to_excel(dataframes, data_source, labels,
                     suffix = next(cycle)
                     entry += 1
                 cell = worksheet.cell(row=row_index, column=column_index, value=value)
-                cell.style = 'columns_' + suffix
+                setattr(cell, *style_cache['columns_' + suffix])
 
         worksheet.row_dimensions[first_row].height = 18
         worksheet.row_dimensions[first_row + 1].height = 30
@@ -994,7 +996,7 @@ def _fit_data(datasets, data_source, labels,
                     fit_output, default_inputs, proceed = launch_fitting_gui(
                         entry, default_inputs, excel_writer,
                         options['save_fitting'], options['plot_fit_excel'],
-                        mpl_changes, False
+                        mpl_changes, False, data_source.excel_styles
                     )
 
                     results[i][j].extend(fit_output)
@@ -1278,7 +1280,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 output['writer'] = writer_handler.writer
 
                 _write_to_excel(
-                    merged_dataframes, data_source, labels, output['writer'],
+                    merged_dataframes, data_source, labels, writer_handler,
                     processing_options['plot_data_excel'], plot_options
                 )
 
