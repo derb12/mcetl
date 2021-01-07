@@ -13,6 +13,8 @@ if writing to Excel.
 """
 
 
+from collections import defaultdict
+import copy
 from pathlib import Path
 import traceback
 
@@ -27,6 +29,13 @@ class ExcelWriterHandler:
     """
     A helper for pandas's ExcelWriter for opening/saving files and applying styles.
 
+    This class is used for ensuring that an existing file is closed before
+    saving and/or writing, if appending, and that all desired styles are
+    ready for usage before writing to Excel. Styles can either be openpyxl
+    NamedStyle objects in order to make the style available in the Excel
+    workbook, or dictionaries detailing the style, such as
+    {'font': Font(...), 'border': Border(...), ...}.
+
     Parameters
     ----------
     file_name : str or Path
@@ -35,11 +44,13 @@ class ExcelWriterHandler:
         If False (default), will append to an existing file. If True, or if
         no file currently exists with the given file_name, a new file will
         be created, even if a file with the same name currently exists.
-    styles : dict(dict or openpyxl.styles.NamedStyle)
-        A dictionary of either nested dictionaries, used to create openpyxl
-        NamedStyle objects, or NamedStyle objects. All styles in the
-        dictionary will be added to the Excel workbook if they do not
-        currently exist in the workbook.
+    styles : dict(str, dict or str or openpyxl.styles.NamedStyle)
+        A dictionary of either nested dictionaries used to create openpyxl
+        style objects (Alignment, Font, etc.), a string indicating the name
+        of an openpyxl NamedStyle to use, or a NamedStyle object. All
+        NamedStyles in the dictionary will be added to the Excel workbook
+        if they do not currently exist in the workbook. See Examples below
+        to see various valid inputs for styles.
     writer : pd.ExcelWriter or None
         The ExcelWriter (_OpenpyxlWriter from pandas) used for writing
         to Excel. If it is a pd.ExcelWriter, its engine must be "openpyxl".
@@ -48,15 +59,20 @@ class ExcelWriterHandler:
 
     Attributes
     ----------
-    loaded : bool
-        If True, designates that the class is done initializing, which
-        if appending to an existing Excel file means that the file is
-        ready to write to. Useful for initializing within a separate thread.
-    styles : dict(dict)
+    styles : dict(str, dict)
         A nested dictionary of dictionaries, used to create openpyxl
         NamedStyle objects to include in self.writer.book. The styles
         are used as a class attribute to ensure that the necessary
-        NamedStyles are always included in the Excel book within mcetl.
+        styles are always included in the Excel book.
+    style_cache : dict(str, tuple(str, str or openpyxl.styles.cell_style.StyleArray))
+        The currently implemented styles within the Excel workbook. Used
+        to quickly apply styles to cells without having to constanly set
+        all of the cell attributes (cell.font, cell.fill, etc.). The dictionary
+        value is a tuple of the cell attribute name and the value to set.
+        Will either be ('style', string indicating NamedStyle.name)
+        if using NamedStyles or ('_style', openpyxl StyleArray) to indicate
+        an anonomous style. The call to set the cell attribute for a
+        desired key would be setattr(cell, *style_cache[key]).
     writer : pd.ExcelWriter
         The ExcelWriter (_OpenpyxlWriter from pandas) used for writing
         to Excel.
@@ -65,10 +81,51 @@ class ExcelWriterHandler:
     -----
     Either file_name or writer must be specified at initialization.
 
-    This class is used for ensuring that an existing file is closed before
-    saving and/or writing, if appending, and that the pd.ExcelWriter
-    has all of the necessary NamedStyle objects. Otherwise, most calls should
-    be to the writer attribute.
+    If writer is none during initialization, The ExcelWriterHandler does
+    not create a pd.ExcelWriter. The ExcelWriter must be started using the
+    initialize_writer method. The separation allows for opening an existing Excel
+    file in a separate thread.
+
+    Examples
+    --------
+    Below is a partial example of various allowable input styles. Can be openpyxl
+    NamedStyle, str, or dictionary. (Note that NamedStyle, Font, Border, and Side
+    are gotten by importing from openpyxl.styles)
+
+    >>> styles = {
+            # Would make the style 'Even Header' available in the output Excel file
+            'fitting_header_even': NamedStyle(
+                name='Even Header',
+                font=Font(size=12, bold=True),
+                border=Border(bottom=Side(style='thin')),
+                number_format='0.0'
+            ),
+            # Would use same format as 'fitting_header_even'
+            'fitting_header_odd': 'Even Header'
+            # Basically just replaces NamedStyle from 'fitting_header_even' with
+            # dict and removes the 'name' key. A new style would not be created
+            # in the output Excel file.
+            'fitting_subheader_even': dict(
+                font=Font(size=12, bold=True),
+                aligment=Aligment(bottom=Side(style='thin')),
+                number_format='0.0'
+            ),
+            # Same as 'fitting_subheader_even', but doesn't require importing
+            # from openpyxl. Basically just replaces all openpyxl objects with dict.
+            'fitting_subheader_odd': dict(
+                font=dict(size=12, bold=True),
+                aligment=dict(bottom=dict(style='thin')),
+                number_format='0.0'
+            ),
+            # Same as 'fitting_subheader_odd', but will create a NamedStyle (and
+            # add the style to the Excel file) since 'name' is within the dictionary.
+            'fitting_columns_even': dict(
+                name='New Style',
+                font=dict(size=12, bold=True),
+                aligment=dict(bottom=dict(style='thin')),
+                number_format='0.0'
+            )
+        }
 
     """
 
@@ -132,7 +189,6 @@ class ExcelWriterHandler:
 
         """
 
-        self.loaded = False # used for multithreading
         if file_name is None and writer is None:
             raise TypeError(
                 'Both file_name and writer cannot be None when creating an ExcelWriterHandler.'
@@ -146,8 +202,8 @@ class ExcelWriterHandler:
         else:
             self.writer = writer
 
+        self.style_cache = {}
         self.add_styles(styles)
-        self.loaded = True
 
 
     def __str__(self):
@@ -163,11 +219,16 @@ class ExcelWriterHandler:
         file_name : str or Path
             The file name or path for the Excel file to be created.
         new_file : bool
-            If False (default), will append to an existing file. If True, or if
+            If False, will append to an existing file. If True, or if
             no file currently exists with the given file_name, a new file will
             be created, even if a file with the same name currently exists.
         **kwargs
             Any additional keyword arguments to pass to pd.ExcelWriter.
+
+        Returns
+        -------
+        pd.ExcelWriter
+            The ExcelWriter with the correct mode set.
 
         Notes
         -----
@@ -198,101 +259,287 @@ class ExcelWriterHandler:
         return pd.ExcelWriter(file_name, engine='openpyxl', mode=mode, **kwargs)
 
 
+    def save_excel_file(self):
+        """
+        Tries to save the Excel file, and handles any PermissionErrors.
+
+        Saving can be cancelled if other changes to self.writer are desired
+        before saving, or if saving is no longer desired (the file must be
+        open while trying to save to allow cancelling the save).
+
+        """
+
+        path = Path(self.writer.path)
+        # Ensures that the folder destination exists
+        path.parent.mkdir(parents=True, exist_ok=True)
+        while True:
+            try:
+                self.writer.save()
+                print('\nSaved Excel file.')
+                break
+
+            except PermissionError:
+                window = sg.Window(
+                    'Save Error',
+                    layout=[
+                        [sg.Text((f'Trying to overwrite {path.name}.\n\n'
+                                'Please close the file and press Proceed'
+                                ' to save.\nPress Discard to not save.\n'))],
+                        [sg.Button('Discard'),
+                        sg.Button('Proceed', button_color=PROCEED_COLOR)]
+                    ]
+                )
+                response = window.read()[0]
+                window.close()
+                window = None
+                if response == 'Discard':
+                    break
+
+
     def add_styles(self, input_styles=None):
         """
-        Adds NamedStyles to the Excel workbook.
+        Adds styles to the Excel workbook.
 
         Ensures that at least self.styles are added to the Excel workbook.
 
         Parameters
         ----------
-        input_styles : dict(dict or openpyxl.styles.NamedStyle), optional
-            A dictionary of either nested dictionaries, used to create openpyxl
-            NamedStyle objects, or NamedStyle objects. All styles in the
+        input_styles : dict(str, dict or str or openpyxl.styles.NamedStyle), optional
+            A dictionary of either nested dictionaries used to create openpyxl
+            style objects (Alignment, Font, etc.), a string indicating the name
+            of an openpyxl NamedStyle to use, or a NamedStyle object. All styles in the
             dictionary will be added to the Excel workbook if they do not
-            currently exist in the workbook. The keys of the dictionary will
-            be the named of the created NamedStyle within the Excel workbook.
+            currently exist in the workbook.
+
+        Notes
+        -----
+        The ordering of items within input_styles will be preserved, so that
+        if two NamedStyles are input with the same name, the one appearing
+        first in the dictionary will be created, and the second will be made
+        to refer to the first.
 
         """
 
         styles = input_styles if input_styles is not None else {}
-        for key, value in self.styles.items():
-            if key not in styles:
-                styles[key] = value
+        created_styles = {}
+        # use dict.fromkeys to preserve ordering
+        for key in dict.fromkeys((*styles.keys(), *self.styles.keys())).keys():
+            if key in styles:
+                value = styles[key]
+            else:
+                value = self.styles[key]
 
-        for name, style in styles.items():
-            if name not in self.writer.book.named_styles:
-                named_style = self._create_named_style(name, style)
-                self.writer.book.add_named_style(named_style)
+            if isinstance(value, dict):
+                style = self._create_openpyxl_objects(value)
+            else:
+                style = value
+            created_styles[key] = style
+
+        if any(key not in self.style_cache for key in created_styles.keys()):
+            self._update_style_cache(created_styles)
 
 
-    @classmethod
-    def _create_named_style(cls, name, style):
+    def _update_style_cache(self, styles):
         """
-        Creates an openpyxl NamedStyle from the input style.
+        Updates self.style_cache with new styles.
 
         Parameters
         ----------
-        name : str
-            The desired name of the NamedStyle.
-        style : dict or openpyxl.styles.NamedStyle
-            If the input is already a NamedStyle, it is returned. Otherwise,
-            will convert a dictionary of values into the necessary keyword
-            arguments to create a NamedStyle.
-
-        Returns
-        -------
-        openpyxl.styles.NamedStyle
-            The created NamedStyle object.
+        styles : dict(str, dict or str or openpyxl.styles.NamedStyle)
+            A dictionary of either nested dictionaries containing openpyxl
+            style objects (eg. {'font': Font(...), 'border': Border(...)}),
+            a string indicating the name of an openpyxl NamedStyle to use,
+            or a NamedStyle object. All styles in the dictionary will be added
+            to the self.writer.book if they do not currently exist in the workbook.
 
         Raises
         ------
         ValueError
-            Raised if the input style is a NamedStyle, but its
-            name is not equal to the input name. Not strictly necessary,
-            but meant to ensure that self.writer has at least the named_styles
-            defined in self.styles.
-
-        Notes
-        -----
-        Could use the _convert_to_style_kwargs method for pandas's _OpenpyxlWriter,
-        but it is a private method, so don't want to rely on it.
+            Raised if a string is given as a style but there is no NamedStyle
+            within the workbook whose name matches the string.
 
         """
 
-        from openpyxl.styles import Alignment, NamedStyle, Protection
+        from openpyxl.styles import NamedStyle
 
-        if isinstance(style, NamedStyle):
-            if name != style.name:
-                raise ValueError(
-                    'NamedStyle objects must have the same name as its dictionary key.'
-                )
+        temp_sheet = self.writer.book.create_sheet('temp_sheet')
+        default_style = copy.copy(temp_sheet['A1']._style) # should just be None
+
+        # delayed_styles marks the NamedStyle names for any styles that are not
+        # currently in the workbook
+        delayed_styles = defaultdict(list)
+        for key, style in styles.items():
+            if key in self.style_cache:
+                continue
+
+            if isinstance(style, NamedStyle):
+                if style.name not in self.writer.book.named_styles:
+                    self.writer.book.add_named_style(style)
+                self.style_cache[key] = ('style', style.name)
+            elif isinstance(style, str):
+                if style in self.writer.book.named_styles:
+                    self.style_cache[key] = ('style', style)
+                else:
+                    delayed_styles[style].append(key)
             else:
-                return style
+                for style_attribute, values in style.items():
+                    setattr(temp_sheet['A1'], style_attribute, values)
+                self.style_cache[key] = ('_style', copy.copy(temp_sheet['A1']._style))
+                # reset back to default style each time to prevent styles
+                # from overlapping if not all attributes are used
+                temp_sheet['A1']._style = default_style
 
-        borders = cls._openpyxl_border(style.get('border', {}))
-        font = cls._openpyxl_font(style.get('font', {}))
-        fill = cls._openpyxl_fill(style.get('fill', {}))
+        self.writer.book.remove(temp_sheet)
 
-        kwargs = {
-            'name': name,
-            'alignment': Alignment(**style.get('alignment', {})),
-            'border': borders,
-            'fill': fill,
-            'font': font,
-            'number_format': style.get('number_format', None),
-            'protection': Protection(**style.get('protection', {})),
-        }
-        other_kwargs = {k: v for k, v in style.items() if k not in kwargs}
+        if delayed_styles:
+            for (cell_attribute, style_name) in tuple(self.style_cache.values()):
+                if style_name in delayed_styles:
+                    for cache_key in delayed_styles[style_name]:
+                        self.style_cache[cache_key] = (cell_attribute, style_name)
+                    delayed_styles.pop(style_name)
 
-        return NamedStyle(**kwargs, **other_kwargs)
+            if delayed_styles:
+                raise ValueError((
+                    'The following NamedStyles need to be created '
+                    f'before usage: {list(delayed_styles.keys())}.'
+                ))
+
+
+    @classmethod
+    def _create_openpyxl_objects(cls, style):
+        """
+        Creates openpyxl objects from the input style.
+
+        If 'name' is in the input style, will create a NamedStyle; otherwise,
+        will create all of the necessary openpyxl style objects (Font, Alignment, etc.).
+
+        Parameters
+        ----------
+        style : dict(str, str or dict or openpyxl style object (Font, Border, etc.))
+            Will convert a dictionary of values into the necessary keyword
+            arguments to create a openpyxl objects (Font, Alignment, etc.).
+
+        Returns
+        -------
+        dict or openpyxl.styles.named_styles.NamedStyle
+            If 'name' is within the input style dictionary, then returns a
+            NamedStyle; otherwise, returns a dictionary containing openpyxl
+            style objects (Font, Alignment, etc.).
+
+        """
+        from openpyxl.styles import NamedStyle
+
+        kwargs = {}
+        for key in ('alignment', 'border', 'fill', 'font', 'number_format', 'protection'):
+            if key in style:
+                kwargs[key] = getattr(cls, f'_openpyxl_{key}')(style[key])
+
+        if 'name' in style:
+            return NamedStyle(style['name'], **kwargs)
+        else:
+            return kwargs
+
+
+    @classmethod
+    def _openpyxl_number_format(cls, values):
+        """
+        Ensures that the input number_format is valid for openpyxl.
+
+        Parameters
+        ----------
+        values : str or None
+            The desired number_format.
+
+        Returns
+        -------
+        str
+            If the input values was None, returns '', otherwise,
+            returns the input values.
+
+        Raises
+        ------
+        TypeError
+            Raised if the input is not None or a string.
+
+        """
+        if values is not None and not isinstance(values, str):
+            raise TypeError('number_format must be a string or None.')
+
+        return values if values is not None else ''
+
+
+    @classmethod
+    def _openpyxl_protection(cls, values):
+        """
+        Creates an openpyxl.styles.Protection object.
+
+        Parameters
+        ----------
+        values : dict or openpyxl.styles.Protection
+            Either a dictionary of keyword arguments to create an openpyxl
+            Protection, or an openpyxl Protection.
+
+        Returns
+        -------
+        openpyxl.styles.Protection
+            The Protection object.
+
+        """
+        from openpyxl.styles import Protection
+
+        if isinstance(values, Protection):
+            return values
+        else:
+            return Protection(**values)
+
+
+    @classmethod
+    def _openpyxl_alignment(cls, values):
+        """
+        Creates an openpyxl.styles.Alignment object.
+
+        Parameters
+        ----------
+        values : dict or openpyxl.styles.Alignment
+            Either a dictionary of keyword arguments to create an openpyxl
+            Alignment, or an openpyxl Alignment.
+
+        Returns
+        -------
+        openpyxl.styles.Alignment
+            The Alignment object.
+
+        """
+        from openpyxl.styles import Alignment
+
+        if isinstance(values, Alignment):
+            return values
+        else:
+            return Alignment(**values)
 
 
     @classmethod
     def _openpyxl_color(cls, values):
+        """
+        Creates an openpyxl.styles.Color object.
+
+        Parameters
+        ----------
+        values : str or dict or openpyxl.styles.Color
+            Either a strig or dictionary of keyword arguments to create
+            an openpyxl Color, or an openpyxl Color.
+
+        Returns
+        -------
+        openpyxl.styles.Color
+            The Color object.
+
+        """
         from openpyxl.styles import Color
 
-        if isinstance(values, str):
+        if isinstance(values, Color):
+            return values
+        elif isinstance(values, str):
             return Color(values)
         else:
             return Color(**values)
@@ -300,9 +547,26 @@ class ExcelWriterHandler:
 
     @classmethod
     def _openpyxl_font(cls, values):
+        """
+        Creates an openpyxl.styles.Font object.
+
+        Parameters
+        ----------
+        values : str or dict or openpyxl.styles.Font
+            Either a strig or dictionary of keyword arguments to create
+            an openpyxl Font, or an openpyxl Font.
+
+        Returns
+        -------
+        openpyxl.styles.Font
+            The Font object.
+
+        """
         from openpyxl.styles import Font
 
-        if isinstance(values, str):
+        if isinstance(values, Font):
+            return values
+        elif isinstance(values, str):
             return Font(values)
 
         kwargs = {}
@@ -317,9 +581,26 @@ class ExcelWriterHandler:
 
     @classmethod
     def _openpyxl_side(cls, values):
+        """
+        Creates an openpyxl.styles.Side object.
+
+        Parameters
+        ----------
+        values : str or dict or openpyxl.styles.Side
+            Either a strig or dictionary of keyword arguments to create
+            an openpyxl Side, or an openpyxl Side.
+
+        Returns
+        -------
+        openpyxl.styles.Side
+            The Side object.
+
+        """
         from openpyxl.styles import Side
 
-        if isinstance(values, str):
+        if isinstance(values, Side):
+            return values
+        elif isinstance(values, str):
             return Side(values)
 
         kwargs = {}
@@ -334,7 +615,25 @@ class ExcelWriterHandler:
 
     @classmethod
     def _openpyxl_border(cls, values):
+        """
+        Creates an openpyxl.styles.Border object.
+
+        Parameters
+        ----------
+        values : dict or openpyxl.styles.Border
+            Either a dictionary of keyword arguments to create an openpyxl
+            Border, or an openpyxl Border.
+
+        Returns
+        -------
+        openpyxl.styles.Border
+            The Border object.
+
+        """
         from openpyxl.styles import Border
+
+        if isinstance(values, Border):
+            return values
 
         kwargs = {}
         for key, value in values.items():
@@ -348,7 +647,25 @@ class ExcelWriterHandler:
 
     @classmethod
     def _openpyxl_fill(cls, values):
-        from openpyxl.styles import GradientFill, PatternFill
+        """
+        Creates an openpyxl.styles.Fill object.
+
+        Parameters
+        ----------
+        values : dict or openpyxl.styles.Fill
+            Either a dictionary of keyword arguments to create an openpyxl
+            PatternFill or GradientFill, or an openpyxl Fill.
+
+        Returns
+        -------
+        openpyxl.styles.Fill
+            The Fill object. Either a PatternFill or a GradientFill
+
+        """
+        from openpyxl.styles import Fill, GradientFill, PatternFill
+
+        if isinstance(values, Fill):
+            return values
 
         gradient_kwargs = {}
         pattern_kwargs = {}
@@ -385,48 +702,18 @@ class ExcelWriterHandler:
         return output
 
 
-    def save_excel_file(self):
-        """Handles saving the Excel file and the various exceptions that can occur."""
-
-        path = Path(self.writer.path)
-        # Ensures that the folder destination exists
-        path.parent.mkdir(parents=True, exist_ok=True)
-        while True:
-            try:
-                self.writer.save()
-                print('\nSaved Excel file.')
-                break
-
-            except PermissionError:
-                window = sg.Window(
-                    'Save Error',
-                    layout=[
-                        [sg.Text((f'Trying to overwrite {path.name}.\n\n'
-                                'Please close the file and press Proceed'
-                                ' to save.\nPress Discard to not save.\n'))],
-                        [sg.Button('Discard'),
-                        sg.Button('Proceed', button_color=PROCEED_COLOR)]
-                    ]
-                )
-                response = window.read()[0]
-                window.close()
-                window = None
-                if response == 'Discard':
-                    break
-
-
     @classmethod
     def test_excel_styles(cls, styles):
         """
-        Tests whether the input styles create valid Excel styles with openpyxl.
+        Tests whether the input styles create valid Excel styles using openpyxl.
 
         Parameters
         ----------
-        styles : dict(str : dict or openpyxl.styles.NamedStyle)
+        styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle)
             The dictionary of styles to test. Values in the dictionary can
             either be nested dictionaries with the necessary keys and values
-            to create an openpyxl NamedStyle, or openpyxl.styles.NamedStyle
-            objects.
+            to create an openpyxl NamedStyle, a string (which would refer to another
+            NamedStyle.name), or openpyxl.styles.NamedStyle objects.
 
         Returns
         -------
@@ -436,20 +723,30 @@ class ExcelWriterHandler:
 
         """
 
+        from openpyxl.styles import NamedStyle
+
         failed_styles = []
         for key, style in styles.items():
             try:
-                cls._create_named_style(key, style)
+                if isinstance(style, dict):
+                    style_kwargs = cls._create_openpyxl_objects(style)
+                    if isinstance(style_kwargs, dict):
+                        # convert to NamedStyle to check the number_format
+                        NamedStyle(**style_kwargs)
+                elif not isinstance(style, (str, NamedStyle)):
+                    raise TypeError(
+                        'The style must be a NamedStyle or a string that refers to a NamedStyle.name.'
+                    )
             except:
                 failed_styles.append((key, traceback.format_exc()))
 
-        if not failed_styles:
-            success = True
-            print('All input styles were successful.')
-        else:
+        if failed_styles:
             success = False
             print('The following input styles were incorrect:\n')
             for failure, traceback_message in failed_styles:
                 print(f'\nKey: {failure}\n{traceback_message}')
+        else:
+            success = True
+            print('All input styles were successful.\n')
 
         return success
