@@ -15,12 +15,10 @@ Created on Jul 31, 2020
 """
 
 
-import itertools
-
 from .utils import excel_column_name
 
 
-class FunctionBase:
+class _FunctionBase:
     """
     Base class for all other Function classes.
 
@@ -63,7 +61,7 @@ class FunctionBase:
         return f'{self.__class__.__name__}(name={self.name})'
 
 
-class PreprocessFunction(FunctionBase):
+class PreprocessFunction(_FunctionBase):
     """
     Function for processing data before performing any calculations.
 
@@ -187,7 +185,7 @@ class PreprocessFunction(FunctionBase):
         return {key: columns.index(val) for key, val in reference.items() if val in columns}
 
 
-class CalculationFunction(FunctionBase):
+class CalculationFunction(_FunctionBase):
     """
     Function that performs a calculation for every entry in each sample.
 

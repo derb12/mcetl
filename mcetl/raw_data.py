@@ -827,7 +827,7 @@ def _generate_rheometry_data(directory, num_data=6, show_plots=True):
         plt.show(block=False)
 
 
-def generate_raw_data(directory=None, num_files=None, show_plots=None):
+def generate_raw_data(directory=None, num_files=None, show_plots=False):
     """
     Generates data for all of the techniques in this file.
 
@@ -841,8 +841,8 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
     num_files : int, optional
         The number of files to create per characterization technique.
     show_plots : bool, optional
-        If True, will show plots of the created data. If False, will close
-        the created figures and not show the plots.
+        If True, will show plots of the created data. If False (default),
+        will close the created figures and not show the plots.
 
     Notes
     -----
@@ -884,8 +884,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=None):
          sg.Button('Select\nAll', key='all_techniques', size=(10, 4))],
         [sg.Text('')],
         [sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR),
-         sg.Check('Show Plots', show_plots if show_plots is not None else True,
-                  key='show_plots')]
+         sg.Check('Show Plots', show_plots, key='show_plots')]
     ]
 
     try:

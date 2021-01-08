@@ -111,10 +111,11 @@ class EmbeddedFigure:
         zooming on the figure does not change the size of the Ellipse.
     yaxis_limits : tuple
         The y axis limits when the figure is first created.
-    events : dict
-        A dictionary containing the events for the figure. The keys
-        are the matplotlib events, such as 'pick_event', and the values
-        are the functions to be executed for each event.
+    events : list(tuple(str, Callable))
+        A list containing the events for the figure. Each item in the list
+        is a list or tuple with the first item being the matplotlib event,
+        such as 'pick_event', and the second item is a callable (function)
+        to be executed when the event occurs.
     canvas_size : tuple(float, float)
         The size, in pixels, of the figure to be created. Default is
         (CANVAS_SIZE[0], CANVAS_SIZE[1] - 100), which is (800, 700).
@@ -134,13 +135,15 @@ class EmbeddedFigure:
 
     A typical __init__ for a subclass should create the figure and axes,
     create the window, and then place the figure within the window's canvas.
-    For example:
-        def __init__(x, y, **kwargs):
-            super().__init__(x, y, **kwargs)
-            self.figure, self.axis = plt.subplots()
-            self.axis.plot(self.x, self.y)
-            self._create_window()
-            self._place_figure_on_canvas()
+    For example (note that plt designates matplotlib.pyplot)
+
+    >>> class SimpleEmbeddedFigure(EmbeddedFigure):
+            def __init__(x, y, **kwargs):
+                super().__init__(x, y, **kwargs)
+                self.figure, self.axis = plt.subplots()
+                self.axis.plot(self.x, self.y)
+                self._create_window()
+                self._place_figure_on_canvas()
 
     The only function that should be publically available is the
     event_loop method, which should return the desired output.

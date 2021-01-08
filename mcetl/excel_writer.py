@@ -44,7 +44,7 @@ class ExcelWriterHandler:
         If False (default), will append to an existing file. If True, or if
         no file currently exists with the given file_name, a new file will
         be created, even if a file with the same name currently exists.
-    styles : dict(str, dict or str or openpyxl.styles.NamedStyle)
+    styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle)
         A dictionary of either nested dictionaries used to create openpyxl
         style objects (Alignment, Font, etc.), a string indicating the name
         of an openpyxl NamedStyle to use, or a NamedStyle object. All
@@ -100,8 +100,10 @@ class ExcelWriterHandler:
                 border=Border(bottom=Side(style='thin')),
                 number_format='0.0'
             ),
+
             # Would use same format as 'fitting_header_even'
-            'fitting_header_odd': 'Even Header'
+            'fitting_header_odd': 'Even Header',
+
             # Basically just replaces NamedStyle from 'fitting_header_even' with
             # dict and removes the 'name' key. A new style would not be created
             # in the output Excel file.
@@ -110,6 +112,7 @@ class ExcelWriterHandler:
                 aligment=Aligment(bottom=Side(style='thin')),
                 number_format='0.0'
             ),
+
             # Same as 'fitting_subheader_even', but doesn't require importing
             # from openpyxl. Basically just replaces all openpyxl objects with dict.
             'fitting_subheader_odd': dict(
@@ -117,6 +120,7 @@ class ExcelWriterHandler:
                 aligment=dict(bottom=dict(style='thin')),
                 number_format='0.0'
             ),
+
             # Same as 'fitting_subheader_odd', but will create a NamedStyle (and
             # add the style to the Excel file) since 'name' is within the dictionary.
             'fitting_columns_even': dict(
@@ -227,13 +231,13 @@ class ExcelWriterHandler:
 
         Returns
         -------
-        pd.ExcelWriter
+        writer : pd.ExcelWriter
             The ExcelWriter with the correct mode set.
 
         Notes
         -----
-        If appending to a file, makes the user close the file before proceeding
-        because any further changes to the file after creating the ExcelWriter
+        If appending to a file and the file is open, warns the user that any
+        unsaved or future changes to the file after creating the ExcelWriter
         will be lost.
 
         """
@@ -243,20 +247,25 @@ class ExcelWriterHandler:
             mode = 'w'
         else:
             mode = 'a'
-            while True:
-                try:
-                    path.rename(path) # errors if file is currently open
-                except PermissionError:
-                    sg.popup_ok(
-                        (f'Please close {path.name} so it can be opened in'
-                         'python.\nUntil the file is saved in python, any '
-                         'additional\nchanges made by the user will be lost.\n'),
-                        title='Close File'
-                    )
-                else:
-                    break
+            try:
+                path.rename(path) # errors if file is currently open
+            except PermissionError:
+                sg.popup_ok(
+                    (f'{path.name} is about to be loaded in Python.\n\nTo keep '
+                     'any current unsaved changes, save the file before closing '
+                     'this window.\n\nAny changes to the file made within Excel '
+                     'until the file is saved in Python will be lost.\n'),
+                    title='Close File'
+                )
 
-        return pd.ExcelWriter(file_name, engine='openpyxl', mode=mode, **kwargs)
+        # TODO switch this to logging later
+        if mode == 'a':
+            print(f'Loading {file_name}. May take a while...')
+        writer = pd.ExcelWriter(file_name, engine='openpyxl', mode=mode, **kwargs)
+        if mode == 'a':
+            print(f'Done loading {file_name}.')
+
+        return writer
 
 
     def save_excel_file(self):
@@ -272,10 +281,11 @@ class ExcelWriterHandler:
         path = Path(self.writer.path)
         # Ensures that the folder destination exists
         path.parent.mkdir(parents=True, exist_ok=True)
+        print('Saving Excel file. May take a while...')  # TODO switch to logging later
         while True:
             try:
                 self.writer.save()
-                print('\nSaved Excel file.')
+                print('\nSaved Excel file.')  # TODO switch to logging later
                 break
 
             except PermissionError:
@@ -304,7 +314,7 @@ class ExcelWriterHandler:
 
         Parameters
         ----------
-        input_styles : dict(str, dict or str or openpyxl.styles.NamedStyle), optional
+        input_styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle), optional
             A dictionary of either nested dictionaries used to create openpyxl
             style objects (Alignment, Font, etc.), a string indicating the name
             of an openpyxl NamedStyle to use, or a NamedStyle object. All styles in the
@@ -363,7 +373,8 @@ class ExcelWriterHandler:
         from openpyxl.styles import NamedStyle
 
         temp_sheet = self.writer.book.create_sheet('temp_sheet')
-        default_style = copy.copy(temp_sheet['A1']._style) # should just be None
+        temp_cell = temp_sheet['A1']
+        default_style = copy.copy(temp_cell._style) # should just be None
 
         # delayed_styles marks the NamedStyle names for any styles that are not
         # currently in the workbook
@@ -383,11 +394,11 @@ class ExcelWriterHandler:
                     delayed_styles[style].append(key)
             else:
                 for style_attribute, values in style.items():
-                    setattr(temp_sheet['A1'], style_attribute, values)
-                self.style_cache[key] = ('_style', copy.copy(temp_sheet['A1']._style))
+                    setattr(temp_cell, style_attribute, values)
+                self.style_cache[key] = ('_style', copy.copy(temp_cell._style))
                 # reset back to default style each time to prevent styles
                 # from overlapping if not all attributes are used
-                temp_sheet['A1']._style = default_style
+                temp_cell._style = default_style
 
         self.writer.book.remove(temp_sheet)
 
@@ -403,7 +414,6 @@ class ExcelWriterHandler:
                     'The following NamedStyles need to be created '
                     f'before usage: {list(delayed_styles.keys())}.'
                 ))
-
 
     @classmethod
     def _create_openpyxl_objects(cls, style):
