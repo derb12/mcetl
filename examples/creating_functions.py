@@ -178,11 +178,11 @@ for i, dataset in enumerate(dataframes):
             sample[k] = utils.optimize_memory(measurement)
 
 #perform separation calcs
-dataframes, import_vals = data_source.do_preprocessing(
+dataframes, import_vals = data_source._do_preprocessing(
     dataframes, import_vals
 )
 #assign reference indices for all relevant columns
-data_source.set_references(dataframes, import_vals)
+data_source._set_references(dataframes, import_vals)
 references = data_source.references
 
 #merge dfs for each dataset
@@ -192,11 +192,19 @@ merged_dataframes = data_source.merge_datasets(dataframes)
 merged_dataframes2 = [df.copy() for df in merged_dataframes]
 
 #doing excel formulas
-merged_dataframes = data_source.do_excel_functions(merged_dataframes)
+merged_dataframes = data_source._do_excel_functions(merged_dataframes)
 
 #doing python formulas
-merged_dataframes2 = data_source.do_python_functions(merged_dataframes2)
+merged_dataframes2 = data_source._do_python_functions(merged_dataframes2)
 
+lengths = data_source.lengths.copy()
 #split data back into individual dataframes
 output_dfs = data_source.split_into_entries(merged_dataframes)
+
+# manually set some DataSource attributes in order to split the other copied dataframe
+# since the attributes are reset after splitting a merged dataframe
+data_source._added_separators = True
+data_source.lengths = lengths
+
+#split data back into individual dataframes
 output_dfs2 = data_source.split_into_entries(merged_dataframes2)

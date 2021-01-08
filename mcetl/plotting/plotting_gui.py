@@ -13,11 +13,16 @@ COLORS : tuple(str, ...)
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
     are used by matplotlib to specify the line style. The default is
-    {'None': '', 'Solid': '-', 'Dashed': '--', 'Dash-Dot': '-.',
-     'Dot': ':', 'Dash-Dot-Dot': (0,
-     [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
-      + plt.rcParams['lines.dashdot_pattern'][1:]
-      + plt.rcParams['lines.dashdot_pattern'][-2:])}
+    {
+        'None': '',
+        'Solid': '-',
+        'Dashed': '--',
+        'Dash-Dot': '-.',
+        'Dot': ':',
+        'Dash-Dot-Dot': (0, [0.75 * plt.rcParams['lines.dashdot_pattern'][0]] +
+                             plt.rcParams['lines.dashdot_pattern'][1:] +
+                             plt.rcParams['lines.dashdot_pattern'][-2:])
+    }
 MARKERS : tuple(str, ...)
     A tuple of strings for the default markers to use for plotting. The default
     is (' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond', 'v Triangle-Down',

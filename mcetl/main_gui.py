@@ -1137,8 +1137,8 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
 
     Parameters
     ----------
-    data_sources : list(DataSource) or tuple(DataSource)
-        A container (list, tuple) of mcetl.DataSource objects.
+    data_sources : list(DataSource) or tuple(DataSource) or DataSource
+        A list or tuple of mcetl.DataSource objects, or a single DataSource.
     fitting_mpl_params : dict, optional
         A dictionary of changes for matplotlib's rcparams to use
         during fitting.
@@ -1201,12 +1201,6 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
         # Removes unique variables that are only used in preprocessing
         if not processing_options['process_data']:
             data_source._remove_unneeded_variables()
-        # Create the writer handler and read the Excel file if appending.
-        if processing_options['save_excel']:
-            writer_handler = ExcelWriterHandler(
-                processing_options['file_name'], not processing_options['append_file'],
-                data_source.excel_styles
-            )
 
         # Selection of data files
         save_path = get_save_location()
@@ -1277,6 +1271,11 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 merged_dataframes = data_source._do_excel_functions(merged_dataframes)
 
             if processing_options['save_excel']:
+                # Create the writer handler and read the Excel file if appending.
+                writer_handler = ExcelWriterHandler(
+                    processing_options['file_name'], not processing_options['append_file'],
+                    data_source.excel_styles
+                )
                 output['writer'] = writer_handler.writer
 
                 _write_to_excel(

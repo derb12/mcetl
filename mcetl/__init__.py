@@ -15,16 +15,16 @@ will be performed on the data, and the options for writing the data to Excel
 In addition, mcetl provides fitting and plotting user interfaces that
 can be used without creating any DataSource objects.
 
-Subpackages
------------
-:mod:`mcetl.fitting`
-    Contains functions that ease the fitting of data. The main entry is through
-    mcetl.fitting.launch_fitting_gui, but also contains useful functions without
-    needing to launch a GUI.
-:mod:`mcetl.plotting`
-    Contains functions that ease the plotting of data. The main entry is through
-    mcetl.plotting.launch_plotting_gui. Can also reopen a previouly saved figure
-    using mcetl.plotting.load_previous_figure.
+Subpackages include:
+
+    :mod:`mcetl.fitting`
+        Contains functions that ease the fitting of data. The main entry is through
+        mcetl.fitting.launch_fitting_gui, but also contains useful functions without
+        needing to launch a GUI.
+    :mod:`mcetl.plotting`
+        Contains functions that ease the plotting of data. The main entry is through
+        mcetl.plotting.launch_plotting_gui. Can also reopen a previouly saved figure
+        using mcetl.plotting.load_previous_figure.
 
 @author: Donald Erb
 Created on Jul 15, 2020

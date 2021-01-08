@@ -25,11 +25,12 @@ class DataSource:
     ----------
     name : str
         The name of the DataSource. Used when displaying the DataSource in a GUI.
-    functions : list/tuple of CalculationFunction, PreprocessFunction, and SummaryFunction, optional
-        The list/tuple of Function objects that will be used to process data for
-        the DataSource. The order the Functions are performed in is as follows:
-        PreprocessFunctions, CalculationFunctions, SummaryFunctions, with functions
-        of the same type being performed in the same order as input.
+    functions : list or tuple, optional
+        A list or tuple of various Function objects (:class:`.CalculationFunction` or
+        :class:`.PreprocessFunction` or :class:`.SummaryFunction`) that will be used to
+        process data for the DataSource. The order the Functions are performed in is
+        as follows: PreprocessFunctions, CalculationFunctions, SummaryFunctions,
+        with functions of the same type being performed in the same order as input.
     column_labels : tuple(str) or list(str), optional
         A list/tuple of strings that will be used to label columns in the
         Excel output, and to label the pandas DataFrame columns for the data.
@@ -62,7 +63,7 @@ class DataSource:
     figure_rcParams : dict, optional
         A dictionary containing any changes to matplotlib's rcParams.
         Used if plotting in python through the launch_main_gui function.
-    excel_writer_styles : dict(dict or openpyxl.style.NamedStyle), optional
+    excel_writer_styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
         The following keys are used when writing data from files to Excel:
             'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
@@ -884,11 +885,11 @@ class DataSource:
 
         Parameters
         ----------
-        styles : dict(str : dict or openpyxl.styles.NamedStyle)
+        styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle)
             The dictionary of styles to test. Values in the dictionary can
             either be nested dictionaries with the necessary keys and values
-            to create an openpyxl NamedStyle, or openpyxl.styles.NamedStyle
-            objects.
+            to create an openpyxl NamedStyle, a string (which would refer to another
+            NamedStyle.name), or openpyxl.styles.NamedStyle objects.
 
         Returns
         -------
@@ -898,7 +899,7 @@ class DataSource:
 
         Notes
         -----
-        This is just a wrapper of ExcelWriterHandler.test_excel_styles,
+        This is just a wrapper of :meth:`.ExcelWriterHandler.test_excel_styles`,
         and is included because DataSource is the main-facing object of
         mcetl and will be used more often.
 

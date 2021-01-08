@@ -23,7 +23,7 @@ def breit_wigner_fano_alt(x, height=1.0, center=0.0, sigma=1.0, q=-3.0):
     return height * (1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
 
 
-class BreitWignerFanoModel(lmfit.Model):
+class BreitWignerFanoModel(lmfit.model.Model):
     """
     A modified version of lmfit's BreitWignerModel.
 
