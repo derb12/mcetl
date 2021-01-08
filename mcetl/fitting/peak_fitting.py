@@ -356,8 +356,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         ax2.plot(x, y, label='data')
 
     models_dict = peak_transformer()
-    for i, peak_center in enumerate(peak_centers, start_num):
-        prefix = f'peak_{i + 1}_'
+    for i, peak_center in enumerate(peak_centers):
+        prefix = f'peak_{i + start_num + 1}_'
         peak_width = peak_widths[i]
         peak_type = f_utils.get_model_name(next(peak_list))
 
@@ -650,7 +650,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     # window has to be odd for scipy's Savitzky-Golay function
     window = int(len(x) / 20) if int(len(x) / 20) % 2 == 1 else int(len(x) / 20) + 1
     poly = 2
-    # interpolate residuals to smooth them a bit and improve signal to noise ratio
+    # smooth residuals to improve signal to noise ratio
     resid_interp = signal.savgol_filter(residuals, window, poly)
 
     resid_interp[resid_interp < 0] = 0
@@ -685,7 +685,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     if debug:
         ax = plt.subplots()[-1]
         ax.plot(x,residuals, label='residuals')
-        ax.plot(x, resid_interp, label='interpolated residuals')
+        ax.plot(x, resid_interp, label='smoothed residuals')
         ax.plot(x, np.array([prominence] * len(x)),
                 label='minimum height to be a peak')
         if residual_peak_centers:
@@ -1044,7 +1044,8 @@ def fit_peaks(
     output['fit_results'] = [composite_model.fit(y, composite_params, x=x,
                                                  method=min_method, fit_kws=fit_kws)]
 
-    print(f'\nFit #1: {output["fit_results"][-1].nfev} evaluations')
+    if debug:
+        print(f'\nFit #1: {output["fit_results"][-1].nfev} evaluations')
 
     if fit_residuals:
         for eval_num in range(num_resid_fits):
@@ -1122,17 +1123,18 @@ def fit_peaks(
             current_chisq = output['fit_results'][-1].redchi
 
             if np.abs(last_chisq - current_chisq) < 1e-9 and not residual_peaks[1]:
-                print((
-                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
-                    '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
-                ))
+                if debug:
+                    print((
+                        f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
+                        '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
+                    ))
                 break
-            else:
+            elif debug:
                 print((
                     f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     f'\nDelta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}'
                     ))
-            if eval_num + 1 == num_resid_fits:
+            if eval_num + 1 == num_resid_fits and debug:
                 print('Number of residual fits exceeded.')
 
     if debug:
