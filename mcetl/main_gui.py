@@ -1147,6 +1147,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
     -------
     output : dict
         A dictionary containing the following keys and values:
+
             dataframes : list or None
                 A list of lists of dataframes, with each dataframe containing the
                 data imported from a raw data file; will be None if the function

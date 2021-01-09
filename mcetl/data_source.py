@@ -63,7 +63,7 @@ class DataSource:
     figure_rcParams : dict, optional
         A dictionary containing any changes to matplotlib's rcParams.
         Used if plotting in python through the launch_main_gui function.
-    excel_writer_styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle), optional
+    excel_writer_styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
         The following keys are used when writing data from files to Excel:
             'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
@@ -885,9 +885,9 @@ class DataSource:
 
         Parameters
         ----------
-        styles : dict(str, dict or str or openpyxl.styles.named_styles.NamedStyle)
+        styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle)
             The dictionary of styles to test. Values in the dictionary can
-            either be nested dictionaries with the necessary keys and values
+            either be None, a nested dictionary with the necessary keys and values
             to create an openpyxl NamedStyle, a string (which would refer to another
             NamedStyle.name), or openpyxl.styles.NamedStyle objects.
 

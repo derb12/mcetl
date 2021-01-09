@@ -75,7 +75,7 @@ class PreprocessFunction(_FunctionBase):
     target_columns : str or (list(str), tuple(str))
         A string or list/tuple of strings designating the target columns
         for this object.
-    function : function
+    function : Callable
         The function that this object uses to process data. The function
         should take args of dataframe and target indices (a list of numbers,
         corresponding to the column index in the dataframe for each of the
@@ -196,7 +196,7 @@ class CalculationFunction(_FunctionBase):
     target_columns : str or (list(str), tuple(str))
         A string or list/tuple of strings designating the target columns
         for this object.
-    functions : function or (list(function)/tuple(function))
+    functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
         The functions that this object uses to process data. If only one function
         is given, it is assumed that the same function is used for both calculations
         for the data to be written to Excel and the data to be used in python.
@@ -316,7 +316,7 @@ class SummaryFunction(CalculationFunction):
     target_columns : str or (list(str), tuple(str))
         A string or list/tuple of strings designating the target columns
         for this object.
-    functions : function or (list(function)/tuple(function))
+    functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
         The functions that this object uses to process data. If only one function
         is given, it is assumed that the same function is used for both calculations
         for the data to be written to Excel and the data to be used in python.
