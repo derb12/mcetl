@@ -3426,7 +3426,7 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     Returns
     -------
-    figures : list(list(plt.Figure, dict(str : plt.Axes)))
+    figures : list(list(plt.Figure, dict(str, plt.Axes)))
         A nested list of lists, with each entry containing the matplotlib Figure,
         and a dictionary containing the Axes.
 

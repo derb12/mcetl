@@ -75,7 +75,7 @@ def safely_close_window(window):
 _COLUMN_NAME_CACHE = {}
 def excel_column_name(index):
     """
-    Converts 1-based index to Excel column name, eg. 1 -> 'A'.
+    Converts 1-based index to Excel column name.
 
     Parameters
     ----------
@@ -85,8 +85,8 @@ def excel_column_name(index):
 
     Returns
     -------
-    str
-        The column name for the input index.
+    col_name : str
+        The column name for the input index, eg. an index of 1 returns 'A'.
 
     Raises
     ------
