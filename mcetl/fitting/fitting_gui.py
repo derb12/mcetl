@@ -469,7 +469,7 @@ def _create_peak_fitting_gui(default_inputs):
             )
 
     all_models = sorted(f_utils._GUI_MODELS.keys())
-    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.peak_transformer()]
+    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.PEAK_TRANSFORMS]
     auto_bkg_layout = [
         [sg.Text('Model'),
          sg.Combo(all_models, default_inputs['bkg_type'], key='bkg_type',
@@ -805,7 +805,7 @@ def _process_fitting_kwargs(dataframe, values):
          fit_result[-1].data.size, fit_result[-1].nvarys,
          fit_result[-1].data.size - fit_result[-1].nvarys],
         index=['Fit converged', 'R\u00B2', 'adjusted R\u00B2', '\u03c7\u00B2',
-               'reduced \u03c7\u00B2', 'A.I.C.',  'B.I.C.', 'Minimization method',
+               'reduced \u03c7\u00B2', 'A.I.C.', 'B.I.C.', 'Minimization method',
                'Data points', 'Independant variables', 'Degrees of freedom']
     )
 
@@ -953,7 +953,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'integers': validations['peak_fitting']['integers'][:2],
     }
 
-    peak_models = peak_fitting.peak_transformer()
+    peak_models = peak_fitting.PEAK_TRANSFORMS
     voigt_models = [f_utils.get_gui_name(model) for model in ('VoigtModel', 'SkewedVoigtModel')]
 
     window, default_inputs = _create_fitting_gui(dataframe, user_inputs)

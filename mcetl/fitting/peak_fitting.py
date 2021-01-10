@@ -7,6 +7,15 @@ background points.
 @author: Donald Erb
 Created on Sep 14, 2019
 
+Attributes
+----------
+PEAK_TRANSFORMS : dict(str, dict(str, Callable))
+    A dictionary containing the string of the model class as keys, and
+    a dictionary as the values. The internal dictionary contains parameters
+    names of the model, and the equations to estimate them using input heights
+    (max or min y), full-width-at-half-maximums, and peak mode (x-position at
+    max or min y).
+
 """
 
 
@@ -23,17 +32,103 @@ from . import fitting_utils as f_utils
 from .. import plot_utils, utils
 
 
-def peak_transformer():
+def _lognormal_sigma(peak_height, peak_width, mode, *args):
+    """
+    Estimates the sigma value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated sigma value for the distribution.
+
+    """
+
+    m2 = mode**2 # m2 denotes mode squared
+
+    return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
+
+
+def _lognormal_center(peak_height, peak_width, mode, *args):
+    """
+    Estimates the center (mean) value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated center of the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+
+    return np.log(max(1e-9, mode)) + sigma**2
+
+
+def _lognormal_amplitude(peak_height, peak_width, mode, *args):
+    """
+    Estimates the amplitude value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated amplitude value for the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+    mean = np.log(max(1e-9, mode)) + sigma**2
+
+    return (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
+
+
+def _peak_transformer():
     """
     The expressions needed to convert peak width, height, and mode to model parameters.
 
     Returns
     -------
-    dict(str: dict(str: function))
-        A dictionary containing the string for lmfit models as keys, and
-        a dictionary as the values, containing the equations to estimate
-        parameters of the model using input heights, full-width-at-half-maximums,
-        and peak mode (x-position at max y).
+    dict(str, dict(str, Callable))
+        A dictionary containing the string of the model class as keys, and
+        a dictionary as the values. The internal dictionary contains parameters
+        names of the model, and the equations to estimate them using input heights
+        (max or min y), full-width-at-half-maximums, and peak mode (x-position at
+        max or min y).
 
     Notes
     -----
@@ -133,89 +228,33 @@ def peak_transformer():
     return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
 
-def _lognormal_center(peak_height, peak_width, mode, *args):
+PEAK_TRANSFORMS = _peak_transformer()
+
+
+def _initialize_peak(x, y, model, peak_center, peak_height, peak_width):
     """
-    Estimates the center (mean) value of a lognormal distribution.
+    Improves the built-in guess for lmfit by tweaking values for some models.
 
     Parameters
     ----------
+    x : array-like
+        The masked section of the total x-values for initializing the peak.
+    y : array-like
+        The masked section of the total y-values for initializing the peak.
+    model : str
+        The string name for the model, like 'Gaussian'.
+    peak_center : float
+        The x-value where the peak is at its max/min (would be more correct
+        to call mode, but most models refer to it as center, so that's what
+        is used).
     peak_height : float
-        The height of the peak at its maximum.
+        The estimated max/min of the peak.
     peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated center of the distribution.
+        The estimated full-width-at-half-maximum of the peak.
 
     """
 
-    sigma = _lognormal_sigma(peak_height, peak_width, mode)
 
-    return np.log(max(1e-9, mode)) + sigma**2
-
-
-def _lognormal_sigma(peak_height, peak_width, mode, *args):
-    """
-    Estimates the sigma value of a lognormal distribution.
-
-    Parameters
-    ----------
-    peak_height : float
-        The height of the peak at its maximum.
-    peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated sigma value for the distribution.
-
-    """
-
-    m2 = mode**2 # m2 denotes mode squared
-
-    return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
-
-
-def _lognormal_amplitude(peak_height, peak_width, mode, *args):
-    """
-    Estimates the amplitude value of a lognormal distribution.
-
-    Parameters
-    ----------
-    peak_height : float
-        The height of the peak at its maximum.
-    peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated amplitude value for the distribution.
-
-    """
-
-    sigma = _lognormal_sigma(peak_height, peak_width, mode)
-    mean = np.log(max(1e-9, mode)) + sigma**2
-
-    return (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
 
 def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
@@ -354,7 +393,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         ax1.plot(x, y)
         ax2.plot(x, y, label='data')
 
-    models_dict = peak_transformer()
+    models_dict = PEAK_TRANSFORMS
     for i, peak_center in enumerate(peak_centers):
         prefix = f'peak_{i + start_num + 1}_'
         peak_width = peak_widths[i]
@@ -683,7 +722,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
 
     if debug:
         ax = plt.subplots()[-1]
-        ax.plot(x,residuals, label='residuals')
+        ax.plot(x, residuals, label='residuals')
         ax.plot(x, resid_interp, label='smoothed residuals')
         ax.plot(x, np.array([prominence] * len(x)),
                 label='minimum height to be a peak')
@@ -1461,7 +1500,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                                         size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
-        models_dict = peak_transformer()
+        models_dict = PEAK_TRANSFORMS
         display_models = [f_utils.get_gui_name(model) for model in models_dict.keys()]
         if f_utils.get_gui_name(peak_model) in display_models:
             initial_model = f_utils.get_gui_name(peak_model)
@@ -1542,7 +1581,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             # resets the color cycle to start at 0
             self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
 
-            models_dict = peak_transformer()
+            models_dict = PEAK_TRANSFORMS
             y_tot = 0 * self.x
             for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[3])):
                 height = peak[1]
