@@ -60,9 +60,9 @@ class DataSource:
     xy_plot_indices : list(int, int) or tuple(int, int), optional
         The indices of the columns after processing that will be the default
         columns for plotting in Excel.
-    figure_rcParams : dict, optional
-        A dictionary containing any changes to matplotlib's rcParams.
-        Used if plotting in python through the launch_main_gui function.
+    figure_rc_params : dict, optional
+        A dictionary containing any changes to matplotlib's rcParams to
+        use if fitting or plotting.
     excel_writer_styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
         The following keys are used when writing data from files to Excel:
@@ -161,7 +161,7 @@ class DataSource:
             unique_variables=None,
             unique_variable_indices=None,
             xy_plot_indices=None,
-            figure_rcParams=None,
+            figure_rc_params=None,
             excel_writer_styles=None,
             excel_row_offset=0,
             excel_column_offset=0,
@@ -203,7 +203,7 @@ class DataSource:
         self.entry_separation = entry_separation
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
-        self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
+        self.figure_rc_params = figure_rc_params if figure_rc_params is not None else {}
         self.separator = separator
 
         # Ensures excel_row_offset and excel_column_offset are >= 0

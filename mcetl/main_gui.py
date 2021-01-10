@@ -939,7 +939,8 @@ def _fit_data(datasets, data_source, labels,
         will be saved to Excel and whether the results will be plotted,
         respectively.
     rc_params : dict, optional
-        A dictionary of changes to matplotlib's rcparams.
+        A dictionary of changes to matplotlib's rcparams. If None, will
+        use data_source.figure_rc_params.
 
     Returns
     -------
@@ -961,31 +962,7 @@ def _fit_data(datasets, data_source, labels,
     if rc_params is not None:
         mpl_changes = rc_params.copy()
     else:
-        # Changes some defaults for the plot formatting to look nice.
-        mpl_changes = {
-            'font.serif': 'Times New Roman',
-            'font.family': 'serif',
-            'font.size': 12,
-            'mathtext.default': 'regular',
-            'xtick.direction': 'in',
-            'ytick.direction': 'in',
-            'xtick.minor.visible': True,
-            'ytick.minor.visible': True,
-            'xtick.major.size': 5,
-            'xtick.major.width': 0.6,
-            'xtick.minor.size': 2.5,
-            'xtick.minor.width': 0.6,
-            'ytick.major.size': 5,
-            'ytick.major.width': 0.6,
-            'ytick.minor.size': 2.5,
-            'ytick.minor.width': 0.6,
-            'lines.linewidth': 2,
-            'lines.markersize': 5,
-            'axes.linewidth': 0.6,
-            'legend.frameon': False,
-            'figure.dpi': 150,
-            'figure.figsize': (6, 4.5)
-        }
+        mpl_changes = data_source.figure_rc_params.copy()
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
@@ -1043,7 +1020,7 @@ def _plot_data(datasets, data_source):
     datasets : list
         A nested list of lists of lists of dataframes.
     data_source : DataSource
-        The DataSource object whose figure_rcParams attribute will be used
+        The DataSource object whose figure_rc_params attribute will be used
         to set matplotlib's rcParams.
 
     Returns
@@ -1063,7 +1040,7 @@ def _plot_data(datasets, data_source):
     for dataset in datasets: # Flattens the dataset to a single list per dataset
         plot_datasets.append(list(itertools.chain.from_iterable(dataset)))
 
-    return launch_plotting_gui(plot_datasets, data_source.figure_rcParams)
+    return launch_plotting_gui(plot_datasets, data_source.figure_rc_params)
 
 
 def _move_files(files):
@@ -1159,8 +1136,9 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
     data_sources : list(DataSource) or tuple(DataSource) or DataSource
         A list or tuple of mcetl.DataSource objects, or a single DataSource.
     fitting_mpl_params : dict, optional
-        A dictionary of changes for matplotlib's rcparams to use
-        during fitting.
+        A dictionary of changes for matplotlib's rcParams to use
+        during fitting. If None, will use the selected DataSource's
+        figure_rc_params attribute.
 
     Returns
     -------
@@ -1338,7 +1316,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
 
         # Handles plotting in python
         if processing_options['plot_python']:
-            output['plot_results'] = _plot_data(output['dataframes'], data_source) #TODO later pass labels
+            output['plot_results'] = _plot_data(output['dataframes'], data_source)
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass
