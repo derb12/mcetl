@@ -249,7 +249,7 @@ def _initialize_peak(x, y, model, peak_center, peak_height, peak_width):
 
 
 def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
-                      vary_Voigt=False, model_list=None,
+                      vary_voigt=False, model_list=None,
                       default_model='PseudoVoigtModel', min_sigma=0.0,
                       max_sigma=np.inf, background_y=0.0,
                       params_dict=None, debug=False, peak_heights=None):
@@ -271,7 +271,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         Value that determines the min and max parameters for
         the center of each peak. min = center - center_offset,
         max = center + center_offset.
-    vary_Voigt : bool
+    vary_voigt : bool
         If True, will allow the gamma parameter in the Voigt model
         to be varied as an additional variable; if False, gamma
         will be set equal to sigma.
@@ -438,7 +438,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         peak_model.set_param_hint(amplitude_key, **param_kwargs['amplitude'])
         peak_model.set_param_hint('sigma', **param_kwargs['sigma'])
 
-        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_Voigt:
+        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_voigt:
             peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
                                       vary=True, expr='')
 
@@ -838,7 +838,7 @@ def fit_peaks(
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
         min_method='least_squares', x_min=-np.inf, x_max=np.inf,
         additional_peaks=None, model_list=None, background_type='PolynomialModel',
-        background_kwargs=None, fit_kws=None, vary_Voigt=False, fit_residuals=False,
+        background_kwargs=None, fit_kws=None, vary_voigt=False, fit_residuals=False,
         num_resid_fits=5, min_resid=0.05, debug=False, peak_heights=None):
     """
     Takes x,y data, finds the peaks, fits the peaks, and returns all relevant information.
@@ -894,7 +894,7 @@ def fit_peaks(
         Any keyword arguments needed to initialize the background model.
     fit_kws : dict
         Keywords to be passed on to the minimizer.
-    vary_Voigt : bool
+    vary_voigt : bool
         If True, will allow the gamma parameter in the Voigt model
         to be varied as an additional variable; if False, gamma will be
         set equal to sigma.
@@ -1033,7 +1033,7 @@ def fit_peaks(
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
-            vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
+            vary_voigt=vary_voigt, model_list=model_list, min_sigma=min_sigma,
             max_sigma=max_sigma, background_y=initial_bkg,
             debug=debug, peak_heights=peak_heights
         )
@@ -1057,7 +1057,7 @@ def fit_peaks(
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
-            vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
+            vary_voigt=vary_voigt, model_list=model_list, min_sigma=min_sigma,
             max_sigma=max_sigma, debug=debug, peak_heights=peak_heights
         )
 
@@ -1112,7 +1112,7 @@ def fit_peaks(
                 params_dict = _initialize_peaks(
                     x, y, peak_centers=residual_peaks[1], peak_width=avg_fwhm,
                     default_model=default_model, center_offset=center_offset,
-                    vary_Voigt=vary_Voigt, model_list=None, min_sigma=min_sigma,
+                    vary_voigt=vary_voigt, model_list=None, min_sigma=min_sigma,
                     max_sigma=max_sigma, background_y=output['fit_results'][-1].best_fit,
                     params_dict=params_dict, debug=debug
                 )

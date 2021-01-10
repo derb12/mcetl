@@ -328,11 +328,11 @@ def r_squared(y, y_calc, num_variables=1):
     y_calc = np.asarray(y_calc)
 
     n = y.shape[0]
-    SS_tot = np.sum((y - np.mean(y))**2)
-    SS_res = np.sum((y - y_calc)**2)
+    sum_sq_tot = np.sum((y - np.mean(y))**2)
+    sum_sq_res = np.sum((y - y_calc)**2)
 
-    r_sq = 1 - (SS_res / SS_tot)
-    r_sq_adj = 1 - (SS_res / (n - num_variables - 1)) / (SS_tot / (n - 1))
+    r_sq = 1 - (sum_sq_res / sum_sq_tot)
+    r_sq_adj = 1 - (sum_sq_res / (n - num_variables - 1)) / (sum_sq_tot / (n - 1))
 
     return r_sq, r_sq_adj
 
