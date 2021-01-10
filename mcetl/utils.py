@@ -19,7 +19,7 @@ PROCEED_COLOR : tuple(str, str)
 """
 
 
-import itertools
+import functools
 import operator
 from pathlib import Path
 import textwrap
@@ -72,10 +72,43 @@ def safely_close_window(window):
     raise WindowCloseError('Window was closed earlier than expected.')
 
 
-_COLUMN_NAME_CACHE = {}
+def doc_lru_cache(function=None, **lru_cache_kwargs):
+    """
+    Decorator that allows keeping a function's docstring when using functools.lru_cache.
+
+    Parameters
+    ----------
+    function : Callable
+        The function to use. If used as a decorator and lru_cache_kwargs
+        are specified, then function will be None.
+    **lru_cache_kwargs
+        Any keyword arguments to pass to functools.lru_cache (maxsize and/or typed,
+        as of Python 3.9).
+
+    Examples
+    --------
+    A basic usage of this decorator would look like:
+
+    >>> @doc_lru_cache(maxsize=200)
+        def function(arg, kwarg=1)
+            return arg + kwarg
+
+    """
+
+    if function is None:
+        function = functools.partial(doc_lru_cache, **lru_cache_kwargs)
+
+    @functools.lru_cache(**lru_cache_kwargs)
+    def wrapper(*args, **kwargs):
+        return function(*args, **kwargs)
+
+    return functools.update_wrapper(wrapper, function)
+
+
+@doc_lru_cache(maxsize=None)
 def excel_column_name(index):
     """
-    Converts 1-based index to Excel column name.
+    Converts 1-based index to the Excel column name.
 
     Parameters
     ----------
@@ -102,12 +135,7 @@ def excel_column_name(index):
 
     """
 
-    global _COLUMN_NAME_CACHE
-
-    if index in _COLUMN_NAME_CACHE:
-        return _COLUMN_NAME_CACHE[index]
-
-    elif not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
+    if not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
         raise ValueError(f'Column index {index} must be between 1 and 18278.')
 
     col_num = index
@@ -124,7 +152,6 @@ def excel_column_name(index):
         col_letters.append(chr(64 + remainder))
 
     col_name = ''.join(reversed(col_letters))
-    _COLUMN_NAME_CACHE[index] = col_name
 
     return col_name
 
