@@ -216,8 +216,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
                 filename = str(Path(filename).with_suffix('.csv'))
                 try:
-                    pd.concat(saved_data, axis=1).to_csv(filename, index=False,
-                                                         encoding='raw_unicode_escape')
+                    pd.concat(saved_data, axis=1).to_csv(filename, index=False)
                 except PermissionError:
                     sg.popup(
                         ('The .csv file is currently open.\n'
@@ -278,8 +277,8 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             axes = None
             gui_values = None
 
-        # try standard utf-8 encoding first; will throw an error only if there is
-        # unicode previously saved by this module using 'raw_unicode_escape' encoding.
+        # try standard utf-8 encoding first; will throw an error if there is
+        # raw unicode such as \u00b0, so try using 'raw_unicode_escape' encoding.
         try:
             dataframe = pd.read_csv(filename, header=None, index_col=False)
         except UnicodeDecodeError:
