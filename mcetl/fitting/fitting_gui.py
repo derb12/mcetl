@@ -422,11 +422,11 @@ def _create_peak_fitting_gui(default_inputs):
 
     """
 
-    disable_vary_Voigt = True
+    disable_vary_voigt = True
     for model in itertools.chain(default_inputs['model_list'], default_inputs['default_model']):
         try:
             if f_utils.get_model_name(model) in ('VoigtModel', 'SkewedVoigtModel'):
-                disable_vary_Voigt = False
+                disable_vary_voigt = False
                 break
         except KeyError:
             pass
@@ -498,8 +498,8 @@ def _create_peak_fitting_gui(default_inputs):
         [sg.Text('Default peak model:'),
          sg.Combo(peak_models, key='default_model', readonly=True,
                     default_value=default_inputs['default_model'], enable_events=True)],
-        [sg.Check('Vary Voigt gamma parameter', key='vary_Voigt', disabled=disable_vary_Voigt,
-                    default=default_inputs['vary_Voigt'],
+        [sg.Check('Vary Voigt gamma parameter', key='vary_voigt', disabled=disable_vary_voigt,
+                    default=default_inputs['vary_voigt'],
                     tooltip='if True, will allow the gamma parameter in the Voigt model'\
                             ' to be varied as an additional variable')],
         [sg.Text('Peak full-width at half-maximum:'),
@@ -594,7 +594,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'height': '-inf',
         'model_list': [],
         'default_model': 'Gaussian',
-        'vary_Voigt': False,
+        'vary_voigt': False,
         'peak_width': '',
         'center_offset': '',
         'max_sigma': 'inf',
@@ -708,7 +708,7 @@ def _process_fitting_kwargs(dataframe, values):
     x_min = values['x_min']
     x_max = values['x_max']
     default_model = values['default_model']
-    vary_Voigt = values['vary_Voigt']
+    vary_voigt = values['vary_voigt']
     center_offset = values['center_offset']
     min_method = values['min_method']
     subtract_bkg = values['subtract_bkg']
@@ -748,7 +748,7 @@ def _process_fitting_kwargs(dataframe, values):
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
         additional_peaks, model_list, background_type, background_kwargs, None,
-        vary_Voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
+        vary_voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
     )
 
     fit_result = fitting_results['fit_results']
@@ -1051,9 +1051,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 )
 
                 if any(model in voigt_models for model in temp_model_list):
-                    window['vary_Voigt'].update(disabled=False)
+                    window['vary_voigt'].update(disabled=False)
                 elif values['default_model'] not in voigt_models:
-                    window['vary_Voigt'].update(disabled=True, value=False)
+                    window['vary_voigt'].update(disabled=True, value=False)
 
             window.un_hide()
         # toggle auto/manual peak selection
@@ -1115,9 +1115,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                         pass
             if (any(model in voigt_models for model in temp_model_list)
                     or values['default_model'] in voigt_models):
-                window['vary_Voigt'].update(disabled=False)
+                window['vary_voigt'].update(disabled=False)
             else:
-                window['vary_Voigt'].update(disabled=True, value=False)
+                window['vary_voigt'].update(disabled=True, value=False)
 
         elif event == 'fit_residuals':
             if values['fit_residuals']:
