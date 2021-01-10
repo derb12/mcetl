@@ -34,7 +34,7 @@ _INIT_MODELS = {
 }
 
 
-def _create_model_directory():
+def _create_model_cache():
     """
     Builds a dictionary of models that are available through lmfit.models and mcetl.models.
 
@@ -44,6 +44,7 @@ def _create_model_directory():
         A dictionary of models available through lmfit and mcetl. Keys are the
         model class name, such as 'GaussianModel', and the values are a dictionary
         containing the following items:
+
             'display_name' : str
                 The name to use in GUIs, such as 'Gaussian'.
             'model' : lmfit.Model
@@ -137,7 +138,7 @@ def _create_model_directory():
                 model_sig = inspect.signature(obj)
                 for param in model_sig.parameters.values():
                     if param.name not in ('independent_vars', 'prefix', 'nan_policy',
-                                        'name', 'kwargs'):
+                                          'name', 'kwargs'):
                         # set initial values in order to temporarily initialize the model
                         available_models[name]['init_kwargs'][param.name] = (
                             param.default if param.default != param.empty else 0)
@@ -150,7 +151,7 @@ def _create_model_directory():
                     if (param.name not in available_models[name]['init_kwargs']
                             and param.default != param.empty):
                         # all built-in models take floats as parameters
-                        available_models[name]['parameters'][param.name] =  [param.default, float]
+                        available_models[name]['parameters'][param.name] = [param.default, float]
 
                 # THE CODE BELOW CAN BE USED TO CHECK IF A MODEL IS A "PEAK",
                 # BUT COULD EASILY CHANGE IN LATER lmfit VERSIONS, SO THE
@@ -171,7 +172,7 @@ def _create_model_directory():
                             key: [value, type(value)] for key, value in available_models[name]['init_kwargs'].items()
                         }
 
-            except:
+            except Exception:
                 pass # avoid any models that do not work; none for lmfit version 1.0.1
 
     # DoniachModel was misspelled as DonaichModel until lmfit v1.0.1
@@ -184,7 +185,7 @@ def _create_model_directory():
 
 
 # for use within code
-_TOTAL_MODELS = _create_model_directory()
+_TOTAL_MODELS = _create_model_cache()
 # for use with GUIs; convert gui names to names in _TOTAL_MODELS
 _GUI_MODELS = {vals['display_name']: key for key, vals in _TOTAL_MODELS.items()}
 

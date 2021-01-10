@@ -836,7 +836,8 @@ class DataSource:
 
         specified_labels = itertools.chain(self.column_labels, itertools.cycle(['']))
         # discard the column labels that correspond to imported data
-        unneeded = [next(specified_labels) for _ in range(len(self.column_numbers) - self._deleted_columns)]
+        for _ in range(len(self.column_numbers) - self._deleted_columns):
+            next(specified_labels)
 
         function_labels = [[], [], []]
         functions = (self.calculation_functions, self.sample_summary_functions, self.dataset_summary_functions)

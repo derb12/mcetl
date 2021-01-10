@@ -20,7 +20,6 @@ import PySimpleGUI as sg
 from scipy import signal
 
 from . import fitting_utils as f_utils
-from . import models
 from .. import plot_utils, utils
 
 
@@ -959,8 +958,8 @@ def fit_peaks(
 
     # Creates the output dictionary and initializes two of its lists
     output = defaultdict(list)
-    output['resid_peaks_found']
-    output['resid_peaks_accepted']
+    output['resid_peaks_found'] = []
+    output['resid_peaks_accepted'] = []
 
     x_array = np.asarray(x, dtype=float)
     y_array = np.asarray(y, dtype=float)
@@ -976,7 +975,7 @@ def fit_peaks(
     bkg_min = max(bkg_min, x_min)
     bkg_max = min(bkg_max, x_max)
 
-    output['peaks_found'], output['peaks_accepted']  = find_peak_centers(
+    output['peaks_found'], output['peaks_accepted'] = find_peak_centers(
         x_array, y_array, additional_peaks=additional_peaks, height=height,
         prominence=prominence, x_min=x_min, x_max=x_max
     )
@@ -1116,7 +1115,7 @@ def fit_peaks(
 
             output['initial_fits'].append(composite_model.eval(composite_params, x=x))
             output['fit_results'].append(
-                composite_model.fit(y, composite_params, x=x,method=min_method,
+                composite_model.fit(y, composite_params, x=x, method=min_method,
                                     fit_kws=fit_kws)
             )
 
@@ -1198,7 +1197,7 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         super().__init__(x, y, click_list)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
              'dpi': desired_dpi}, canvas_size=self.canvas_size
         )
 
@@ -1412,7 +1411,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
              'dpi': desired_dpi}, canvas_size=self.canvas_size
         )
 
@@ -1718,8 +1717,8 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
         ax.axvline(peak, 0, 0.9, c='red', linestyle='--')
     for peak in peaks_accepted:
         ax.axvline(peak, 0, 0.9, c='green', linestyle='--')
-    for peak in np.array(additional_peaks)[(np.array(additional_peaks)>x_min)
-                                           & (np.array(additional_peaks)<x_max)]:
+    for peak in np.array(additional_peaks)[(np.array(additional_peaks) > x_min)
+                                           & (np.array(additional_peaks) < x_max)]:
         ax.axvline(peak, 0, 0.9, c='purple', linestyle='--')
     for i in range(3):
         plt.text(0.1 + 0.35 * i, 0.95, legend[i], ha='left', va='center',
@@ -1849,7 +1848,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
     y = fit_result.data
 
     # Creates a color cycle to override matplotlib's to prevent color clashing
-    COLORS = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b','#e377c2',
+    colors = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b', '#e377c2',
               '#bcbd22', '#17becf']
     n_col = max(1, len(individual_peaks) // 5)
 
@@ -1857,7 +1856,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
     if background_subtracted:
         if plot_subtract_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y - individual_peaks['background_'], 'o',
                     color='dodgerblue', label='data', ms=2)
             i = 1
@@ -1873,7 +1872,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
         if plot_w_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
             i = 1
             for peak in individual_peaks:
@@ -1888,7 +1887,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
         if plot_separate_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
             i = 1
             for peak in individual_peaks:
@@ -1903,7 +1902,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
     else:
         fig, ax = plt.subplots()
-        color_cycle = itertools.cycle(COLORS)
+        color_cycle = itertools.cycle(colors)
         ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
         i = 1
         for peak in individual_peaks:

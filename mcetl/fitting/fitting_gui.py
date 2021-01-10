@@ -61,7 +61,7 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
              'dpi': desired_dpi}, canvas_size=self.canvas_size
         )
         self.figure, self.axis = plt.subplots(
@@ -131,7 +131,7 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
             )
             self.axis.vlines(
                 bkg_min, *plot_utils.scale_axis(ax_y, 0.01, 0.03),
-                color='red',linestyle='--', lw=2
+                color='red', linestyle='--', lw=2
             )
             self.axis.vlines(
                 bkg_max, *plot_utils.scale_axis(ax_y, 0.01, 0.03),
@@ -179,7 +179,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
+            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
              'dpi': desired_dpi}, canvas_size=self.canvas_size
         )
         self.figure, (self.axis, residual_ax) = plt.subplots(
@@ -405,14 +405,12 @@ def _get_background_kwargs(gui_values):
     return kwargs
 
 
-def _create_peak_fitting_gui(dataframe, default_inputs):
+def _create_peak_fitting_gui(default_inputs):
     """
     Creates the peak fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : pd.DataFrame
-        The dataframe with the data to fit.
     user_inputs : dict
         A dictionary of values to construct the GUI.
 
@@ -541,14 +539,12 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
     return layout
 
 
-def _create_general_fitting_gui(dataframe, user_inputs):
+def _create_general_fitting_gui(user_inputs):
     """
     Creates the general fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : pd.DataFrame
-        The dataframe with the data to fit.
     user_inputs : dict
         A dictionary of values to construct the GUI.
 
@@ -625,8 +621,8 @@ def _create_fitting_gui(dataframe, user_inputs=None):
     if user_inputs is not None:
         default_inputs.update(user_inputs)
 
-    tab1 = _create_peak_fitting_gui(dataframe, default_inputs)
-    #tab2 = _create_general_fitting_gui(dataframe, user_inputs) #TODO this is for later
+    tab1 = _create_peak_fitting_gui(default_inputs)
+    #tab2 = _create_general_fitting_gui(user_inputs) #TODO this is for later
 
     column_layout = [
         [sg.Text('Raw Data', relief='ridge', size=(60, 1),
@@ -649,7 +645,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         [sg.Text('    x max:', size=(8, 1)),
             sg.Input(default_inputs['x_max'], key='x_max', size=(5, 1))],
         [sg.Text('Minimization method:'),
-            sg.Combo(['least_squares','leastsq'], key='min_method', readonly=False,
+            sg.Combo(['least_squares', 'leastsq'], key='min_method', readonly=False,
                     default_value=default_inputs['min_method'])],
         [sg.Text('Fitting Options', relief='ridge', size=(60, 1),
                     pad=(5, (20, 10)), justification='center')],
@@ -1131,12 +1127,12 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['min_resid'].update(visible=False, value=0.05)
                 window['num_resid_fits'].update(visible=False, value=5)
 
-        elif event =='Fit' and utils.validate_inputs(values, **validations['peak_fitting']):
+        elif event == 'Fit' and utils.validate_inputs(values, **validations['peak_fitting']):
             bad_models = []
             for entry in values['model_list']:
                 try:
-                   if f_utils.get_model_name(entry) not in peak_models:
-                       bad_models.append(entry)
+                    if f_utils.get_model_name(entry) not in peak_models:
+                        bad_models.append(entry)
                 except KeyError:
                     bad_models.append(entry)
             if bad_models:
@@ -1351,7 +1347,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
                 setattr(getattr(chart, axis), axis_attribute, value)
 
         for i, peak_name in enumerate(peaks_dataframe.columns[1:], 2):
-            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i !=2 else 'raw data'
+            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i != 2 else 'raw data'
             chart.append(
                 Series(
                     Reference(worksheet, i, 4, i, len(peaks_dataframe) + 3),

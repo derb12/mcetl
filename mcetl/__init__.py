@@ -38,6 +38,7 @@ __version__ = '0.3.0'
 from .data_source import DataSource
 from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 from .main_gui import launch_main_gui
+from . import excel_writer, file_organizer, utils
 
 
 # Fixes blurry tkinter windows due to weird dpi scaling in Windows os

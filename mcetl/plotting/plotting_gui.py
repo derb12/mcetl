@@ -978,13 +978,13 @@ def _create_advanced_layout(input_values, canvas, figure):
     validations = {'floats': [], 'constraints': []}
     for i in range(num_cols):
         validations['floats'].append([f'width_{i}', f'width {i + 1}'])
-        validations['constraints'].append( [f'width_{i}', f'width {i + 1}', '> 0'])
+        validations['constraints'].append([f'width_{i}', f'width {i + 1}', '> 0'])
 
     for i in range(num_rows):
         validations['floats'].append([f'height_{i}', f'height {i + 1}'])
         validations['constraints'].append([f'height_{i}', f'height {i + 1}', '> 0'])
 
-    columm_layout =  [
+    columm_layout = [
         [sg.Text(i + 1, size=(2, 1), justification='right')]
         + [sg.Input(input_values[f'gridspec_{i}_{j}'], size=(5, 1), pad=(1, 1),
                     justification='right', key=f'gridspec_{i}_{j}') for j in range(num_cols)]
@@ -999,7 +999,7 @@ def _create_advanced_layout(input_values, canvas, figure):
 
     header_layout = [
         [sg.Text('', size=(2, 1))] +
-        [sg.Text(j + 1, size=(5,1), justification='center') for j in range(num_cols)]]
+        [sg.Text(j + 1, size=(5, 1), justification='center') for j in range(num_cols)]]
 
     layout = [
         [sg.Text('Figure Layout\n')],
@@ -1071,7 +1071,7 @@ def _create_gridspec_labels(fig_kwargs):
     new_kwargs = fig_kwargs.copy()
     # deletes previous gridspec values
     for key in fig_kwargs:
-        if key.startswith('gridspec') or key.startswith('width') or key.startswith('height'):
+        if key.startswith(('gridspec', 'width', 'height')):
             if key.startswith('gridspec'):
                 index = key.split('_')[-2:]
                 if num_rows <= int(index[0]) or num_cols <= int(index[1]):
@@ -1293,7 +1293,7 @@ def _select_plot_type(user_inputs=None):
     window = sg.Window('Plot Types', layout, finalize=True)
     _annotate_example_figure(axes, window['example_canvas'].TKCanvas, fig)
 
-    validations= {
+    validations = {
         'floats': [['fig_width', 'Figure Width'], ['fig_height', 'Figure Height'],
                    ['dpi', 'DPI']],
         'integers': [['num_rows', 'Number of rows'],
@@ -1603,7 +1603,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                             [sg.Text('Label:', size=(6, 1)),
                              sg.Input(default_inputs[f'label_{i}_{j}_{k}'], key=f'label_{i}_{j}_{k}',
                                       size=(8, 1), disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((5, 5), 5)),
+                        ], pad=((5, 5), 5), vertical_alignment='top'),
                         sg.Column([
                             [sg.Text('      Marker')],
                             [sg.Text('Face\nColor:'),
@@ -1635,7 +1635,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                              sg.Input(default_text=default_inputs[f'marker_size_{i}_{j}_{k}'],
                                       key=f'marker_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((20, 5), 5), element_justification='center'),
+                        ], pad=((20, 5), 5), element_justification='center', vertical_alignment='top'),
                         sg.Column([
                             [sg.Text('      Line')],
                             [sg.Text('Color:'),
@@ -1656,7 +1656,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                              sg.Input(default_text=default_inputs[f'line_size_{i}_{j}_{k}'],
                                       key=f'line_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((20, 5), 5), element_justification='center')
+                        ], pad=((20, 5), 5), element_justification='center', vertical_alignment='top')
                     ]])
                 ]])
 
@@ -1700,19 +1700,19 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         [sg.Text('X Axis:')],
                         [sg.Check('Major Ticks', key=f'x_major_grid_{i}_{j}',
                                   default=default_inputs[f'x_major_grid_{i}_{j}'],
-                                  disabled=label=='Twin X')],
+                                  disabled=label == 'Twin X')],
                         [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}_{j}',
                                   default=default_inputs[f'x_minor_grid_{i}_{j}'],
-                                  disabled=label=='Twin X')]
+                                  disabled=label == 'Twin X')]
                      ], pad=((20, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Check('Major Ticks', key=f'y_major_grid_{i}_{j}',
                                    default=default_inputs[f'y_major_grid_{i}_{j}'],
-                                   disabled=label=='Twin Y')],
+                                   disabled=label == 'Twin Y')],
                          [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}_{j}',
                                    default=default_inputs[f'y_minor_grid_{i}_{j}'],
-                                   disabled=label=='Twin Y')]
+                                   disabled=label == 'Twin Y')]
                      ], pad=((20, 5), 3), element_justification='center')]
                 ],
                 'Axes': [
@@ -1741,16 +1741,16 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     [sg.Text('Bounds')],
                     [sg.Text('    X Minimum:'),
                      sg.Input(default_inputs[f'x_axis_min_{i}_{j}'], size=(12, 1),
-                              key=f'x_axis_min_{i}_{j}', disabled=label=='Twin X'),
+                              key=f'x_axis_min_{i}_{j}', disabled=label == 'Twin X'),
                      sg.Text('X Maximum:'),
                      sg.Input(default_inputs[f'x_axis_max_{i}_{j}'], size=(12, 1),
-                              key=f'x_axis_max_{i}_{j}', disabled=label=='Twin X')],
+                              key=f'x_axis_max_{i}_{j}', disabled=label == 'Twin X')],
                     [sg.Text('    Y Minimum:'),
                      sg.Input(default_inputs[f'y_axis_min_{i}_{j}'], size=(12, 1),
-                              key=f'y_axis_min_{i}_{j}', disabled=label=='Twin Y'),
+                              key=f'y_axis_min_{i}_{j}', disabled=label == 'Twin Y'),
                      sg.Text('Y Maximum:'),
                      sg.Input(default_inputs[f'y_axis_max_{i}_{j}'], size=(12, 1),
-                              key=f'y_axis_max_{i}_{j}', disabled=label=='Twin Y')],
+                              key=f'y_axis_max_{i}_{j}', disabled=label == 'Twin Y')],
                     [sg.Text('')],
                     [sg.Text('Tick Marks')],
                     [sg.Radio('Automatic', f'ticks_{i}_{j}', key=f'auto_ticks_{i}_{j}',
@@ -1762,23 +1762,23 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                          sg.Spin(list(range(2, 11)),
                                  initial_value=default_inputs[f'x_major_ticks_{i}_{j}'],
                                  key=f'x_major_ticks_{i}_{j}', size=(3, 1),
-                                 disabled=label=='Twin X')],
+                                 disabled=label == 'Twin X')],
                         [sg.Text('Minor Ticks'),
                          sg.Spin(list(range(11)),
                                  initial_value=default_inputs[f'x_minor_ticks_{i}_{j}'],
                                  key=f'x_minor_ticks_{i}_{j}', size=(3, 1),
-                                 disabled=label=='Twin X')]
+                                 disabled=label == 'Twin X')]
                      ], pad=((40, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Text('Major Ticks'),
                          sg.Spin(list(range(2, 11)), size=(3, 1),
                                  initial_value=default_inputs[f'y_major_ticks_{i}_{j}'],
-                                 key=f'y_major_ticks_{i}_{j}', disabled=label=='Twin Y')],
+                                 key=f'y_major_ticks_{i}_{j}', disabled=label == 'Twin Y')],
                          [sg.Text('Minor Ticks'),
                          sg.Spin(list(range(11)), size=(3, 1),
                                  initial_value=default_inputs[f'y_minor_ticks_{i}_{j}'],
-                                 key=f'y_minor_ticks_{i}_{j}', disabled=label=='Twin Y')]
+                                 key=f'y_minor_ticks_{i}_{j}', disabled=label == 'Twin Y')]
                      ], pad=((40, 5), 3), element_justification='center')]
                 ]
             }
@@ -1877,7 +1877,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     [sg.Text(section[0], key=f'-SECTION_header_{i}_{j}_{k}', relief='ridge',
                              size=(column_width, 1), justification='center')],
                     [sg.Frame('', section[1], key=f'-SECTION_{i}_{j}_{k}',
-                              border_width=0,  pad=(5, (10, 20)))]
+                              border_width=0, pad=(5, (10, 20)))]
                 ])
             label_tabs.append(
                 [sg.Tab(
@@ -3175,7 +3175,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # exports the options and potentially data required to recreate the figure
                 elif event.startswith('Save Theme'):
                     window.hide()
-                    if event =='Save Theme':
+                    if event == 'Save Theme':
                         saved_data = None
                     else:
                         saved_data = data
