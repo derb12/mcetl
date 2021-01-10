@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel
+"""Provides GUIs to import data depending on the data source used, process and/or fit the data, and save everything to Excel.
 
 @author: Donald Erb
 Created on May 5, 2020
@@ -10,17 +10,23 @@ The imports for the fitting and plotting guis are within their respective
 functions to reduce the time it takes for this module to be imported. Likewise,
 openpyxl is imported within _write_to_excel.
 
+Attributes
+----------
+SAVE_FOLDER : pathlib.Path
+    The file path to the folder in which all 'previous_files_{DataSource.name}.json'
+    files are saved. Depends on operating system.
+
 """
 
 
 import itertools
 import json
+import os
 from pathlib import Path
 import sys
 import textwrap
 import traceback
 
-import pandas as pd
 import PySimpleGUI as sg
 
 from . import utils
@@ -34,7 +40,7 @@ from .file_organizer import file_finder, file_mover, manual_file_finder
 _FILE_PREFIX = 'previous_files_'
 
 
-def get_save_location():
+def _get_save_location():
     """
     Gets the filepath for saving the previous files depending on the operating system.
 
@@ -43,21 +49,33 @@ def get_save_location():
     pathlib.Path
         The absolute path to where the previous files json will be saved.
 
+    Notes
+    -----
+    Tries to use environmental variables before using default locations, and
+    tries to follow standard conventions. See the following links (and the
+    additional links in the links) for more information:
+
+    https://stackoverflow.com/questions/1024114/location-of-ini-config-files-in-linux-unix,
+    https://specifications.freedesktop.org/basedir-spec/latest/
+
     """
 
     path = None
     if sys.platform.startswith('win'): # Windows
-        path = Path('~/AppData/Local/mcetl')
+        path = Path(os.environ.get('LOCALAPPDATA') or '~/AppData/Local').joinpath('mcetl')
     elif sys.platform.startswith('darwin'): # Mac
         path = Path('~/Library/Application Support/mcetl')
-    elif sys.platform.startswith('linux'): # Linux
-        path = Path('~/.config/mcetl')
+    elif sys.platform.startswith(('linux', 'freebsd')): # Linux
+        path = Path(os.environ.get('XDG_DATA_HOME') or '~/.local/share').joinpath('mcetl')
 
-    if path is None or not path.expanduser().parent.exists():
-        # in case the Windows/Mac/Linux places are wrong
+    if path is None or not path.expanduser().parent.is_dir():
+        # unspecified os or if the Windows/Mac/Linux places are wrong
         path = Path('~/.mcetl')
 
     return path.expanduser()
+
+
+SAVE_FOLDER = _get_save_location()
 
 
 def _write_to_excel(dataframes, data_source, labels,
@@ -342,7 +360,7 @@ def _select_processing_options(data_sources):
                     data_source = source
                     break
 
-            if get_save_location().joinpath(f'{_FILE_PREFIX}{data_source.name}.json').exists():
+            if SAVE_FOLDER.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').exists():
                 window['use_last_search'].update(disabled=False)
             else:
                 window['use_last_search'].update(value=False, disabled=True)
@@ -509,7 +527,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
                 column_count += 1
 
         if function_labels[1]:
-            subkey = f'Sample Summary'
+            subkey = 'Sample Summary'
             total_labels[key][subkey] = function_labels[1]
             entry_x_index = x_plot_index if x_plot_index < len(function_labels[1]) else 0
             entry_y_index = y_plot_index if y_plot_index < len(function_labels[1]) else len(function_labels[1]) - 1
@@ -631,10 +649,10 @@ def _create_column_labels_window(dataset, data_source, options, index,
     else:
         validations['integers'] = []
         validations['user_inputs'].extend([
-            ['x_min', 'x min', float , True, None],
-            ['x_max', 'x max', float , True, None],
-            ['y_min', 'y min', float , True, None],
-            ['y_max', 'y max', float , True, None],
+            ['x_min', 'x min', float, True, None],
+            ['x_max', 'x max', float, True, None],
+            ['y_min', 'y min', float, True, None],
+            ['y_max', 'y max', float, True, None],
             ['x_label', 'x axis label', utils.string_to_unicode, False, None],
             ['y_label', 'y axis label', utils.string_to_unicode, False, None],
             ['chart_title', 'chart title', utils.string_to_unicode, True, None]
@@ -734,10 +752,11 @@ def _select_column_labels(dataframes, data_source, processing_options):
 
     """
 
-    non_transferred_keys = {'sheet_name', 'plot_', 'x_plot_index_', 'y_plot_index_'}
+    non_transferred_keys = ['sheet_name', 'plot_', 'x_plot_index_', 'y_plot_index_']
     if len(set(len(df.columns) for dataset in dataframes for sample in dataset for df in sample)) > 1:
         # don't transfer column names if column lengths are not all the same
-        non_transferred_keys.add('column_name')
+        non_transferred_keys.append('column_name')
+    non_transferred_keys = tuple(non_transferred_keys) # so it works with str.startswith
 
     label_values = [{} for _ in dataframes]
     location = (None, None)
@@ -746,7 +765,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
 
         validations, window = _create_column_labels_window(
             dataset, data_source, processing_options, i, label_values[i],
-            location, i==len(dataframes) - 1
+            location, i == len(dataframes) - 1
         )
 
         while True:
@@ -765,7 +784,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
                 )
 
             elif (event in ('Back', 'Next', 'Finish')
-                    and utils.validate_inputs(values, **validations)):
+                  and utils.validate_inputs(values, **validations)):
 
                 label_values[j] = values
                 location = window.current_location()
@@ -779,12 +798,12 @@ def _select_column_labels(dataframes, data_source, processing_options):
                 if j <= i:
                     validations, window = _create_column_labels_window(
                         dataframes[j], data_source, processing_options, j,
-                        label_values[j], location, j==len(dataframes) - 1
+                        label_values[j], location, j == len(dataframes) - 1
                     )
                 else:
                     if i < len(dataframes) - 1:
                         transfer_keys = set(
-                            key for key in values.keys() if not any(key.startswith(name) for name in non_transferred_keys)
+                            key for key in values.keys() if not key.startswith(non_transferred_keys)
                         )
                         label_values[i + 1].update({key: val for key, val in values.items() if key in transfer_keys})
                     break
@@ -808,7 +827,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
             })
             plot_options[i].update(
                 {key: value for key, value in values.items()
-                if any(key.startswith(prefix) for prefix in ('plot_', 'x_plot_index', 'y_plot_index'))}
+                 if key.startswith(('plot_', 'x_plot_index', 'y_plot_index'))}
             )
 
     labels, plot_options = _collect_column_labels(label_values, plot_options, data_source, processing_options)
@@ -856,8 +875,8 @@ def _collect_column_labels(label_values, plot_options, data_source, options):
             labels[num]['sample_names'].append(label_dict['summary_name'])
 
         plot_indices = {key: value for key, value in plot_options[num].items() if 'plot_index_' in key}
-        labels[num]['column_names'] =  []
-        labels[num]['dataframe_names'] =  []
+        labels[num]['column_names'] = []
+        labels[num]['dataframe_names'] = []
         column_index = 0
         for i in range(len(labels[num]['sample_names'])):
             entries = 1 + max([
@@ -1204,9 +1223,8 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
             data_source._remove_unneeded_variables()
 
         # Selection of data files
-        save_path = get_save_location()
         if processing_options['use_last_search']:
-            with save_path.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('r') as fp:
+            with SAVE_FOLDER.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('r') as fp:
                 files = json.load(fp)
         else:
             if processing_options['keyword_search']:
@@ -1217,8 +1235,8 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 files = manual_file_finder(data_source.file_type)
 
             # Saves the file paths to a json file so they can be used again to bypass the search.
-            save_path.mkdir(exist_ok=True)
-            with save_path.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('w') as fp:
+            SAVE_FOLDER.mkdir(exist_ok=True)
+            with SAVE_FOLDER.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('w') as fp:
                 json.dump(files, fp, indent=2)
 
         # Imports the raw data from the files and specifies column names
