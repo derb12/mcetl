@@ -175,6 +175,7 @@ class EmbeddedFigure:
         self.picked_object = None
         self.xaxis_limits = (0, 1)
         self.yaxis_limits = (0, 1)
+        self._cids = [] # references to connection ids for events
 
         if enable_events:
             # default events; can be edited/removed after initialization
@@ -493,17 +494,21 @@ def get_dpi_correction(dpi):
     return dpi_correction
 
 
-def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
+def determine_dpi(fig_height, fig_width, dpi, canvas_size=CANVAS_SIZE):
     """
     Gives the correct dpi to fit the figure within the GUI canvas.
 
     Parameters
     ----------
-    fig_kwargs : dict, optional
-        Keyword arguments for creating the figure. Relevant keys
-        are 'fig_width', 'fig_height', and 'dpi'.
+    fig_height : float
+        The figure height.
+    fig_width : float
+        The figure width.
+    dpi : float
+        The desired figure dpi.
     canvas_size : tuple(int, int), optional
         The size of the canvas that the figure will be placed on.
+        Defaults to CANVAS_SIZE.
 
     Returns
     -------
@@ -525,14 +530,6 @@ def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
     The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
 
     """
-
-    kwargs = fig_kwargs if fig_kwargs is not None else {}
-
-    dpi = float(kwargs.get('dpi', plt.rcParams['figure.dpi']))
-    fig_width = float(kwargs.get('fig_width',
-                                 plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi']))
-    fig_height = float(kwargs.get('fig_height',
-                                  plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi']))
 
     dpi_scale = get_dpi_correction(dpi)
     size_scale = min(canvas_size[0] / fig_width, canvas_size[1] / fig_height)

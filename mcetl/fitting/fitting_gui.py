@@ -61,8 +61,8 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
         self.figure, self.axis = plt.subplots(
             num='Fitting', tight_layout=True,
@@ -179,8 +179,8 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
         self.figure, (self.axis, residual_ax) = plt.subplots(
             2, sharex=True, num='Fit Results', tight_layout=True,
@@ -469,7 +469,7 @@ def _create_peak_fitting_gui(default_inputs):
             )
 
     all_models = sorted(f_utils._GUI_MODELS.keys())
-    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.PEAK_TRANSFORMS]
+    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting._PEAK_TRANSFORMS]
     auto_bkg_layout = [
         [sg.Text('Model'),
          sg.Combo(all_models, default_inputs['bkg_type'], key='bkg_type',
@@ -953,7 +953,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'integers': validations['peak_fitting']['integers'][:2],
     }
 
-    peak_models = peak_fitting.PEAK_TRANSFORMS
+    peak_models = peak_fitting._PEAK_TRANSFORMS
     voigt_models = [f_utils.get_gui_name(model) for model in ('VoigtModel', 'SkewedVoigtModel')]
 
     window, default_inputs = _create_fitting_gui(dataframe, user_inputs)

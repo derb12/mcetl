@@ -728,7 +728,11 @@ def _create_figure(fig_kwargs, saving=False):
     if saving:
         dpi = fig_kwargs['dpi']
     else:
-        dpi = plot_utils.determine_dpi(fig_kwargs)
+        dpi = plot_utils.determine_dpi(
+            fig_height=float(fig_kwargs['fig_height']),
+            fig_width=float(fig_kwargs['fig_width']),
+            dpi=float(fig_kwargs['dpi'])
+        )
 
     plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(

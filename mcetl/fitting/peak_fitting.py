@@ -7,15 +7,6 @@ background points.
 @author: Donald Erb
 Created on Sep 14, 2019
 
-Attributes
-----------
-PEAK_TRANSFORMS : dict(str, dict(str, Callable))
-    A dictionary containing the string of the model class as keys, and
-    a dictionary as the values. The internal dictionary contains parameters
-    names of the model, and the equations to estimate them using input heights
-    (max or min y), full-width-at-half-maximums, and peak mode (x-position at
-    max or min y).
-
 """
 
 
@@ -228,7 +219,7 @@ def _peak_transformer():
     return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
 
-PEAK_TRANSFORMS = _peak_transformer()
+_PEAK_TRANSFORMS = _peak_transformer()
 
 
 def _initialize_peak(x, y, model, peak_center, peak_height, peak_width):
@@ -393,7 +384,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         ax1.plot(x, y)
         ax2.plot(x, y, label='data')
 
-    models_dict = PEAK_TRANSFORMS
+    models_dict = _PEAK_TRANSFORMS
     for i, peak_center in enumerate(peak_centers):
         prefix = f'peak_{i + start_num + 1}_'
         peak_width = peak_widths[i]
@@ -1236,8 +1227,8 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         super().__init__(x, y, click_list)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
 
         self.figure, (self.axis, self.axis_2) = plt.subplots(
@@ -1450,8 +1441,8 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0], 'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
 
         self.figure, self.axis = plt.subplots(
@@ -1500,7 +1491,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                                         size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
-        models_dict = PEAK_TRANSFORMS
+        models_dict = _PEAK_TRANSFORMS
         display_models = [f_utils.get_gui_name(model) for model in models_dict.keys()]
         if f_utils.get_gui_name(peak_model) in display_models:
             initial_model = f_utils.get_gui_name(peak_model)
@@ -1581,7 +1572,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             # resets the color cycle to start at 0
             self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
 
-            models_dict = PEAK_TRANSFORMS
+            models_dict = _PEAK_TRANSFORMS
             y_tot = 0 * self.x
             for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[3])):
                 height = peak[1]
