@@ -15,9 +15,6 @@ Created on Jul 31, 2020
 """
 
 
-from .utils import excel_column_name
-
-
 class _FunctionBase:
     """
     Base class for all other Function classes.
@@ -72,7 +69,7 @@ class PreprocessFunction(_FunctionBase):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
     function : Callable
@@ -193,7 +190,7 @@ class CalculationFunction(_FunctionBase):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
     functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
@@ -213,16 +210,20 @@ class CalculationFunction(_FunctionBase):
         of the first row of data in Excel, eg 3). The function should output
         a list of lists of pd.DataFrames. The Excel columns and first row values
         are meant to ease the writing of formulas for Excel.
-    added_columns : int or str/list(str)/tuple(str)
+    added_columns : int or str or list(str) or tuple(str)
         The columns that will be acted upon by this object's functions. If
         the input is an integer, then it denotes that the functions act on
-        columns that are currently empty, with the number of columns affected
+        columns that need to be added, with the number of columns affected
         by the functions being equal to the input integer. If the input is a string
         or list/tuple of strings, it denotes that the functions will change the
         contents of an existing column(s), whose column names are the inputs.
-    function_kwargs : dict, optional
-        A dictionary of keywords and values to be passed to the function.
-        The default is None.
+    function_kwargs : dict or list(dict, dict), optional
+        A dictionary or a list of two dictionaries containing keyword arguments
+        to be passed to the functions. If a list of two dictionaries is given,
+        the first and second dictionaries will be the keyword arguments to pass
+        to the function for processing the data to write to Excel and the function
+        for processing the data to be used in python, respectively. The default is
+        None, which passes an empty dictionary to both functions.
 
     """
 
@@ -313,7 +314,7 @@ class SummaryFunction(CalculationFunction):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
     functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
@@ -333,18 +334,22 @@ class SummaryFunction(CalculationFunction):
         of the first row of data in Excel, eg 3). The function should output
         a list of lists of pd.DataFrames. The Excel columns and first row values
         are meant to ease the writing of formulas for Excel.
-    added_columns : int or str/list(str)/tuple(str)
+    added_columns : int or str or list(str) or tuple(str)
         The columns that will be acted upon by this object's functions. If
         the input is an integer, then it denotes that the functions act on
-        columns that are currently empty, with the number of columns affected
+        columns that need to be added, with the number of columns affected
         by the functions being equal to the input integer. If the input is a string
         or list/tuple of strings, it denotes that the functions will change the
         contents of an existing column(s), whose column names are the inputs. Further,
         SummaryFunctions can only modify other SummaryFunction columns with matching
         sample_summary attributes.
-    function_kwargs : dict, optional
-        A dictionary of keywords and values to be passed to the function.
-        The default is None.
+    function_kwargs : dict or list(dict, dict), optional
+        A dictionary or a list of two dictionaries containing keyword arguments
+        to be passed to the functions. If a list of two dictionaries is given,
+        the first and second dictionaries will be the keyword arguments to pass
+        to the function for processing the data to write to Excel and the function
+        for processing the data to be used in python, respectively. The default is
+        None, which passes an empty dictionary to both functions.
     sample_summary : bool, optional
         If True (default), denotes that the SummaryFunction summarizes a sample;
         if False, denotes that the SummaryFunction summarizes a dataset.

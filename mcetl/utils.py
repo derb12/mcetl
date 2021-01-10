@@ -892,7 +892,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     if file is not None:
         disable_bottom = False
 
-        if not Path(file).suffix in excel_formats:
+        if Path(file).suffix not in excel_formats:
             disable_other = False
         else:
             disable_excel = False
@@ -1404,7 +1404,7 @@ def open_multiple_files():
         if event == sg.WIN_CLOSED:
             safely_close_window(window)
 
-        elif any(event.startswith(key) for key in ('listbox_', 'add_files_', 'remove_files_')):
+        elif event.startswith(('listbox_', 'add_files_', 'remove_files_')):
             _manual_file_partial_event_loop(window, event, file_types)
 
         elif event == 'Next':
