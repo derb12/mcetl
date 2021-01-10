@@ -129,31 +129,27 @@ def excel_column_name(index):
 
     Notes
     -----
-    Caches the result so that any repeated index lookups are faster.
+    Caches the result so that any repeated index lookups are faster,
+    and uses recursion to make better usage of the cache.
 
-    Function adapted from similar functions in openpyxl and xlsxwriter.
+    chr(64 + remainder) converts the remainder to a character, where
+    64 denotes ord('A') - 1, so if remainder = 1, chr(65) = 'A'.
 
     """
 
     if not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
         raise ValueError(f'Column index {index} must be between 1 and 18278.')
 
-    col_num = index
-    col_letters = [] # appending to list faster than appending to str
-    while col_num > 0:
-        # ensure remainder is between 1 and 26
-        col_num, remainder = divmod(col_num, 26)
-        if remainder == 0:
-            remainder = 26
-            col_num -= 1
+    col_num, remainder = divmod(index, 26)
+    # ensure remainder is between 1 and 26
+    if remainder == 0:
+        remainder = 26
+        col_num -= 1
 
-        # convert the remainder to a character;
-        # 64 denotes ord('A') - 1, so if remainder = 1, chr(65) = 'A'
-        col_letters.append(chr(64 + remainder))
-
-    col_name = ''.join(reversed(col_letters))
-
-    return col_name
+    if col_num > 0:
+        return excel_column_name(col_num) + chr(64 + remainder)
+    else:
+        return chr(64 + remainder)
 
 
 def get_min_size(default_size, scale, dimension='both'):
