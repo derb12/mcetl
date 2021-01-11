@@ -587,7 +587,6 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'x_min': '-inf',
         'x_max': 'inf',
         'min_method': 'least_squares',
-        'show_plots': False,
         'batch_fit': False,
         'peak_list': [],
         'prominence': 'inf',
@@ -657,8 +656,6 @@ def _create_fitting_gui(dataframe, user_inputs=None):
             [sg.Column(column_layout, scrollable=True,
                        vertical_scroll_only=True, size=(700, 500))]
             ])],
-        [sg.Check('Show Plots After Fitting', default_inputs['show_plots'],
-                    key='show_plots')],
         [sg.Check('Batch Fit', default_inputs['batch_fit'], key='batch_fit')],
         [sg.Check('Confirm Fit Results', default_inputs['confirm_results'],
                     key='confirm_results')],
@@ -685,19 +682,35 @@ def _create_fitting_gui(dataframe, user_inputs=None):
 
 def _process_fitting_kwargs(dataframe, values):
     """
-    [summary]
+    Processes the values from the fitting GUI to fit data and output the results.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    values : [type]
-        [description]
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    values : dict
+        A dictionary of values determining the processing steps from the fitting GUI.
 
     Returns
     -------
-    [type]
-        [description]
+    fit_result : lmfit.model.ModelResult or None
+        A lmfit.ModelResult object, which gives information for the fit
+        done on the dataset. Is None if fitting was skipped.
+    peaks_df : pd.DataFrame or None
+        The dataframe containing the x and y data, the y data
+        for every individual peak, the summed y data of all peaks,
+        and the background, if present. Is None if fitting was skipped.
+    params_df : pd.DataFrame or None
+        The dataframe containing the value and standard error
+        associated with all of the parameters in the fitting
+        (eg. coefficients for the baseline, areas and sigmas for each peak).
+        Is None if fitting was skipped.
+    descriptors_df : pd.DataFrame or None
+        The dataframe which contains some additional information about the
+        fitting. Currently has the adjusted r squared, reduced chi squared,
+        the Akaike information criteria, the Bayesian information criteria,
+        and the minimization method used for fitting. Is None if fitting was
+        skipped.
 
     """
 
@@ -751,14 +764,15 @@ def _process_fitting_kwargs(dataframe, values):
         vary_voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
     )
 
-    fit_result = fitting_results['fit_results']
-    individual_models = fitting_results['individual_peaks']
-    best_values = fitting_results['best_values']
+    # only take the last fit from the list
+    fit_result = fitting_results['fit_results'][-1]
+    individual_models = fitting_results['individual_peaks'][-1]
+    best_values = fitting_results['best_values'][-1]
 
     # Creation of dataframe for best values of all peak parameters
     vals = defaultdict(dict)
     std_err = defaultdict(dict)
-    for term in best_values[-1]:
+    for term in best_values:
         if 'peak' in term[0]:
             key = ' '.join(term[0].split('_')[:2])
             param_key = '_'.join(term[0].split('_')[2:])
@@ -776,40 +790,53 @@ def _process_fitting_kwargs(dataframe, values):
         df_1[f'{name}_sterr'] = std_err_df[name]
     df_1 = df_1.fillna('-')
 
-    model_names = [component.__class__.__name__ for component in fit_result[-1].components]
+    model_names = [component.__class__.__name__ for component in fit_result.components]
     df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
     params_df = pd.concat([df_0, df_1], axis=1)
 
     # Creation of dataframe for raw data and peak values
-    peaks_df = pd.DataFrame({x_label: fit_result[-1].userkws['x'],
-                             y_label: fit_result[-1].data})
+    # Raw data
+    peaks_data = [pd.DataFrame({
+        x_label: dataframe.iloc[:, values['x_fit_index']],
+        y_label: dataframe.iloc[:, values['y_fit_index']]
+    })]
+    # Data used for fitting
+    peaks_data.extend([
+        pd.DataFrame({x_label: fit_result.userkws['x']}),
+        pd.DataFrame({y_label: fit_result.data})
+    ])
 
     bkg_term = ' + background' if subtract_bkg else ''
-    bkg = individual_models[-1]['background_'] if subtract_bkg else 0
-    for term in individual_models[-1]:
+    bkg = individual_models['background_'] if subtract_bkg else 0
+    for term, value in individual_models.items():
         if 'peak' in term:
             key = ' '.join(term.split('_')[:2]) + bkg_term
-            peaks_df[key] = individual_models[-1][term] + bkg
+            data = value + bkg
         else:
             key = term.split('_')[0]
-            peaks_df[key] = individual_models[-1][term]
-    peaks_df['total fit'] = fit_result[-1].best_fit
+            data = value
+        peaks_data.append(pd.DataFrame({key: data}))
+    peaks_data.append(pd.DataFrame({'total fit': fit_result.best_fit}))
+
+    # use concat with DataFrames to ensure that the sizing is correct
+    # even if the sizes of individual components do not match
+    peaks_df = pd.concat(peaks_data, axis=1)#pd.DataFrame(peaks_data)
 
     # Creation of dataframe for descriptions of the fitting
-    r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result[-1])
+    r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result)
     # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
     # set to 1; same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
-        [fit_result[-1].success, r_sq, adj_r_sq, fit_result[-1].chisqr,
-         fit_result[-1].redchi, fit_result[-1].aic, fit_result[-1].bic, min_method,
-         fit_result[-1].data.size, fit_result[-1].nvarys,
-         fit_result[-1].data.size - fit_result[-1].nvarys],
+        [fit_result.success, r_sq, adj_r_sq, fit_result.chisqr,
+         fit_result.redchi, fit_result.aic, fit_result.bic, min_method,
+         fit_result.data.size, fit_result.nvarys,
+         fit_result.data.size - fit_result.nvarys],
         index=['Fit converged', 'R\u00B2', 'adjusted R\u00B2', '\u03c7\u00B2',
                'reduced \u03c7\u00B2', 'A.I.C.', 'B.I.C.', 'Minimization method',
                'Data points', 'Independant variables', 'Degrees of freedom']
     )
 
-    return individual_models, fit_result, peaks_df, params_df, descriptors_df
+    return fit_result, peaks_df, params_df, descriptors_df
 
 
 def fit_dataframe(dataframe, user_inputs=None):
@@ -825,9 +852,9 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     Returns
     -------
-    fit_result : list or None
-        A list of lmfit.ModelResult objects, which give information for each
-        of the fits done on the dataset. Is None if fitting was skipped.
+    fit_result : lmfit.model.ModelResult or None
+        A lmfit.ModelResult object, which gives information for the fit
+        done on the dataset. Is None if fitting was skipped.
     peaks_df : pd.DataFrame or None
         The dataframe containing the x and y data, the y data
         for every individual peak, the summed y data of all peaks,
@@ -855,26 +882,20 @@ def fit_dataframe(dataframe, user_inputs=None):
     else:
         gui_values = _fitting_gui_event_loop(dataframe, user_inputs)
 
-    fit_results = (None, None, None, None)
+    fit_result = peaks_df = params_df = descriptors_df = None
     while gui_values is not None:
         try:
-            individual_models, *fit_results = _process_fitting_kwargs(dataframe, gui_values)
-        except:
+            fit_result, peaks_df, params_df, descriptors_df = _process_fitting_kwargs(dataframe, gui_values)
+        except Exception:
             sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
-            if gui_values['confirm_results'] and not ResultsPlot(fit_results[0][-1]).event_loop():
+            if gui_values['confirm_results'] and not ResultsPlot(fit_result).event_loop():
                 gui_values = _fitting_gui_event_loop(dataframe, gui_values)
             else:
                 break
 
-    if gui_values is not None and gui_values['show_plots']:
-        peak_fitting.plot_fit_results(fit_results[0], True, True)
-        peak_fitting.plot_individual_peaks(fit_results[0][-1], individual_models[-1],
-                                           gui_values['subtract_bkg'], plot_w_background=True)
-        plt.pause(0.01)
-
-    return (*fit_results, gui_values)
+    return fit_result, peaks_df, params_df, descriptors_df, gui_values
 
 
 def _fitting_gui_event_loop(dataframe, user_inputs):
@@ -975,9 +996,18 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 break
 
         elif event == 'Reset to Default':
-            window.fill(default_inputs)
-            peak_list = []
-            bkg_points = []
+            reset = sg.popup_yes_no(
+                        'All values will be returned to their default.\n\nProceed?\n',
+                        title='Reset to Defaults'
+                    )
+            if reset == 'Yes':
+                defaults = {
+                    key: vals for key, vals in default_inputs.items()
+                    if key not in {'selected_peaks', 'selected_bkg', 'bkg_tabs', 'tab'}
+                }
+                window.fill(defaults)
+                peak_list = []
+                bkg_points = []
 
         elif (event == 'Test Plot'
                 and utils.validate_inputs(values, **validations['plotting'])):
@@ -1263,7 +1293,10 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
     cell = worksheet.cell(row=2, column=3, value='Fit Data')
     setattr(cell, *style_cache['fitting_header_even'])
-    worksheet.merge_cells(start_row=2, start_column=3, end_row=2,
+    worksheet.merge_cells(start_row=2, start_column=3, end_row=2, end_column=4)
+    cell = worksheet.cell(row=2, column=5, value='Fit Output')
+    setattr(cell, *style_cache['fitting_header_odd'])
+    worksheet.merge_cells(start_row=2, start_column=5, end_row=2,
                           end_column=len(peaks_dataframe.columns))
 
     # Formatting for peaks_dataframe
@@ -1346,12 +1379,13 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             for axis_attribute, value in attribute.items():
                 setattr(getattr(chart, axis), axis_attribute, value)
 
-        for i, peak_name in enumerate(peaks_dataframe.columns[1:], 2):
-            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i != 2 else 'raw data'
+        # plot everything but the raw data
+        for i, peak_name in enumerate(peaks_dataframe.columns[3:], 4):
+            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i != 4 else 'fit data'
             chart.append(
                 Series(
                     Reference(worksheet, i, 4, i, len(peaks_dataframe) + 3),
-                    xvalues=Reference(worksheet, 1, 4, 1, len(peaks_dataframe) + 3),
+                    xvalues=Reference(worksheet, 3, 4, 3, len(peaks_dataframe) + 3),
                     title=legend_name
                 )
             )
@@ -1398,8 +1432,8 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
     Returns
     -------
-    fit_results : list
-        A list of lists of lmfit.ModelResult objects, which give information
+    fit_results : list(lmfit.models.ModelResult)
+        A list of lmfit.ModelResult objects, which give information
         for each of the fits done on the dataframes.
     gui_values : dict, optional
         A dictionary containing the default gui values to pass to fit_dataframe.

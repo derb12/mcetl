@@ -944,10 +944,10 @@ def _fit_data(datasets, data_source, labels,
 
     Returns
     -------
-    results : list
-        A nested list of lists of lists, one entry for each entry in each sample
-        in each dataset in datasets. If fitting was not done for the entry,
-        the value will be None.
+    results : list(list(list(lmfit.models.ModelResult or None)))
+        A nested list of lists of lists of lmfit.ModelResults, one for each
+        entry in each sample in each dataset in datasets. If fitting was not
+        done for the entry, the value will be None.
 
     Raises
     ------
@@ -1152,11 +1152,11 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 was moving files.
             fit_results : list or None
                 A nested list of lists of lmfit ModelResult objects, with each
-                ModelResult pertaining to a single fitting, each list of
-                ModelResults containing all of the fits for a single dataset,
-                and east list of lists pertaining the data within one processed
-                dataframe; will be None if fitting is not done,  or only
-                partially filled if the fitting process ends early.
+                ModelResult pertaining to the fitting of a data entry, each list of
+                ModelResults containing all of the fits for a single sample,
+                and east list of lists pertaining to the data within one dataset.
+                Will be None if fitting is not done, or only partially filled
+                if the fitting process ends early.
             plot_results : list or None
                 A list of lists, with one entry per dataset. Each interior
                 list is composed of a matplotlib.Figure object and a
