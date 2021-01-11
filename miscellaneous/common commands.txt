@@ -6,14 +6,16 @@ where [version] is major if moving from 1.0.0 to 2.0.0, minor if moving from 1.0
 To create local documentation:
 1)	Navigate to docs folder (mcetl/docs)
 2)	make [target]
-where [target] could be any valid Sphinx build option, such as clean (which cleans
-the _build folder), html, latex, etc.
+where [target] could be any valid Sphinx build option, such as clean (which cleans the _build folder), html, latex, etc.
 
-To output the git changes for the development branch to a file, using custom python program:
+To output the git commits to a file to create a new changelog entry, using custom python program:
 1)	Navigate to the project folder (mcetl)
 2)	python miscellaneous/parse_gitlog.py  --start-date=[date] 
 where [date] is the date of the last released version, input as "2020-11-08", "11-08", or "8".
-Other options can be included: --branch=main --log-file=git_log.txt --delete-log=False
+Other options can be included: --branch=main --log-file=git_log.txt --keep-log
+Use:
+	python miscellaneous/parse_gitlog.py -h
+to get help for its usage.
 
 To output the git changes for the development branch to a file, using git:
 1)	Navigate to the project folder (mcetl)
