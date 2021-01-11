@@ -511,6 +511,11 @@ def show_dataframes(dataframes, title='Raw Data'):
 
     """
 
+    original_setting = sg.ENABLE_TREEVIEW_869_PATCH
+    # set sg.ENABLE_TREEVIEW_869_PATCH to False because it prints out each
+    # time the window is made; will restore value after creating window
+    sg.set_options(enable_treeview_869_patch=False)
+
     try:
         if isinstance(dataframes, pd.DataFrame):
             single_file = True
@@ -569,11 +574,13 @@ def show_dataframes(dataframes, title='Raw Data'):
                                  tab_background_color=sg.theme_background_color())]
                 ]
 
-        window = sg.Window(title, layout, resizable=True)
+        window = sg.Window(title, layout, resizable=True, finalize=True)
 
     except Exception as e: #TODO do I still need this try-except block?
         sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
         window = None
+
+    sg.set_options(enable_treeview_869_patch=original_setting)
 
     return window
 
@@ -781,32 +788,22 @@ def raw_data_import(window_values, file, show_popup=True):
                 dataframes[i] = optimize_memory(dataframe)
 
         else:
-            window_1_open = False
             if Path(file).suffix in excel_formats and len(dataframes) > 1:
-                window_1_open = True
-                window_1 = show_dataframes(total_dataframe, 'Total Raw Data')
                 window_0 = show_dataframes(dataframes, 'Imported Datasets')
+                window_1 = show_dataframes(total_dataframe, 'Total Raw Data')
             else:
                 window_0 = show_dataframes(dataframes[0], 'Imported Dataset')
+                window_1 = None
 
-            if window_0:
-                window_0_open = True
-                while window_0_open or window_1_open: #TODO use sg.read_windows once pysimplegui is updated rather than using read(100)
+            while any((window_0, window_1)):
+                window = sg.read_all_windows()[0]
+                if window is window_0:
+                    window_0.close()
+                    window_0 = None
+                else:
+                    window_1.close()
+                    window_1 = None
 
-                    if window_1_open:
-                        event_1 = window_1.read(100)[0]
-                        if event_1 == sg.WIN_CLOSED:
-                            window_1.close()
-                            window_1_open = False
-
-                    event_0 = window_0.read(100)[0]
-                    if event_0 == sg.WIN_CLOSED:
-                        window_0.close()
-                        window_0_open = False
-
-            del window_0
-            if Path(file).suffix in excel_formats and len(dataframes) > 1:
-                del window_1
             dataframes = None # to clean up memory, dataframe is not needed
 
         return dataframes
@@ -907,8 +904,21 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     disable_bottom = True
     dataframes = None # TODO wil be passed to raw_data_import to prevent opening excel files multiple times
 
-    if file is not None:
+    if file is None:
+        file_types = [('All Files', '*.*'), ('CSV', '*.csv'),
+                      ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
+                      ('Excel Macro-Enabled Workbook', '*.xlsm')]
+        if _HAS_XLRD:
+            file_types.append(('Excel 97-2003 Workbook', '*.xls'))
+
+        file_element = [
+            sg.Input('Choose a file', key='file', size=(26, 1), disabled=True),
+            sg.Input('', key='new_file', enable_events=True, visible=False),
+            sg.FileBrowse(key='file_browse', target='new_file', file_types=file_types)
+        ]
+    else:
         disable_bottom = False
+        file_element = [sg.Text(textwrap.fill(f'File:{file}', 40, subsequent_indent='     '))]
 
         if Path(file).suffix not in excel_formats:
             disable_other = False
@@ -958,6 +968,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         })
 
     layout = [
+        file_element,
         [
             sg.TabGroup([
                 [sg.Tab(
@@ -996,7 +1007,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                                 disabled=disable_excel, enable_events=True)],
                     ], key='EXCEL_TAB', background_color=sg.theme_background_color()
                 )]
-            ], tab_background_color=sg.theme_background_color()),
+            ], key='-selected_tab-', tab_background_color=sg.theme_background_color()),
         ],
                 [sg.Text('Columns to import,\n separated by commas',
                         tooltip='Starts at 0'),
@@ -1014,19 +1025,6 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                         tooltip='Counts up from bottom. Starts at 0')]
     ]
 
-    if file is None:
-        file_types = [('All Files', '*.*'), ('CSV', '*.csv'),
-                      ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
-                      ('Excel Macro-Enabled Workbook', '*.xlsm')]
-        if _HAS_XLRD:
-            file_types.append(('Excel 97-2003 Workbook', '*.xls'))
-
-        layout.insert(
-            0,
-            [sg.Input('Choose a file', key='file', size=(26, 1), disabled=True),
-             sg.Input('', key='new_file', enable_events=True, visible=False),
-             sg.FileBrowse(key='file_browse', target='new_file', file_types=file_types)]
-        )
     if assign_column_indices:
         variable_elements = []
         for variable, index in default_inputs['variable_indices'].items():
@@ -1249,7 +1247,10 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
             elif validate_inputs(values, **validations):
                 if event == 'Test Import':
                     test_file = file if file is not None else values['file']
+                    window.disable()#window.hide()
                     raw_data_import(values, test_file)
+                    window.enable()#window.un_hide()
+                    window.force_focus()
                 else:
                     break
 
