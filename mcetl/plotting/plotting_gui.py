@@ -57,15 +57,6 @@ import PySimpleGUI as sg
 
 from .. import plot_utils, utils
 
-# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
-try:
-    import PIL
-except ImportError:
-    _HAS_PIL = False
-else:
-    _HAS_PIL = True
-    del PIL
-
 
 COLORS = (
     'None', 'Black', 'Blue', 'Red', 'Green', 'Chocolate',
@@ -93,6 +84,8 @@ TIGHT_LAYOUT_W_PAD = 0.6
 
 # column name for the blank columns inserted between data entries when saving data to csv
 _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
+# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
+_HAS_PIL = utils.check_availability('PIL')
 # the default figure name used by matplotlib
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information

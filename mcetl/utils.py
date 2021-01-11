@@ -19,6 +19,7 @@ PROCEED_COLOR : tuple(str, str)
 """
 
 
+import importlib
 import functools
 import operator
 from pathlib import Path
@@ -29,17 +30,38 @@ import pandas as pd
 import PySimpleGUI as sg
 
 
-# determine if .xls files can be read
-try:
-    import xlrd
-except ImportError:
-    _HAS_XLRD = False
-else:
-    _HAS_XLRD = True
-    del xlrd
-
-
 PROCEED_COLOR = ('white', '#00A949')
+
+
+def check_availability(module):
+    """
+    Checks whether an optional dependency is available to import.
+
+    Does not check the module version since it is assumed that the
+    parent module will do a version check if the module is actually
+    usable.
+
+    Parameters
+    ----------
+    module : str
+        The name of the module.
+
+    Returns
+    -------
+    bool
+        True if the module can be imported, False if it cannot.
+
+    Notes
+    -----
+    It is faster to use importlib to check the availability of the
+    module rather than doing a try-except block to try and import
+    the module, since importlib does not actually import the module.
+
+    """
+    return importlib.util.find_spec(module) is not None
+
+
+_HAS_XLRD = check_availability('xlrd')
 
 
 class WindowCloseError(Exception):
