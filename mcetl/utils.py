@@ -603,7 +603,7 @@ def optimize_memory(dataframe, convert_objects=False):
 
     Returns
     -------
-    optimized_df : pd.DataFrame
+    dataframe : pd.DataFrame
         The memory-optimized dataframe.
 
     Notes
@@ -615,38 +615,33 @@ def optimize_memory(dataframe, convert_objects=False):
     uses each series's series.values.tolist() method to convert the dataframe
     into a generator of rows, so having a StringArray row without a tolist
     method causes an exception when using openpyxl's dataframe_to_rows.
-    This could be alleviated by using dataframe.to_excel to write to
-    Excel directly rather than using dataframe_to_rows, but using the
-    dataframe_to_rows offers a significant speed increase (using openpyxl's
-    method results in a speed increae of ~ 30% since the cells are only
-    iterated over once. If using dataframe.to_excel and then formatting,
-    it requires iterating over all cells twice). I would rather have a
-    speed increase with the downside of more memory usage. The dtypes can
-    be still converted to string after writing to Excel, though.
+
+    When downcasting the float and integer columns, do one at a time rather
+    than using df[columns].apply(to_numeric, ...) so that each column is overwritten
+    immediately, rather than making a copy of all the selected columns, reducing
+    memory usage.
 
     """
 
-    optimized_df = dataframe.copy()
+    # ensure all column names are unique
+    original_columns = dataframe.columns.tolist()
+    dataframe.columns = range(len(original_columns))
 
     if convert_objects and int(pd.__version__.split('.')[0]) > 0:
         # attempts to convert object columns to other dtypes
         objects = dataframe.select_dtypes(['object'])
         if len(objects.columns) > 0:
-            optimized_df[objects.columns] = objects.convert_dtypes(convert_integer=False)
+            dataframe[objects.columns] = objects.convert_dtypes(convert_integer=False)
 
-    ints = dataframe.select_dtypes(include=['int'])
-    if len(ints.columns) > 0:
-        optimized_df[ints.columns] = ints.apply(
-            pd.to_numeric, downcast='integer', errors='ignore'
-        )
+    for column in dataframe.select_dtypes(include=['int', 'int64']).columns:
+        dataframe[column] = pd.to_numeric(dataframe[column], downcast='integer', errors='ignore')
 
-    floats = dataframe.select_dtypes(include=['float'])
-    if len(floats.columns) > 0:
-        optimized_df[floats.columns] = floats.apply(
-            pd.to_numeric, downcast='float', errors='ignore'
-        )
+    for column in dataframe.select_dtypes(include=['float', 'float64']).columns:
+        dataframe[column] = pd.to_numeric(dataframe[column], downcast='float', errors='ignore')
 
-    return optimized_df
+    dataframe.columns = original_columns
+
+    return dataframe
 
 
 def series_to_numpy(series, dtype=float):
@@ -918,7 +913,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         ]
     else:
         disable_bottom = False
-        file_element = [sg.Text(textwrap.fill(f'File:{file}', 40, subsequent_indent='     '))]
+        file_element = [sg.Text(textwrap.fill(f'File::{file}', 40, subsequent_indent='  '))]
 
         if Path(file).suffix not in excel_formats:
             disable_other = False
