@@ -465,7 +465,7 @@ def _create_peak_fitting_gui(default_inputs):
                      sg.Combo(values[1], default_inputs[f'bkg_kwarg_{model}'],
                               key=f'bkg_kwarg_{model}', readonly=True)]
                 ], pad=(0, 0), key=f'bkg_col_{model}',
-                visible=default_inputs['bkg_type'] == model)
+                visible=f_utils.get_model_name(default_inputs['bkg_type']) == model)
             )
 
     all_models = sorted(f_utils._GUI_MODELS.keys())

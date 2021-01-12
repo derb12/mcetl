@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Provides utility functions, classes, and constants for plotting.
 
-Useful functions are put here in order to prevent circular importing
-within the other files.
+Separated from utils.py to reduce import load time since matplotlib imports
+are not needed for base usage. Useful functions are put here in order to
+prevent circular importing within the other files.
 
 @author: Donald Erb
 Created on Nov 11, 2020
