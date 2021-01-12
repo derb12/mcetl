@@ -616,29 +616,35 @@ def optimize_memory(dataframe, convert_objects=False):
     into a generator of rows, so having a StringArray row without a tolist
     method causes an exception when using openpyxl's dataframe_to_rows.
 
-    When downcasting the float and integer columns, do one at a time rather
-    than using df[columns].apply(to_numeric, ...) so that each column is overwritten
-    immediately, rather than making a copy of all the selected columns, reducing
-    memory usage.
+    Do not convert object dtypes to pandas's Int and Float dtypes since
+    they do not mesh well with other modules.
+
+    Iterate through columns one at a time rather using dataframe.select_dtypes
+    so that each column is overwritten immediately, rather than making a copy
+    of all the selected columns, reducing memory usage.
 
     """
 
     # ensure all column names are unique
-    original_columns = dataframe.columns.tolist()
-    dataframe.columns = range(len(original_columns))
+    original_columns = dataframe.columns
+    dataframe.columns = range(original_columns.shape[0])
 
-    if convert_objects and int(pd.__version__.split('.')[0]) > 0:
-        # attempts to convert object columns to other dtypes
-        objects = dataframe.select_dtypes(['object'])
-        if len(objects.columns) > 0:
-            dataframe[objects.columns] = objects.convert_dtypes(convert_integer=False)
+    if convert_objects and int(pd.__version__.split('.')[0]):
+        convert_object_dtype = True
+        conversion_kwargs = {'convert_integer': False}
+        # 'convert_floats' was added as a kwarg in pandas v1.2.0
+        if int(''.join(pd.__version__.split('.')[:2])) > 12:
+            conversion_kwargs = {'convert_floats': False}
+    else:
+        convert_object_dtype = False
 
-    for column in dataframe.select_dtypes(include=['int', 'int64']).columns:
-        dataframe[column] = pd.to_numeric(dataframe[column], downcast='integer', errors='ignore')
-
-    for column in dataframe.select_dtypes(include=['float', 'float64']).columns:
-        dataframe[column] = pd.to_numeric(dataframe[column], downcast='float', errors='ignore')
-
+    for column, dtype in enumerate(dataframe.dtypes):
+        if dtype in ('int', 'int64'):
+            dataframe[column] = pd.to_numeric(dataframe[column], downcast='integer', errors='ignore')
+        elif dtype in ('float', 'float64'):
+            dataframe[column] = pd.to_numeric(dataframe[column], downcast='float', errors='ignore')
+        elif convert_object_dtype and dtype == 'object':
+            dataframe[column] = dataframe[column].convert_dtypes(**conversion_kwargs)
     dataframe.columns = original_columns
 
     return dataframe
