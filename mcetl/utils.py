@@ -448,7 +448,7 @@ def validate_inputs(window_values, integers=None, floats=None,
                         and operators[upper_key](value, upper_bound)):
                     sg.popup(
                         (f'"{entry[1]}" must be {lower_key} {lower_bound} and '
-                        f'{upper_key} {upper_bound}.\n'),
+                         f'{upper_key} {upper_bound}.\n'),
                         title='Error'
                     )
                     return False
@@ -682,6 +682,7 @@ def series_to_numpy(series, dtype=float):
 
     """
 
+    # na_value added as a kwarg in pandas v1.0.0
     if int(pd.__version__.split('.')[0]) > 0:
         kwargs = {'na_value': np.nan if dtype == float else None}
     else:
@@ -719,26 +720,37 @@ def raw_data_import(window_values, file, show_popup=True):
     window_values : dict
         A dictionary with keys 'row_start', 'row_end', columns', 'separator',
         and optionally 'sheet'.
-    file : str:
-        A string containing the path to the file to be imported.
+    file : str or pathlib.Path or pd.ExcelFile
+        A string or Path for the file to be imported, or a pandas ExcelFile,
+        to use for reading spreadsheet data.
     show_popup : bool
         If True, will display a popup window showing a table of the data.
 
     Returns
     -------
-    dataframes : list or None
+    dataframes : list(pd.DataFrame) or None
         A list of dataframes containing the data after importing if show_popup
         is False, otherwise returns None.
 
     Notes
     -----
+    If using a spreadsheet format ('xls', 'xlsx', 'odf', etc.), allows using
+    any of the available engines pandas.read_excel, and will just let pandas
+    notify the user if the proper engine is not installed.
+
     Optimizes the memory usage of the imported data before returning.
 
     """
 
-    excel_formats = ['.xlsx', '.xlsm']
-    if _HAS_XLRD:
-        excel_formats.append('.xls')
+    excel_formats = {
+        '.xls': 'xlrd',
+        '.xlsx': 'openpyxl',
+        '.xlsm': 'openpyxl',
+        '.xlsb': 'pyxlsb',
+        '.odf': 'odf',
+        '.ods': 'odf',
+        '.odt': 'odf'
+    }
 
     try:
         row_start = window_values['row_start']
@@ -749,17 +761,25 @@ def raw_data_import(window_values, file, show_popup=True):
         else:
             separator = None
 
-        if Path(file).suffix in excel_formats:
+        total_dataframe = None
+        if isinstance(file, pd.ExcelFile) or Path(file).suffix.lower() in excel_formats:
             first_col = int(window_values['first_col'].split(' ')[-1])
             last_col = int(window_values['last_col'].split(' ')[-1]) + 1
             columns = list(range(first_col, last_col))
             repeat_unit = window_values['repeat_unit']
 
-            total_dataframe = pd.read_excel(
-                file, sheet_name=window_values['sheet'], header=None,
-                skiprows=row_start, skipfooter=row_end, convert_float=not show_popup,
-                usecols=columns, engine=None if _HAS_XLRD else 'openpyxl'
+            excel_kwargs = dict(
+                sheet_name=window_values['sheet'],
+                header=None,
+                skiprows=row_start,
+                skipfooter=row_end,
+                convert_float=not show_popup,
+                usecols=columns
             )
+            if not isinstance(file, pd.ExcelFile):
+                excel_kwargs['engine'] = excel_formats[Path(file).suffix.lower()]
+
+            total_dataframe = pd.read_excel(file, **excel_kwargs)
 
             column_indices = [num + first_col for num in column_numbers]
             dataframes = []
@@ -768,6 +788,7 @@ def raw_data_import(window_values, file, show_popup=True):
                 dataframes.append(total_dataframe[indices])
 
         elif window_values['fixed_width_file']:
+            # NOTE:delimeter is the proper key for read_fwf, sep is not used
             dataframes = [
                 pd.read_fwf(
                     file, skiprows=row_start, skipfooter=row_end, header=None,
@@ -784,12 +805,13 @@ def raw_data_import(window_values, file, show_popup=True):
             ]
 
         if not show_popup:
+            total_dataframe = None # so that the dataframes are not copies of total_dataframe
             for i, dataframe in enumerate(dataframes):
                 dataframe.columns = list(range(len(dataframe.columns)))
                 dataframes[i] = optimize_memory(dataframe)
 
         else:
-            if Path(file).suffix in excel_formats and len(dataframes) > 1:
+            if total_dataframe is not None and len(dataframes) > 1:
                 window_0 = show_dataframes(dataframes, 'Imported Datasets')
                 window_1 = show_dataframes(total_dataframe, 'Total Raw Data')
             else:
@@ -801,11 +823,13 @@ def raw_data_import(window_values, file, show_popup=True):
                 if window is window_0:
                     window_0.close()
                     window_0 = None
-                else:
+                elif window is window_1:
                     window_1.close()
                     window_1 = None
 
-            dataframes = None # to clean up memory, dataframe is not needed
+            # to clean up memory, dataframes are not needed
+            dataframes = None
+            total_dataframe = None
 
         return dataframes
 
@@ -838,11 +862,26 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         A dictionary containing the items necessary for importing data from
         the selected file.
 
+    Notes
+    -----
+    If using a spreadsheet format ('xls', 'xlsx', 'odf', etc.), allows using
+    any of the available engines pandas.read_excel, and will just let pandas
+    notify the user if the proper engine is not installed. The file selection
+    window, however, will only show 'xlsx', 'xlsm', 'csv', 'txt', and potentially
+    'xls', so that users are not steered towards selecting a format that does
+    not work with the default mcetl libraries.
+
     """
 
-    excel_formats = ['.xlsx', '.xlsm']
-    if _HAS_XLRD:
-        excel_formats.append('.xls')
+    excel_formats = {
+        '.xls': 'xlrd',
+        '.xlsx': 'openpyxl',
+        '.xlsm': 'openpyxl',
+        '.xlsb': 'pyxlsb',
+        '.odf': 'odf',
+        '.ods': 'odf',
+        '.odt': 'odf'
+    }
 
     if data_source is None or not data_source.unique_variables:
         assign_column_indices = False
@@ -886,8 +925,12 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         for key in unwanted_keys:
             previous_inputs.pop(key, None)
 
-        previous_inputs['columns'] = ', '.join(str(num) for num in previous_inputs.get('columns', [0, 1]))
-        previous_inputs['fixed_width_columns'] = ', '.join(str(num) for num in previous_inputs.get('fixed_width_columns', []))
+        previous_inputs['columns'] = (
+            ', '.join(str(num) for num in previous_inputs.get('columns', [0, 1]))
+        )
+        previous_inputs['fixed_width_columns'] = (
+            ', '.join(str(num) for num in previous_inputs.get('fixed_width_columns', []))
+        )
         default_inputs.update(previous_inputs)
 
     validations = {
@@ -903,7 +946,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     disable_excel = True
     disable_other = True
     disable_bottom = True
-    dataframes = None # TODO wil be passed to raw_data_import to prevent opening excel files multiple times
+    excel_file = None #TODO need to make sure to close excel_file, even if there is an exception
 
     if file is None:
         file_types = [('All Files', '*.*'), ('CSV', '*.csv'),
@@ -921,34 +964,33 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         disable_bottom = False
         file_element = [sg.Text(textwrap.fill(f'File::{file}', 40, subsequent_indent='  '))]
 
-        if Path(file).suffix not in excel_formats:
+        if Path(file).suffix.lower() not in excel_formats:
             disable_other = False
         else:
             disable_excel = False
-            dataframes = pd.read_excel(
-                file, sheet_name=None, header=None, convert_float=False,
-                engine=None if _HAS_XLRD else 'openpyxl'
-            )
-
-            sheet_names = list(dataframes.keys())
-            sheet_0_len = len(dataframes[sheet_names[0]].columns)
+            excel_file = pd.ExcelFile(file, engine=excel_formats[Path(file).suffix.lower()])
+            sheet_columns = pd.read_excel(
+                excel_file, header=None, convert_float=False, nrows=1
+            ).columns.shape[0]
+            sheet_names = excel_file.sheet_names
+            sheet_cache = {sheet_names[0]: sheet_columns}
 
             default_inputs.update({
                 'sheets': sheet_names,
                 'sheet': sheet_names[0],
-                'excel_columns': [f'Column {num}' for num in range(sheet_0_len)],
+                'excel_columns': [f'Column {num}' for num in range(sheet_columns)],
                 'first_column': 'Column 0',
-                'last_column': f'Column {sheet_0_len - 1}',
-                'repeat_unit': sheet_0_len,
+                'last_column': f'Column {sheet_columns - 1}',
+                'repeat_unit': sheet_columns,
                 'separator': '',
-                'columns': ', '.join(str(num) for num in range(sheet_0_len)),
+                'columns': ', '.join(str(num) for num in range(sheet_columns)),
                 'row_start': 0,
                 'row_end': 0,
                 'same_values': False,
-                'total_indices': list(range(sheet_0_len)),
+                'total_indices': list(range(sheet_columns)),
             })
             if (assign_column_indices
-                    and any(index >= sheet_0_len for index in default_inputs['variable_indices'].values())):
+                    and any(index >= sheet_columns for index in default_inputs['variable_indices'].values())):
                 default_inputs['variable_indices'] = {key: 0 for key in default_inputs['variable_indices'].keys()}
 
             validations['integers'].append(
@@ -980,7 +1022,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                                 disabled=disable_other, size=(5, 1))],
                         [sg.Check('Fixed-width file', default_inputs['initial_fixed_width_file'],
                                 key='fixed_width_file', enable_events=True, pad=(5, (5, 0)),
-                                disabled=disable_bottom)],
+                                disabled=disable_other)],
                         [sg.Text('    Column widths,\n     separated by commas'),
                         sg.Input(default_inputs['initial_fixed_width_columns'], size=(10, 1),
                                 key='fixed_width_columns',
@@ -1050,7 +1092,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
             sg.Column([
                 [sg.Check('Same options\nfor all files', default_inputs['same_values'],
                         key='same_values', disabled=disable_other,
-                        visible=file is not None and Path(file).suffix not in excel_formats)]
+                        visible=file is not None and Path(file).suffix.lower() not in excel_formats)]
                 ]),
             sg.Column([
                 [sg.Button('Test Import'),
@@ -1066,6 +1108,8 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         event, values = window.read()
 
         if event == sg.WIN_CLOSED:
+            if excel_file is not None:
+                excel_file.close()
             safely_close_window(window)
 
         elif event == 'new_file':
@@ -1075,27 +1119,29 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                 window['file'].update(values['new_file'])
                 values['file'] = values['new_file']
 
-            if Path(values['file']).suffix in excel_formats:
+            if Path(values['file']).suffix.lower() in excel_formats:
                 window['EXCEL_TAB'].select()
 
-                dataframes = pd.read_excel(
-                    values['file'], sheet_name=None, header=None,
-                    convert_float=False, engine=None if _HAS_XLRD else 'openpyxl'
+                excel_file = pd.ExcelFile(
+                    values['file'], engine=excel_formats[Path(values['file']).suffix.lower()]
                 )
-                sheet_names = list(dataframes.keys())
-                sheet_0_len = len(dataframes[sheet_names[0]].columns)
+                sheet_columns = pd.read_excel(
+                    excel_file, header=None, convert_float=False, nrows=1
+                ).columns.shape[0]
+                sheet_names = excel_file.sheet_names
+                sheet_cache = {sheet_names[0]: sheet_columns}
 
                 window['sheet'].update(values=sheet_names, value=sheet_names[0],
                                        readonly=True)
-                col_list = [f'Column {num}' for num in range(sheet_0_len)]
+                col_list = [f'Column {num}' for num in range(sheet_columns)]
                 window['first_col'].update(values=col_list, value=col_list[0],
                                            readonly=True)
                 window['last_col'].update(values=col_list, value=col_list[-1],
                                           readonly=True)
-                window['repeat_unit'].update(value=sheet_0_len, disabled=False)
+                window['repeat_unit'].update(value=sheet_columns, disabled=False)
                 window['separator'].update(value='', disabled=True)
                 window['columns'].update(
-                    value=', '.join(str(num) for num in range(sheet_0_len)),
+                    value=', '.join(str(num) for num in range(sheet_columns)),
                     disabled=False
                 )
                 window['row_start'].update(value='0', disabled=False)
@@ -1119,7 +1165,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
 
                 if assign_column_indices:
                     _assign_indices(
-                        window, list(range(sheet_0_len)), default_inputs['variable_indices']
+                        window, list(range(sheet_columns)), default_inputs['variable_indices']
                     )
 
             else:
@@ -1172,17 +1218,23 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                         )
 
         elif event == 'sheet':
-            window['repeat_unit'].update(value=len(dataframes[values['sheet']].columns))
-            cols = [f'Column {num}' for num in range(len(dataframes[values['sheet']].columns))]
+            if values['sheet'] in sheet_cache:
+                sheet_columns = sheet_cache[values['sheet']]
+            else:
+                sheet_columns = pd.read_excel(
+                    excel_file, sheet_name=values['sheet'], header=None,
+                    convert_float=False, nrows=1
+                ).columns.shape[0]
+                sheet_cache[values['sheet']] = sheet_columns
+
+            window['repeat_unit'].update(value=sheet_columns)
+            cols = [f'Column {num}' for num in range(sheet_columns)]
             window['first_col'].update(values=cols, value=cols[0])
             window['last_col'].update(values=cols, value=cols[-1])
-            window['columns'].update(
-                value=', '.join(str(i) for i in range(len(dataframes[values['sheet']].columns)))
-            )
-
+            window['columns'].update(value=', '.join(str(i) for i in range(sheet_columns)))
             if assign_column_indices:
                 _assign_indices(
-                    window, [num for num in range(len(dataframes[values['sheet']].columns))],
+                    window, list(range(sheet_columns)),
                     default_inputs['variable_indices']
                 )
 
@@ -1207,26 +1259,21 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
             if (values['repeat_unit']
                     and (last_col - first_col) < int(values['repeat_unit'])):
 
-                new_len = last_col - first_col
-                window['repeat_unit'].update(value=new_len)
-                update_text = [num for num in range(new_len)]
+                window['repeat_unit'].update(value=last_col - first_col)
                 window['columns'].update(
-                    value=', '.join(str(elem) for elem in update_text)
+                    value=', '.join(str(elem) for elem in range(last_col - first_col))
                 )
-
                 if assign_column_indices:
-                    _assign_indices(window, update_text,
+                    _assign_indices(window, list(range(last_col - first_col)),
                                     default_inputs['variable_indices'])
 
         elif event == 'repeat_unit' and values['repeat_unit']:
             try:
-                update_text = [num for num in range(int(values['repeat_unit']))]
                 window['columns'].update(
-                    value=', '.join(str(elem) for elem in update_text)
+                    value=', '.join(str(elem) for elem in range(int(values['repeat_unit'])))
                 )
-
                 if assign_column_indices:
-                    _assign_indices(window, update_text,
+                    _assign_indices(window, list(range(int(values['repeat_unit']))),
                                     default_inputs['variable_indices'])
             except ValueError:
                 window['repeat_unit'].update('')
@@ -1247,16 +1294,24 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
 
             elif validate_inputs(values, **validations):
                 if event == 'Test Import':
-                    test_file = file if file is not None else values['file']
-                    window.disable()#window.hide()
+                    if excel_file is not None:
+                        test_file = excel_file
+                    elif file is not None:
+                        test_file = file
+                    else:
+                        test_file = values['file']
+                    window.disable()
                     raw_data_import(values, test_file)
-                    window.enable()#window.un_hide()
+                    window.enable()
                     window.force_focus()
                 else:
                     break
 
     window.close()
     del window
+
+    if excel_file is not None: # TODO probably need to do a try-finally to ensure it is closed
+        excel_file.close()
 
     if assign_column_indices:
         # converts column numbers back to indices
