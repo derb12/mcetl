@@ -647,7 +647,7 @@ class DataSource:
 
         Returns
         -------
-        processed_dataframes : list(pd.DataFrame)
+        dataframes : list(pd.DataFrame)
             The list of dataframes after processing.
 
         Notes
@@ -656,13 +656,15 @@ class DataSource:
         and there are two header rows. The start column is also set to
         self.excel_column_offset + 1 since openpyxl is 1-based.
 
+        All dataframes are overwritten for each processing step so that no copies
+        are made.
+
         """
 
         functions = (self.calculation_functions + self.sample_summary_functions
                      + self.dataset_summary_functions)
         first_column = self.excel_column_offset + 1
 
-        processed_dataframes = []
         for i, dataset in enumerate(dataframes):
             if index == 1:
                 excel_columns = None
@@ -675,11 +677,9 @@ class DataSource:
                 dataset = function._do_function(
                     dataset, self.references[i], index, excel_columns, self.excel_row_offset + 3
                 )
+            dataframes[i] = dataset
 
-            # Optimizes memory usage after calculations
-            processed_dataframes.append(utils.optimize_memory(dataset, bool(index)))
-
-        return processed_dataframes
+        return dataframes
 
 
     def _do_excel_functions(self, dataframes):
