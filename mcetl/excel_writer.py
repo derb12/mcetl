@@ -258,7 +258,9 @@ class ExcelWriterHandler:
         else:
             mode = 'a'
             try:
-                path.rename(path) # errors if file is currently open
+                #TODO: this only errors if file is currently open in Windows, need to find other solution
+                # that is os-independent
+                path.rename(path)
             except PermissionError:
                 sg.popup_ok(
                     (f'{path.name} is about to be loaded in Python.\n\nTo keep '
