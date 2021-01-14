@@ -14,7 +14,7 @@ requirements = [
     'matplotlib>=3.1',
     'numpy>=1.8',
     'openpyxl>=2.4',
-    'pandas>=0.24',
+    'pandas>=0.25',
     'pysimplegui>=4.29',
     'scipy'
 ]
@@ -47,12 +47,6 @@ setup(
     ],
     description="An Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
-    extras_require={
-        'extras': [
-            'pillow>=6.2',
-            'xlrd'
-        ]
-    },
     license="BSD 3-clause",
     long_description=long_description,
     long_description_content_type='text/x-rst',

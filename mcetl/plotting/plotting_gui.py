@@ -84,8 +84,6 @@ TIGHT_LAYOUT_W_PAD = 0.6
 
 # column name for the blank columns inserted between data entries when saving data to csv
 _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
-# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
-_HAS_PIL = utils.check_availability('PIL')
 # the default figure name used by matplotlib
 _PREVIEW_NAME = 'Preview'
 # the file extension for the json file containing all of the plot layout information
@@ -565,7 +563,7 @@ def _get_image_options(extension):
 
     """
 
-    if not _HAS_PIL:
+    if not utils.check_availability('PIL'):
         return [], {}
 
     if extension == 'JPEG':
