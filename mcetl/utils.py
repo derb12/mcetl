@@ -709,6 +709,46 @@ def series_to_numpy(series, dtype=float):
     return output
 
 
+@doc_lru_cache(maxsize=1)
+def _get_excel_engines():
+    """
+    Creates a dictionary of supported engines for pandas.read_excel.
+
+    Returns
+    -------
+    excel_engines : dict(str, str)
+        A dictionary of file extensions (as given by pathlib.Path().suffix),
+        and the corresponding engine to use in pandas.read_excel.
+
+    Notes
+    -----
+    Engines other than None or 'xlrd' were not available until pandas v1.0.0,
+    so convert all openpyxl-supported extensions to None to use the default
+    engine (which will then error if user does not have xlrd installed). Will
+    not modify the other engine names, since they are not explictly supported
+    by mcetl; however, will still want to keep the engine name for other formats
+    so that the user knows what engine they will need, as well as the fact that
+    they will need to update pandas to use the engine.
+
+    """
+
+    excel_engines = {
+        '.xls': 'xlrd',
+        '.xlsx': 'openpyxl',
+        '.xlsm': 'openpyxl',
+        '.xlsb': 'pyxlsb',
+        '.odf': 'odf',
+        '.ods': 'odf',
+        '.odt': 'odf'
+    }
+    if int(pd.__version__.split('.')[0]) < 1:
+        for key, value in excel_engines.items():
+            if value == 'openpyxl':
+                excel_engines[key] = None
+
+    return excel_engines
+
+
 def raw_data_import(window_values, file, show_popup=True):
     """
     Used to import data from the specified file into pandas DataFrames.
@@ -742,15 +782,7 @@ def raw_data_import(window_values, file, show_popup=True):
 
     """
 
-    excel_formats = {
-        '.xls': 'xlrd',
-        '.xlsx': 'openpyxl',
-        '.xlsm': 'openpyxl',
-        '.xlsb': 'pyxlsb',
-        '.odf': 'odf',
-        '.ods': 'odf',
-        '.odt': 'odf'
-    }
+    excel_formats = _get_excel_engines()
 
     try:
         row_start = window_values['row_start']
@@ -873,15 +905,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
 
     """
 
-    excel_formats = {
-        '.xls': 'xlrd',
-        '.xlsx': 'openpyxl',
-        '.xlsm': 'openpyxl',
-        '.xlsb': 'pyxlsb',
-        '.odf': 'odf',
-        '.ods': 'odf',
-        '.odt': 'odf'
-    }
+    excel_formats = _get_excel_engines()
 
     if data_source is None or not data_source.unique_variables:
         assign_column_indices = False
@@ -1101,7 +1125,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     ])
 
     window = sg.Window('Data Import', layout, finalize=True)
-    if file is not None and Path(file).suffix in excel_formats:
+    if file is not None and Path(file).suffix.lower() in excel_formats:
         window['EXCEL_TAB'].select()
 
     while True:
@@ -1497,7 +1521,7 @@ def open_multiple_files():
     for file in files:
         try:
             if (not import_values.get('same_values', False)
-                    or Path(file).suffix in ('.xlsx', '.xlsm', '.xls')):
+                    or Path(file).suffix.lower() in _get_excel_engines()):
                 import_values = select_file_gui(file=file, previous_inputs=import_values)
             dataframes.extend(
                 raw_data_import(import_values, file, False)
