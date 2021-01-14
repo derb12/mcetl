@@ -33,37 +33,6 @@ import PySimpleGUI as sg
 PROCEED_COLOR = ('white', '#00A949')
 
 
-def check_availability(module):
-    """
-    Checks whether an optional dependency is available to import.
-
-    Does not check the module version since it is assumed that the
-    parent module will do a version check if the module is actually
-    usable.
-
-    Parameters
-    ----------
-    module : str
-        The name of the module.
-
-    Returns
-    -------
-    bool
-        True if the module can be imported, False if it cannot.
-
-    Notes
-    -----
-    It is faster to use importlib to check the availability of the
-    module rather than doing a try-except block to try and import
-    the module, since importlib does not actually import the module.
-
-    """
-    return importlib.util.find_spec(module) is not None
-
-
-_HAS_XLRD = check_availability('xlrd')
-
-
 class WindowCloseError(Exception):
     """Custom exception to allow exiting a GUI window to stop the program."""
 
@@ -125,6 +94,35 @@ def doc_lru_cache(function=None, **lru_cache_kwargs):
         return function(*args, **kwargs)
 
     return functools.update_wrapper(wrapper, function)
+
+
+@doc_lru_cache()
+def check_availability(module):
+    """
+    Checks whether an optional dependency is available to import.
+
+    Does not check the module version since it is assumed that the
+    parent module will do a version check if the module is actually
+    usable.
+
+    Parameters
+    ----------
+    module : str
+        The name of the module.
+
+    Returns
+    -------
+    bool
+        True if the module can be imported, False if it cannot.
+
+    Notes
+    -----
+    It is faster to use importlib to check the availability of the
+    module rather than doing a try-except block to try and import
+    the module, since importlib does not actually import the module.
+
+    """
+    return importlib.util.find_spec(module) is not None
 
 
 @doc_lru_cache(maxsize=None)
@@ -722,13 +720,12 @@ def _get_excel_engines():
 
     Notes
     -----
-    Engines other than None or 'xlrd' were not available until pandas v1.0.0,
-    so convert all openpyxl-supported extensions to None to use the default
-    engine (which will then error if user does not have xlrd installed). Will
-    not modify the other engine names, since they are not explictly supported
-    by mcetl; however, will still want to keep the engine name for other formats
-    so that the user knows what engine they will need, as well as the fact that
-    they will need to update pandas to use the engine.
+    This function is not necessary at the moment, but can be used if pandas
+    changes engines in the future.
+
+    Engines other than 'openpyxl' are not supported by the default installation
+    of mcetl; however, still want to keep the engine name for other formats
+    so that users can know what engine they will need to install.
 
     """
 
@@ -741,11 +738,6 @@ def _get_excel_engines():
         '.ods': 'odf',
         '.odt': 'odf'
     }
-    if int(pd.__version__.split('.')[0]) < 1:
-        for key, value in excel_engines.items():
-            if value == 'openpyxl':
-                excel_engines[key] = None
-
     return excel_engines
 
 
@@ -976,7 +968,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         file_types = [('All Files', '*.*'), ('CSV', '*.csv'),
                       ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
                       ('Excel Macro-Enabled Workbook', '*.xlsm')]
-        if _HAS_XLRD:
+        if check_availability('xlrd'):
             file_types.append(('Excel 97-2003 Workbook', '*.xls'))
 
         file_element = [
@@ -1489,7 +1481,7 @@ def open_multiple_files():
         ('Text Files', '*.txt'), ('Excel Workbook', '*.xlsx'),
         ('Excel Macro-Enabled Workbook', '*.xlsm')
     ]
-    if _HAS_XLRD:
+    if check_availability('xlrd'):
         file_types.append(('Excel 97-2003 Workbook', '*.xls'))
 
     window = sg.Window(

@@ -12,7 +12,7 @@ mcetl requires `Python <https://python.org>`_ version 3.7 or later and the follo
 
 * `asteval <https://github.com/newville/asteval>`_
 * `lmfit <https://lmfit.github.io/lmfit-py/>`_ (>= 1.0)
-* `matplotlib <https://matplotlib.org>`_ (>= 3.1)
+* `Matplotlib <https://matplotlib.org>`_ (>= 3.1)
 * `NumPy <https://numpy.org>`_ (>= 1.8)
 * `openpyxl <https://openpyxl.readthedocs.io/en/stable/>`_ (>= 2.4)
 * `pandas <https://pandas.pydata.org>`_ (>= 0.24)
@@ -23,8 +23,7 @@ mcetl requires `Python <https://python.org>`_ version 3.7 or later and the follo
 All of the required libraries should be automatically installed when installing mcetl
 using either of the two installation methods below.
 
-Additionally, mcetl can optionally use `xlrd <https://github.com/python-excel/xlrd>`_
-to read .xls files, and `Pillow <https://python-pillow.org/>`_
+Additionally, mcetl can optionally use `Pillow <https://python-pillow.org/>`_
 to allow for additional options when saving figures in the plotting GUI.
 
 
@@ -37,13 +36,10 @@ mcetl is easily installed using `pip`_, simply by running the following command 
 
     pip install --upgrade mcetl
 
-This is the preferred method to install mcetl, as it will always install the most recent stable release.
-
-To install mcetl, as well as its optional dependencies, use:
-
-.. code-block:: console
-
-    pip install --upgrade mcetl[extras]
+This is the preferred method to install mcetl, as it will always install the most
+recent stable release. Note that the ``--upgrade`` tag is used to ensure that the
+most recent version of mcetl is downloaded and installed, even if an older version
+is currently installed.
 
 
 .. _pip: https://pip.pypa.io
