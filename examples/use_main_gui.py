@@ -16,7 +16,7 @@ from scipy import optimize
 
 
 def offset_data(df, target_indices, calc_indices, excel_columns,
-                start_row, offset=None, *args, **kwargs):
+                first_row, offset=None, **kwargs):
     """Example CalculationFunction with named kwargs"""
 
     total_count = 0
@@ -26,7 +26,7 @@ def offset_data(df, target_indices, calc_indices, excel_columns,
                 y = df[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[0][i][j]]
                 calc = [
-                    f'= {y_col}{k + start_row} + {offset * total_count}' for k in range(len(y))
+                    f'= {y_col}{k + first_row} + {offset * total_count}' for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
@@ -40,7 +40,7 @@ def offset_data(df, target_indices, calc_indices, excel_columns,
 
 
 def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
-                           start_row, offset=None, *args, **kwargs):
+                           offset=None, **kwargs):
     """Adds an offset to normalized data"""
 
     for i, sample in enumerate(calc_indices):
@@ -55,7 +55,7 @@ def offset_normalized_data(df, target_indices, calc_indices, excel_columns,
     return df
 
 
-def normalize(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def normalize(df, target_indices, calc_indices, excel_columns, first_row, **kwargs):
     """Performs a min-max normalization to bound values between 0 and 1."""
 
     for i, sample in enumerate(calc_indices):
@@ -65,7 +65,7 @@ def normalize(df, target_indices, calc_indices, excel_columns, start, *args, **k
                 y_col = excel_columns[target_indices[0][i][j]]
                 end = y.count() + 2
                 calc = [
-                    f'=({y_col}{k + start} - MIN({y_col}$3:{y_col}${end})) / (MAX({y_col}$3:{y_col}${end}) - MIN({y_col}$3:{y_col}${end}))' for k in range(len(y))
+                    f'=({y_col}{k + first_row} - MIN({y_col}$3:{y_col}${end})) / (MAX({y_col}$3:{y_col}${end}) - MIN({y_col}$3:{y_col}${end}))' for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
@@ -80,7 +80,7 @@ def normalize(df, target_indices, calc_indices, excel_columns, start, *args, **k
     return df
 
 
-def split(df, target_indices, *args, **kwargs):
+def split(df, target_indices, **kwargs):
     """Preprocess function that separates each entry where delta-x changes sign."""
 
     x_col = df[df.columns[target_indices[0]]].to_numpy()
@@ -93,7 +93,7 @@ def split(df, target_indices, *args, **kwargs):
     return np.array_split(df, mask)
 
 
-def split_segments(df, target_indices, *args, **kwargs):
+def split_segments(df, target_indices, **kwargs):
     """
     Preprocess function that separates each entry based on the segment number.
 
@@ -104,7 +104,7 @@ def split_segments(df, target_indices, *args, **kwargs):
 
     segment_index = target_indices[0]
     segment_col = df[df.columns[segment_index]].to_numpy()
-    mask = np.where(segment_col[:-1] != segment_col[1:])[0] + 1 # + 1 since mask loses is one index
+    mask = np.where(segment_col[:-1] != segment_col[1:])[0] + 1 # + 1 since mask loses one index
 
     output_dataframes = np.array_split(df, mask)
 
@@ -114,7 +114,7 @@ def split_segments(df, target_indices, *args, **kwargs):
     return output_dataframes
 
 
-def derivative(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def derivative(df, target_indices, calc_indices, excel_columns, first_row, **kwargs):
     """Calculates the derivative."""
 
     for i, sample in enumerate(calc_indices):
@@ -124,7 +124,7 @@ def derivative(df, target_indices, calc_indices, excel_columns, start, *args, **
                 x_col = excel_columns[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[1][i][j]]
                 calc = [
-                    f'= ({y_col}{k + start} - {y_col}{k + start - 1}) / ({x_col}{k + start} - {x_col}{k + start - 1})' for k in range(len(y))
+                    f'= ({y_col}{k + first_row} - {y_col}{k + first_row - 1}) / ({x_col}{k + first_row} - {x_col}{k + first_row - 1})' for k in range(len(y))
                 ]
                 calc[0] = 0
 
@@ -141,7 +141,7 @@ def derivative(df, target_indices, calc_indices, excel_columns, start, *args, **
     return df
 
 
-def pore_preprocessor(df, target_indices, *args, **kwargs):
+def pore_preprocessor(df, target_indices, **kwargs):
     """
     Sorts the dataframe according to the diameter.
 
@@ -153,7 +153,7 @@ def pore_preprocessor(df, target_indices, *args, **kwargs):
     return [df.sort_values(target_indices[0])]
 
 
-def pore_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def pore_analysis(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Creates a histogram of pore sizes weighted by the pore area for each entry.
 
@@ -206,7 +206,7 @@ def pore_analysis(df, target_indices, calc_indices, excel_columns, start, *args,
     return df
 
 
-def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def pore_sample_summary(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Creates a histogram of pore sizes weighted by the pore area for each sample.
 
@@ -248,7 +248,7 @@ def pore_sample_summary(df, target_indices, calc_indices, excel_columns, start, 
     return df
 
 
-def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def pore_dataset_summary(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Summarizes the average pore size for each sample and its standard deviation.
 
@@ -291,7 +291,7 @@ def stress_model(strain, modulus):
     return strain * modulus * 1e9
 
 
-def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Calculates the mechanical properties from the stress-strain curve for each entry.
 
@@ -350,7 +350,7 @@ def stress_strain_analysis(df, target_indices, calc_indices, excel_columns, star
     return df
 
 
-def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Summarizes the mechanical properties for each sample.
 
@@ -380,7 +380,7 @@ def tensile_sample_summary(df, target_indices, calc_indices, excel_columns, star
     return df
 
 
-def tensile_dataset_summary(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def tensile_dataset_summary(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Summarizes the mechanical properties for each dataset.
 
@@ -443,7 +443,7 @@ def carreau_model(shear_rate, mu_0, mu_inf, lambda_, n):
     return mu_inf + (mu_0 - mu_inf) * (1 + (lambda_ * shear_rate)**2)**((n - 1) / 2)
 
 
-def rheometry_analysis(df, target_indices, calc_indices, excel_columns, start, *args, **kwargs):
+def rheometry_analysis(df, target_indices, calc_indices, excel_columns, **kwargs):
     """
     Fits each data entry to the Carreau model and tabulates the results.
 
