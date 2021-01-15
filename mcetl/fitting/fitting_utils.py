@@ -190,6 +190,21 @@ _TOTAL_MODELS = _create_model_cache()
 _GUI_MODELS = {vals['display_name']: key for key, vals in _TOTAL_MODELS.items()}
 
 
+def print_available_models():
+    """
+    Prints out a dictionary of all models supported by mcetl.
+
+    Notes
+    -----
+
+
+    """
+    for model_name, model_values in _TOTAL_MODELS.items():
+        print(f'\n"{model_name}"')
+        for key, value in model_values.items():
+            print(f'    "{key}": {value}')
+
+
 def get_model_name(model):
     """
     Converts the model name used in GUIs to the model class name.
