@@ -222,10 +222,15 @@ class CalculationFunction(_FunctionBase):
         to be passed to the functions. If a list of two dictionaries is given,
         the first and second dictionaries will be the keyword arguments to pass
         to the function for processing the data to write to Excel and the function
-        for processing the data to be used in python, respectively. The default is
+        for processing the data to be used in python, respectively. If a single
+        dictionary is given, then it is used for both functions. The default is
         None, which passes an empty dictionary to both functions.
 
     """
+
+
+    _forbidden_keys = {'excel_columns', 'first_row'}
+
 
     def __init__(self, name, target_columns, functions,
                  added_columns, function_kwargs=None):
@@ -233,7 +238,8 @@ class CalculationFunction(_FunctionBase):
         Raises
         ------
         ValueError
-            Raised if there is an issue with added_columns or target_columns.
+            Raised if there is an issue with added_columns or target_columns, or
+            if any key in the input function_kwargs is within self._forbidden_keys.
 
         """
 
@@ -262,6 +268,11 @@ class CalculationFunction(_FunctionBase):
             self.function_kwargs = (function_kwargs, function_kwargs)
         else:
             self.function_kwargs = function_kwargs
+        for kwarg_dict in self.function_kwargs:
+            if any(key in self._forbidden_keys for key in kwarg_dict.keys()):
+                raise ValueError(
+                    f'function_kwargs cannot have the following keys: {self._forbidden_keys}'
+                )
 
 
     def _do_function(self, dataset, reference, index, excel_columns, first_row):
@@ -299,8 +310,8 @@ class CalculationFunction(_FunctionBase):
         added_columns = reference[self.name]
 
         dataset = self.functions[index](
-            dataset, target_columns, added_columns, excel_columns, first_row,
-            **self.function_kwargs[index]
+            dataset, target_columns, added_columns, excel_columns=excel_columns,
+            first_row=first_row, **self.function_kwargs[index]
         )
 
         return dataset
