@@ -132,7 +132,7 @@ def _create_model_cache():
 
                 available_models[name] = {
                     'display_name': replaced_names.get(name, name.replace('Model', '')),
-                    'model': obj, 'init_kwargs': {}, 'parameters': {}, 'is_peak': False
+                    'class': obj, 'init_kwargs': {}, 'parameters': {}, 'is_peak': False
                 }
 
                 model_sig = inspect.signature(obj)
@@ -253,8 +253,7 @@ def get_model_object(model):
         The class corresponding to the input model name.
 
     """
-
-    return _TOTAL_MODELS[get_model_name(model)]['model']
+    return _TOTAL_MODELS[get_model_name(model)]['class']
 
 
 def get_gui_name(model):
@@ -278,8 +277,108 @@ def get_gui_name(model):
     use this function.
 
     """
-
     return _TOTAL_MODELS[get_model_name(model)]['display_name']
+
+
+def get_is_peak(model):
+    """
+    Determines if the input model is registered as a peak function.
+
+    Parameters
+    ----------
+    model : str
+        The name of the model. Can either be the GUI name (eg. 'Gaussian')
+        or the class name (eg. 'GaussianModel').
+
+    Returns
+    -------
+    is_peak : bool
+        True if the input model is within _TOTAL_MODELS and _TOTAL_MODELS[model]['is_peak']
+        is True. If the model cannot be found, or if _TOTAL_MODELS[model]['is_peak']
+        is False, then returns False.
+
+    """
+
+    try:
+        is_peak = _TOTAL_MODELS[get_model_name(model)]['is_peak']
+    except KeyError:
+        is_peak = False
+
+    return is_peak
+
+
+def _check_if_constant(model_name, model_values, fit_data):
+    """
+    Changes the shape of the data to match the fit data if 'Constant' in model name.
+
+    ConstantModel and ComplexConstantModel return a single value
+    rather than an array, so need to create an array for those
+    models so that issues aren't caused during plotting.
+
+    Parameters
+    ----------
+    model_name : str
+        The model used for the background, such as 'ConstantModel'.
+    model_values : array-like or float
+        The value(s) of the background.
+    fit_data : array-like
+        The data that was used for fitting.
+
+    Returns
+    -------
+    output : array-like
+        An array of the background values, with the same size as the
+        input y array.
+
+    """
+
+    try:
+        actual_model_name = get_model_name(model_name)
+    except KeyError:
+        actual_model_name = '' # won't change any unknown models
+
+    if actual_model_name in ('ConstantModel', 'ComplexConstantModel'):
+        output = np.full(len(fit_data), model_values)
+    else:
+        output = model_values
+
+    return output
+
+
+def r_squared(y_data, y_fit, num_variables=1):
+    """
+    Calculates r^2 and adjusted r^2 for a fit.
+
+    Parameters
+    ----------
+    y_data : array-like
+        The experimental y data.
+    y_fit : array-like
+        The calculated y from fitting.
+    num_variables : int, optional
+        The number of variables used by the fitting model.
+
+    Returns
+    -------
+    r_sq : float
+        The r squared value for the fitting.
+    r_sq_adj : float
+        The adjusted r squared value for the fitting, which takes into
+        account the number of variables in the fitting model.
+
+    """
+
+    y = np.asarray(y_data)
+    y_calc = np.asarray(y_fit)
+
+    n = y.shape[0]
+    sum_sq_tot = np.sum((y - np.mean(y))**2)
+    sum_sq_res = np.sum((y - y_calc)**2)
+
+    r_sq = 1 - (sum_sq_res / sum_sq_tot)
+    r_sq_adj = 1 - (sum_sq_res / (n - num_variables - 1)) / (sum_sq_tot / (n - 1))
+
+    return r_sq, r_sq_adj
 
 
 def r_squared_model_result(fit_result):
@@ -299,42 +398,6 @@ def r_squared_model_result(fit_result):
     """
 
     return r_squared(fit_result.data, fit_result.best_fit, fit_result.nvarys)
-
-
-def r_squared(y, y_calc, num_variables=1):
-    """
-    Calculates r^2 and adjusted r^2 for a fit.
-
-    Parameters
-    ----------
-    y : array-like
-        The experimental y data.
-    y_calc : array-like
-        The calculated y from fitting.
-    num_variables : int, optional
-        The number of variables used by the fitting model.
-
-    Returns
-    -------
-    r_sq : float
-        The r squared value for the fitting.
-    r_sq_adj : float
-        The adjusted r squared value for the fitting, which takes into
-        account the number of variables in the fitting model.
-
-    """
-
-    y = np.asarray(y)
-    y_calc = np.asarray(y_calc)
-
-    n = y.shape[0]
-    sum_sq_tot = np.sum((y - np.mean(y))**2)
-    sum_sq_res = np.sum((y - y_calc)**2)
-
-    r_sq = 1 - (sum_sq_res / sum_sq_tot)
-    r_sq_adj = 1 - (sum_sq_res / (n - num_variables - 1)) / (sum_sq_tot / (n - 1))
-
-    return r_sq, r_sq_adj
 
 
 def numerical_extremum(y):

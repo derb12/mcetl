@@ -429,8 +429,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             param_kwargs['amplitude']['value'] = _lognormal_amplitude(peak_height, peak_width,
                                                                       peak_center)
             param_kwargs['mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
-                                      'min': peak_center - center_offset,
-                                      'max': peak_center + center_offset}
+                                    'min': peak_center - center_offset,
+                                    'max': peak_center + center_offset}
             # TODO setting mode doesn't seem to constrain center and sigma...
             peak_model.set_param_hint('mode', **param_kwargs['mode'])
 
@@ -799,39 +799,6 @@ def _re_sort_prefixes(params_dict):
     return new_params_dict
 
 
-def _check_background(background_model, background_value, y):
-    """
-    Ensures that the background_value and y have the same shape.
-
-    ConstantModel and ComplexConstantModel return a single value
-    rather than an array, so need to create an array for those
-    models so that issues aren't caused during plotting.
-
-    Parameters
-    ----------
-    background_model : str
-        The model used for the background, such as 'ConstantModel'.
-    background_value : array-like or float
-        The value(s) of the background.
-    y : array-like
-        The data being fit.
-
-    Returns
-    -------
-    output : array-like
-        An array of the background values, with the same size as the
-        input y array.
-
-    """
-
-    if 'Constant' in background_model:
-        output = np.full(y.size, background_value)
-    else:
-        output = background_value
-
-    return output
-
-
 def fit_peaks(
         x, y, height=None, prominence=np.inf, center_offset=1.0,
         peak_width=1.0, default_model='PseudoVoigtModel', subtract_background=False,
@@ -1028,7 +995,7 @@ def fit_peaks(
 
         background = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
         bkg_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkg = _check_background(background_type, background.eval(bkg_params, x=x), y)
+        initial_bkg = f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y)
 
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
@@ -1046,7 +1013,7 @@ def fit_peaks(
             tot_ax.plot(x, initial_bkg, label='initialization background')
             tot_ax.plot(
                 x,
-                _check_background(background_type, background.eval(bkg_params, x=x), y),
+                f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y),
                 label='background_1'
             )
 
@@ -1131,7 +1098,7 @@ def fit_peaks(
                 if debug:
                     tot_ax.plot(
                         x,
-                        _check_background(background_type, background.eval(bkg_params, x=x), y),
+                        f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y),
                         label=f'background_{eval_num + 2}'
                     )
 
@@ -1174,30 +1141,12 @@ def fit_peaks(
     for fit_result in output['fit_results']:
         # list of y-values for the inidividual models
         output['individual_peaks'].append(fit_result.eval_components(x=x))
-        if subtract_background:
-            output['individual_peaks'][-1]['background_'] = _check_background(
-                background_type, output['individual_peaks'][-1]['background_'], y
-            )
-
         # gets the parameters for each model and their standard errors, if available
         output['best_values'].append([])
         for param in fit_result.params.values():
             output['best_values'][-1].append(
                 [param.name, param.value, param.stderr if param.stderr not in (None, np.nan) else 'N/A']
             )
-        # perform numeric calculations for each peak
-        for model, values in output['individual_peaks'][-1].items():
-            if 'peak' in model:
-                numeric_calcs = {
-                    'numeric area': f_utils.numerical_area(fit_result.userkws['x'], values),
-                    'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], values),
-                    'numeric extremum': f_utils.numerical_extremum(values),
-                    'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], values)
-                }
-                for calc, value in numeric_calcs.items():
-                    output['best_values'][-1].append(
-                        [model + calc, value if value is not None else 'N/A', 'None']
-                    )
 
     return output
 
@@ -1272,8 +1221,8 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         layout = [
             [sg.Column([
                 [sg.Text(('Create point: double left click.  Select point: single click.\n'
-                        'Delete selected point: double right click or delete key.'),
-                        justification='center')],
+                          'Delete selected point: double right click or delete key.'),
+                         justification='center')],
                 [self.canvas]], element_justification='center', pad=(0, 0))],
             [self.toolbar_canvas],
             [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR),
@@ -1461,7 +1410,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
 
             bkg_model = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
             bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
-            self.background = _check_background(background_type, bkg_model.eval(bkg_params, x=x), y)
+            self.background = f_utils._check_if_constant(background_type, bkg_model.eval(bkg_params, x=x), y)
 
         self.axis.plot(self.x, self.background, 'r--', lw=2, label='background')
         self.xaxis_limits = self.axis.get_xlim()
@@ -1501,7 +1450,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         layout = [
             [sg.Column([
                 [sg.Text(('Create point: double left click.  Select point: single click.\n'
-                         'Delete selected point: double right click.'),
+                          'Delete selected point: double right click.'),
                          justification='center')],
                 [self.canvas]], element_justification='center', pad=(0, 0))],
             [self.toolbar_canvas],
@@ -1513,7 +1462,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             [sg.Column([[
                 sg.Column([[
                     sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
-                            bind_return_key=True),
+                              bind_return_key=True),
                     sg.Button('Clear Points', key='clear'),
                 ]], pad=(0, 0)),
                 sg.Column([[

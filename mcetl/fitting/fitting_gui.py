@@ -12,7 +12,6 @@ and is only imported if saving fit results to Excel.
 """
 
 
-from collections import defaultdict
 import itertools
 from pathlib import Path
 import traceback
@@ -199,23 +198,23 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         individual_models = fit_result.eval_components(x=x)
         if 'background_' in individual_models:
             background = individual_models.pop('background_')
-            if isinstance(background, float):
-                background = np.full(x.size, background)
+            if isinstance(background, (int, float)) or len(background) == 1:
+                background = np.full(self.x.shape[0], background)
         else:
             background = 0
         # Creates a color cycle to override matplotlib's to prevent color clashing
         self.axis.set_prop_cycle(color=['#ff7f0e', '#2ca02c', '#d62728', '#8c564b',
                                         '#e377c2', '#bcbd22', '#17becf'])
         for label, values in individual_models.items():
-            if isinstance(values, float):
-                model_values = np.full(self.x.size, values)
+            if isinstance(values, (int, float)) or len(values) == 1:
+                model_values = np.full(self.x.shape[0], values)
             else:
                 model_values = values
             _plot_model_component(self.axis, self.x, model_values + background, label)
 
         if isinstance(background, np.ndarray) or background != 0:
             try:
-                self.axis.plot(self.x, background, 'k-', label='background_')
+                self.axis.plot(self.x, background, 'k-', label='background')
             except:
                 self.background = None
             else:
@@ -297,7 +296,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
                 else:
                     for line in self.axis.get_lines():
                         line.set_ydata(line.get_ydata() + self.background)
-                    self.axis.plot(self.x, self.background, 'k-', label='background_')
+                    self.axis.plot(self.x, self.background, 'k-', label='background')
 
                 self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
                 if values['hide_legend']:
@@ -328,12 +327,14 @@ def _plot_model_component(axis, x, y, label):
     y : array-like
         The y-value(s) for the model.
     label : str
-        The label to place on the plot for the
+        The label to place on the plot for the component. Any '_' in
+        the name is replace by ' ' and any leading or trailing whitespace
+        is removed, to make the label appear nice.
 
     """
 
     try:
-        axis.plot(x, y, label=label)
+        axis.plot(x, y, label=label.replace('_', ' ').strip())
     except:
         print((f'Issue plotting the model result for component {label},'
                ' so it was not placed onto the figure.'))
@@ -680,6 +681,79 @@ def _create_fitting_gui(dataframe, user_inputs=None):
     return window, default_inputs
 
 
+def _process_fit_results(fit_result):
+    """
+    Gets the individual models and parameters from a fit result.
+
+    Parameters
+    ----------
+    fit_result : lmfit.ModelResult
+        The ModelResult object from the fitting.
+
+    Returns
+    -------
+    params_dataframe : pd.DataFrame
+        The dataframe containing the parameter values and standard errors
+        for each model.
+    models_data : list(pd.DataFrame)
+        The list of dataframes containing the values for each individual
+        model within the fit result.
+
+    """
+
+    # Creation of dataframe for best values of all model parameters
+    individual_models = {}
+    best_values = {}
+    for (prefix, model_values), model in zip(fit_result.eval_components().items(), fit_result.components):
+        model_name = model.__class__.__name__
+        # use the GUI name for built-in models
+        try:
+            best_values[prefix] = {'Model': f_utils.get_gui_name(model_name)}
+        except KeyError:
+            best_values[prefix] = {'Model': model_name}
+        individual_models[prefix] = f_utils._check_if_constant(
+            model_name, model_values, fit_result.data
+        )
+        for param in model.param_names:
+            param_ = fit_result.params[param]
+            best_values[prefix][f'{param[len(prefix):]}__VALUE__'] = param_.value
+            best_values[prefix][f'{param[len(prefix):]}__STDERR__'] = (
+                param_.stderr if param_.stderr not in (None, np.nan) else 'N/A')
+
+        if f_utils.get_is_peak(model_name):
+            numeric_calcs = {
+                'numeric area': f_utils.numerical_area(fit_result.userkws['x'], model_values),
+                'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], model_values),
+                'numeric extremum': f_utils.numerical_extremum(model_values),
+                'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], model_values)
+            }
+            for calc, calc_value in numeric_calcs.items():
+                best_values[prefix][f'{calc}__VALUE__'] = calc_value if calc_value is not None else 'N/A'
+                best_values[prefix][f'{calc}__STDERR__'] = 'None'
+
+    params_dataframe = pd.DataFrame(best_values).transpose().fillna('-')
+    params_dataframe.index = [index.replace('_', ' ').strip() for index in params_dataframe.index]
+
+    # Creation of dataframe for model values
+    models_data = []
+    bkg_term = ' + background' if 'background_' in individual_models else ''
+    bkg = individual_models.get('background_', 0)
+    for term, value in individual_models.items():
+        key = term.replace('_', ' ').strip()
+        if term != 'background_':
+            key += bkg_term
+            data = value + bkg
+        else:
+            data = value
+        try:
+            models_data.append(pd.DataFrame({key: data}))
+        except ValueError: # data is scalar or np.array with size == 1
+            models_data.append(pd.DataFrame({key: [data]}))
+    models_data.append(pd.DataFrame({'total fit': fit_result.best_fit}))
+
+    return params_dataframe, models_data
+
+
 def _process_fitting_kwargs(dataframe, values):
     """
     Processes the values from the fitting GUI to fit data and output the results.
@@ -696,9 +770,9 @@ def _process_fitting_kwargs(dataframe, values):
     fit_result : lmfit.model.ModelResult or None
         A lmfit.ModelResult object, which gives information for the fit
         done on the dataset. Is None if fitting was skipped.
-    peaks_df : pd.DataFrame or None
+    values_df : pd.DataFrame or None
         The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
+        for every individual model, the summed y data of all models,
         and the background, if present. Is None if fitting was skipped.
     params_df : pd.DataFrame or None
         The dataframe containing the value and standard error
@@ -757,6 +831,7 @@ def _process_fitting_kwargs(dataframe, values):
         subtract_bkg = False
         y_data = f_utils.subtract_linear_background(x_data, y_data, values['selected_bkg'])
 
+    #TODO make all but x_data and y_data into keyword arguments
     fitting_results = peak_fitting.fit_peaks(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
@@ -766,61 +841,25 @@ def _process_fitting_kwargs(dataframe, values):
 
     # only take the last fit from the list
     fit_result = fitting_results['fit_results'][-1]
-    individual_models = fitting_results['individual_peaks'][-1]
-    best_values = fitting_results['best_values'][-1]
-
-    # Creation of dataframe for best values of all peak parameters
-    vals = defaultdict(dict)
-    std_err = defaultdict(dict)
-    for term in best_values:
-        if 'peak' in term[0]:
-            key = ' '.join(term[0].split('_')[:2])
-            param_key = '_'.join(term[0].split('_')[2:])
-        else:
-            key = term[0].split('_')[0]
-            param_key = '_'.join(term[0].split('_')[1:])
-        vals[key][param_key] = term[1]
-        std_err[key][param_key] = term[2]
-    vals_df = pd.DataFrame(vals).transpose()
-    std_err_df = pd.DataFrame(std_err).transpose()
-
-    df_1 = pd.DataFrame()
-    for name in vals_df.columns:
-        df_1[f'{name}_val'] = vals_df[name]
-        df_1[f'{name}_sterr'] = std_err_df[name]
-    df_1 = df_1.fillna('-')
-
-    model_names = [component.__class__.__name__ for component in fit_result.components]
-    df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
-    params_df = pd.concat([df_0, df_1], axis=1)
+    params_df, models_data = _process_fit_results(fit_result)
 
     # Creation of dataframe for raw data and peak values
     # Raw data
-    peaks_data = [pd.DataFrame({
+    total_data = [pd.DataFrame({
         x_label: dataframe.iloc[:, values['x_fit_index']],
         y_label: dataframe.iloc[:, values['y_fit_index']]
     })]
     # Data used for fitting
-    peaks_data.extend([
+    total_data.extend([
         pd.DataFrame({x_label: fit_result.userkws['x']}),
         pd.DataFrame({y_label: fit_result.data})
     ])
-
-    bkg_term = ' + background' if subtract_bkg else ''
-    bkg = individual_models['background_'] if subtract_bkg else 0
-    for term, value in individual_models.items():
-        if 'peak' in term:
-            key = ' '.join(term.split('_')[:2]) + bkg_term
-            data = value + bkg
-        else:
-            key = term.split('_')[0]
-            data = value
-        peaks_data.append(pd.DataFrame({key: data}))
-    peaks_data.append(pd.DataFrame({'total fit': fit_result.best_fit}))
+    total_data.extend(models_data)
 
     # use concat with DataFrames to ensure that the sizing is correct
-    # even if the sizes of individual components do not match
-    peaks_df = pd.concat(peaks_data, axis=1)#pd.DataFrame(peaks_data)
+    # even if the sizes of individual components do not match; also
+    # allows columns to have repeated names
+    values_df = pd.concat(total_data, axis=1)
 
     # Creation of dataframe for descriptions of the fitting
     r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result)
@@ -829,14 +868,13 @@ def _process_fitting_kwargs(dataframe, values):
     descriptors_df = pd.DataFrame(
         [fit_result.success, r_sq, adj_r_sq, fit_result.chisqr,
          fit_result.redchi, fit_result.aic, fit_result.bic, min_method,
-         fit_result.data.size, fit_result.nvarys,
-         fit_result.data.size - fit_result.nvarys],
-        index=['Fit converged', 'R\u00B2', 'adjusted R\u00B2', '\u03c7\u00B2',
-               'reduced \u03c7\u00B2', 'A.I.C.', 'B.I.C.', 'Minimization method',
-               'Data points', 'Independant variables', 'Degrees of freedom']
+         fit_result.data.size, fit_result.nvarys],
+        index=['Fit converged', 'R\u00B2', 'Adjusted R\u00B2', '\u03c7\u00B2',
+               'Reduced \u03c7\u00B2', 'A.I.C.', 'B.I.C.', 'Minimization method',
+               'Data points', 'Independant variables']
     )
 
-    return fit_result, peaks_df, params_df, descriptors_df
+    return fit_result, values_df, params_df, descriptors_df
 
 
 def fit_dataframe(dataframe, user_inputs=None):
@@ -855,9 +893,9 @@ def fit_dataframe(dataframe, user_inputs=None):
     fit_result : lmfit.model.ModelResult or None
         A lmfit.ModelResult object, which gives information for the fit
         done on the dataset. Is None if fitting was skipped.
-    peaks_df : pd.DataFrame or None
+    values_df : pd.DataFrame or None
         The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
+        for every individual model, the summed y data of all models,
         and the background, if present. Is None if fitting was skipped.
     params_df : pd.DataFrame or None
         The dataframe containing the value and standard error
@@ -882,10 +920,10 @@ def fit_dataframe(dataframe, user_inputs=None):
     else:
         gui_values = _fitting_gui_event_loop(dataframe, user_inputs)
 
-    fit_result = peaks_df = params_df = descriptors_df = None
+    fit_result = values_df = params_df = descriptors_df = None
     while gui_values is not None:
         try:
-            fit_result, peaks_df, params_df, descriptors_df = _process_fitting_kwargs(dataframe, gui_values)
+            fit_result, values_df, params_df, descriptors_df = _process_fitting_kwargs(dataframe, gui_values)
         except Exception:
             sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
@@ -895,7 +933,7 @@ def fit_dataframe(dataframe, user_inputs=None):
             else:
                 break
 
-    return fit_result, peaks_df, params_df, descriptors_df, gui_values
+    return fit_result, values_df, params_df, descriptors_df, gui_values
 
 
 def _fitting_gui_event_loop(dataframe, user_inputs):
@@ -1194,16 +1232,16 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
     return values
 
 
-def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
+def fit_to_excel(values_dataframe, params_dataframe, descriptors_dataframe,
                  excel_writer_handler, sheet_name=None, plot_excel=False):
     """
     Outputs the relevant data from peak fitting to an Excel file.
 
     Parameters
     ----------
-    peaks_dataframe : pd.DataFrame
+    values_dataframe : pd.DataFrame
         The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
+        for every individual model, the summed y data of all models,
         and the background, if present.
     params_dataframe : pd.DataFrame
         The dataframe containing the value and standard error
@@ -1242,42 +1280,44 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         sheet_base = 'Sheet'
         sheet_name = 'Sheet_1'
     num = 1
-    while True:
-        if sheet_name.lower() not in current_sheets:
-            break
-        else:
-            sheet_name = f'{sheet_base}_{num}'
-            num += 1
+    while sheet_name.lower() in current_sheets:
+        sheet_name = f'{sheet_base}_{num}'
+        num += 1
+
+    lengths = {
+        'params': len(params_dataframe.columns),
+        'values': len(values_dataframe.columns),
+        'descriptors': len(descriptors_dataframe.columns)
+    }
+    lengths['total'] = sum(lengths.values()) + 1
 
     # use dict.fromkeys rather than a set to preserve order
     param_names = dict.fromkeys([
         '',
-        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
+        *[name.replace('__STDERR__', '').replace('__VALUE__', '') for name in params_dataframe.columns]
     ])
-    total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
-                   + len(descriptors_dataframe.columns) + 1)
 
     # Easier to just write params and descriptors using pandas rather than using
     # openpyxl; will not cost significant time since there are only a few cells
     params_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=3,
-        startcol=len(peaks_dataframe.columns), header=False, index=True
+        startcol=lengths['values'], header=False, index=True
     )
     descriptors_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=1,
-        startcol=len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1,
+        startcol=lengths['values'] + lengths['params'] + 1,
         header=False, index=True
     )
     worksheet = excel_writer.book[sheet_name]
 
     # Write and format all headers
     headers = (
-        {'name': 'Values', 'start': 1, 'end': len(peaks_dataframe.columns)},
-        {'name': 'Model Parameters', 'start': len(peaks_dataframe.columns) + 1,
-         'end': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1},
+        {'name': 'Values', 'start': 1, 'end': lengths['values']},
+        {'name': 'Model Parameters', 'start': lengths['values'] + 1,
+         'end': lengths['values'] + lengths['params'] + 1},
         {'name': 'Fit Description',
-         'start': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
-         'end': total_width + 1}
+         'start': lengths['values'] + lengths['params'] + 2,
+         'end': lengths['total'] + 1}
     )
     suffix = itertools.cycle(['even', 'odd'])
     for header in headers:
@@ -1287,7 +1327,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             start_row=1, start_column=header['start'], end_row=1, end_column=header['end']
         )
 
-    # Subheaders for peaks_dataframe
+    # Subheaders for values_dataframe
     cell = worksheet.cell(row=2, column=1, value='Raw Data')
     setattr(cell, *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
@@ -1297,15 +1337,15 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     cell = worksheet.cell(row=2, column=5, value='Fit Output')
     setattr(cell, *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=5, end_row=2,
-                          end_column=len(peaks_dataframe.columns))
+                          end_column=lengths['values'])
 
-    # Formatting for peaks_dataframe
+    # Formatting for values_dataframe
     suffix = itertools.cycle(['even', 'odd'])
-    for i, peak_name in enumerate(peaks_dataframe.columns, 1):
+    for i, peak_name in enumerate(values_dataframe.columns, 1):
         cell = worksheet.cell(row=3, column=i, value=peak_name)
         setattr(cell, *style_cache['fitting_subheader_' + next(suffix)])
 
-    rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
+    rows = dataframe_to_rows(values_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
@@ -1318,7 +1358,7 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
 
         if index < 2:
             prefix = 'fitting_columns_' if index == 0 else 'fitting_subheader_'
-            column = len(peaks_dataframe.columns) + 1 + index
+            column = lengths['values'] + 1 + index
             cell = worksheet.cell(row=2, column=column, value=subheader)
             setattr(cell, *style_cache[prefix + style_suffix])
             worksheet.merge_cells(
@@ -1329,15 +1369,15 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
                 cell = worksheet.cell(row=4 + row, column=column)
                 setattr(cell, *style_cache[prefix + style_suffix])
         else:
-            column = len(peaks_dataframe.columns) + 1 + (2 * (index - 1))
+            column = lengths['values'] + 1 + (2 * (index - 1))
             cell = worksheet.cell(row=2, column=column, value=subheader)
             setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=2, end_column=column + 1
             )
-            cell = worksheet.cell(row=3, column=column, value='value')
+            cell = worksheet.cell(row=3, column=column, value='Value')
             setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
-            cell = worksheet.cell(row=3, column=column + 1, value='standard error')
+            cell = worksheet.cell(row=3, column=column + 1, value='Standard Error')
             setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
 
             for row in range(len(params_dataframe)):
@@ -1349,28 +1389,27 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     # Formatting for descriptors_dataframe
     for column in range(2):
         style = 'fitting_descriptors_' + next(suffix)
-        for row in range(len(descriptors_dataframe)):
+        for row in range(len(descriptors_dataframe.index)):
             cell = worksheet.cell(
-                row=2 + row,
-                column=column + len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2
+                row=2 + row, column=column + lengths['values'] + lengths['params'] + 2
             )
             setattr(cell, *style_cache[style])
 
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
-    for column in range(1, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2):
+    for column in range(1, lengths['values'] + lengths['params'] + 2):
         worksheet.column_dimensions[utils.excel_column_name(column)].width = 12.5
-    for column in range(len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2, total_width + 2):
+    for column in range(lengths['values'] + lengths['params'] + 2, lengths['total'] + 2):
         worksheet.column_dimensions[utils.excel_column_name(column)].width = 20
 
     if plot_excel:
         axis_attributes = {
             'x_axis': {
-                'title': peaks_dataframe.columns[0],
+                'title': values_dataframe.columns[0],
                 'crosses': 'min'
             },
             'y_axis': {
-                'title': peaks_dataframe.columns[1],
+                'title': values_dataframe.columns[1],
                 'crosses': 'min'
             }
         }
@@ -1380,13 +1419,12 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
                 setattr(getattr(chart, axis), axis_attribute, value)
 
         # plot everything but the raw data
-        for i, peak_name in enumerate(peaks_dataframe.columns[3:], 4):
-            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i != 4 else 'fit data'
+        for i, peak_name in enumerate(values_dataframe.columns[3:], 4):
             chart.append(
                 Series(
-                    Reference(worksheet, i, 4, i, len(peaks_dataframe) + 3),
-                    xvalues=Reference(worksheet, 3, 4, 3, len(peaks_dataframe) + 3),
-                    title=legend_name
+                    Reference(worksheet, i, 3, i, len(values_dataframe.index) + 3),
+                    xvalues=Reference(worksheet, 3, 4, 3, len(values_dataframe.index) + 3),
+                    title_from_data=True
                 )
             )
 
