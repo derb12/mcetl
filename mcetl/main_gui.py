@@ -26,6 +26,7 @@ from pathlib import Path
 import sys
 import textwrap
 import traceback
+import warnings
 
 import PySimpleGUI as sg
 
@@ -68,8 +69,18 @@ def _get_save_location():
     elif sys.platform.startswith(('linux', 'freebsd')): # Linux
         path = Path(os.environ.get('XDG_DATA_HOME') or '~/.local/share').joinpath('mcetl')
 
-    if path is None or not path.expanduser().parent.is_dir():
-        # unspecified os or if the Windows/Mac/Linux places are wrong
+    if path is not None:
+        try:
+            if not path.expanduser().parent.is_dir():
+                path = None
+        except PermissionError:
+            # permission is denied in the desired folder; will not really help
+            # accessing, but allows this function to not fail so that user can
+            # manually set SAVE_FOLDER before using launch_main_gui
+            path = None
+
+    if path is None:
+        # unspecified os, the Windows/Mac/Linux places were wrong, or access denied
         path = Path('~/.mcetl')
 
     return path.expanduser()
@@ -125,12 +136,9 @@ def _write_to_excel(dataframes, data_source, labels,
         sheet_name = labels[i]['sheet_name']
         sheet_base = sheet_name
         num = 1
-        while True:
-            if sheet_name.lower() not in current_sheets:
-                break
-            else:
-                sheet_name = f'{sheet_base}_{num}'
-                num += 1
+        while sheet_name.lower() in current_sheets:
+            sheet_name = f'{sheet_base}_{num}'
+            num += 1
 
         worksheet = excel_writer.book.create_sheet(sheet_name)
         # Header values and formatting
@@ -1213,9 +1221,16 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 files = manual_file_finder(data_source.file_type)
 
             # Saves the file paths to a json file so they can be used again to bypass the search.
-            SAVE_FOLDER.mkdir(exist_ok=True)
-            with SAVE_FOLDER.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('w') as fp:
-                json.dump(files, fp, indent=2)
+            try:
+                SAVE_FOLDER.mkdir(exist_ok=True)
+                with SAVE_FOLDER.joinpath(f'{_FILE_PREFIX}{data_source.name}.json').open('w') as fp:
+                    json.dump(files, fp, indent=2)
+            except PermissionError:
+                # do not create the folder and/or files if cannot access
+                warnings.warn((
+                    f'Write access is denied in {str(SAVE_FOLDER)}, so '
+                    f'{_FILE_PREFIX}{data_source.name}.json was not written.'
+                ))
 
         # Imports the raw data from the files and specifies column names
         if any((processing_options['process_data'],
@@ -1230,7 +1245,7 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
                 for j, sample in enumerate(dataset):
                     for entry in sample:
                         if (not import_values.get('same_values', False)
-                                or Path(entry).suffix in ('.xlsx', '.xlsm', '.xls')):
+                                or Path(entry).suffix.lower() in utils._get_excel_engines()):
                             import_values = utils.select_file_gui(
                                 data_source, entry, import_values,
                                 processing_options['process_data']
