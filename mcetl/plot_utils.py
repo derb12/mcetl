@@ -13,8 +13,7 @@ Attributes
 CANVAS_SIZE : tuple(int, int)
     A tuple specifying the size (in pixels) of the figure canvas used in
     various GUIs for mcetl. This can be modified if the user wishes a
-    larger or smaller canvas. The default is (800, 800), but will scale
-    down according to the screen size.
+    larger or smaller canvas. The default is (800, 800).
 
 """
 
@@ -31,7 +30,7 @@ import PySimpleGUI as sg
 from . import utils
 
 
-CANVAS_SIZE = (utils.get_min_size(800, 0.70),) * 2
+CANVAS_SIZE = (800, 800)
 
 
 class PlotToolbar(NavigationToolbar2Tk):

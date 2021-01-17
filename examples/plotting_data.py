@@ -9,7 +9,7 @@ Created on Aug 22, 2020
 
 """
 
-from mcetl.plotting import launch_plotting_gui
+from mcetl import plotting, set_dpi_awareness
 #from mcetl import utils, plot_utils
 #import PySimpleGUI as sg
 
@@ -41,4 +41,7 @@ changes = {
     'legend.frameon': False
 }
 
-output = launch_plotting_gui(mpl_changes=changes)
+#set dpi awareness so GUI is not blurry on Windows os
+set_dpi_awareness()
+
+output = plotting.launch_plotting_gui(mpl_changes=changes)

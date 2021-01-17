@@ -22,12 +22,18 @@ PROCEED_COLOR : tuple(str, str)
 import importlib
 import functools
 import operator
+import os
 from pathlib import Path
 import textwrap
 
 import numpy as np
 import pandas as pd
 import PySimpleGUI as sg
+
+try:
+    import ctypes
+except ImportError:
+    ctypes = None
 
 
 PROCEED_COLOR = ('white', '#00A949')
@@ -94,6 +100,48 @@ def doc_lru_cache(function=None, **lru_cache_kwargs):
         return function(*args, **kwargs)
 
     return functools.update_wrapper(wrapper, function)
+
+
+def set_dpi_awareness(awareness_level=1):
+    """
+    Sets DPI awareness for Windows operating system so that GUIs are not blurry.
+
+    Fixes blurry tkinter GUIs due to weird dpi scaling in Windows os. Other
+    operating systems are ignored.
+
+    Parameters
+    ----------
+    awareness_level : {1, 0, 2}
+        The dpi awareness level to set. 0 turns off dpi awareness, 1 sets dpi
+        awareness to scale with the system dpi and automatically changes when
+        the system dpi changes, and 2 sets dpi awareness per monitor and does
+        not change when system dpi changes. Default is 1.
+
+    Raises
+    ------
+    ValueError
+        Raised if awareness_level is not 0, 1, or 2.
+
+    Notes
+    -----
+    Will only work on Windows 8.1 or Windows 10. Not sure if earlier versions
+    of Windows have this issue anyway.
+
+    AttributeError is raised if the dll loader was not created, OSError
+    is raised if setting the dpi awareness errors, and PermissionError is
+    raised if the dpi awareness was already set, since it can only be set
+    once per thread. All are ignored by this function.
+
+    """
+
+    # 'nt' designates Windows operating system
+    if os.name == 'nt' and ctypes is not None:
+        if awareness_level not in (0, 1, 2):
+            raise ValueError('Awareness level must be either 0, 1, or 2.')
+        try:
+            ctypes.oledll.shcore.SetProcessDpiAwareness(awareness_level)
+        except (AttributeError, OSError, PermissionError):
+            pass
 
 
 @doc_lru_cache()
