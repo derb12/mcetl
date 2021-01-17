@@ -6,7 +6,7 @@ Created on Aug 22, 2020
 
 """
 
-from mcetl.plotting import load_previous_figure
+from mcetl import plotting, set_dpi_awareness
 
 
 # changes some defaults for the plot formatting
@@ -33,4 +33,7 @@ changes = {
     'legend.frameon': False
 }
 
-figures = load_previous_figure(new_rc_changes=changes)
+#set dpi awareness so GUI is not blurry on Windows os
+set_dpi_awareness()
+
+figures = plotting.load_previous_figure(new_rc_changes=changes)

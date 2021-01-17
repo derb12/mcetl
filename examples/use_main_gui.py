@@ -28,7 +28,8 @@ def offset_data(df, target_indices, calc_indices, excel_columns,
                 calc = [
                     f'= {y_col}{k + first_row} + {offset * total_count}' for k in range(len(y))
                 ]
-
+                # use np.where(~np.isnan(y)) so that the calculation works for unequally-sized
+                # datasets
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
 
             else:
@@ -65,7 +66,9 @@ def normalize(df, target_indices, calc_indices, excel_columns, first_row, **kwar
                 y_col = excel_columns[target_indices[0][i][j]]
                 end = y.count() + 2
                 calc = [
-                    f'=({y_col}{k + first_row} - MIN({y_col}$3:{y_col}${end})) / (MAX({y_col}$3:{y_col}${end}) - MIN({y_col}$3:{y_col}${end}))' for k in range(len(y))
+                    (f'=({y_col}{k + first_row} - MIN({y_col}$3:{y_col}${end})) / '
+                     f'(MAX({y_col}$3:{y_col}${end}) - MIN({y_col}$3:{y_col}${end}))')
+                    for k in range(len(y))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(y), calc, None)
@@ -705,6 +708,9 @@ if __name__ == '__main__':
 
     # Put all DataSource objects in this tuple in order to use them
     data_sources = (xrd, ftir, raman, tga, dsc, rheometry, tensile, pore_size, other)
+
+    #set dpi awareness so GUI is not blurry on Windows os
+    mcetl.set_dpi_awareness()
 
     # Call the launch_main_gui function with data_sources as the input
     output = mcetl.launch_main_gui(data_sources)

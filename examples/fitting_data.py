@@ -10,6 +10,7 @@ Created on Aug 22, 2020
 """
 
 import matplotlib.pyplot as plt
+import mcetl
 from mcetl.fitting import launch_fitting_gui
 
 #from mcetl import plot_utils
@@ -39,6 +40,9 @@ changes = {
     'figure.dpi': 150,
     'figure.figsize': (6, 4.5)
 }
+
+#set dpi awareness so GUI is not blurry on Windows os
+mcetl.set_dpi_awareness()
 
 fit_results, gui_values, all_data_fit = launch_fitting_gui(mpl_changes=changes)
 
