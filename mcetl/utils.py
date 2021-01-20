@@ -37,6 +37,39 @@ except ImportError:
 
 
 PROCEED_COLOR = ('white', '#00A949')
+# the btyes representation of a png file used for the logo
+_LOGO = (
+    b'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlz'
+    b'AAAOxAAADsQBlSsOGwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAYcSURB'
+    b'VFiFvVZ7UFTXHf7uuXf33su+2OyyawABgRVBDCgLaEXxAfhOOjuhRZ12nDRp42Q6cSZpNDOpkzid'
+    b'phOnTTLNaJva0am1nTqTTHR8xFSNhuADlcSJFXFRNCby2mWXx77u6/QPYAOLxDAhfH/d/X2/x/c7'
+    b'e87vHAYo0fH5nhpNGfDJ3tcvAmC4/O1VrLHApWnhEAlebojd2tWKOHJ5feGvVjNJuWma3N0rB498'
+    b'hLbDnfgW6DKeLmEdC4soaxJpuL1L6jvyKe6eaAcAhnVtWaOf8+YRrfezm1rHsZ+RlKo/Equ7AgwL'
+    b'AKAxf1jrOvFn6dLGbfriXbWMvfJ3xFwwczg5jXzdpXYe3yY3PbN3TOHZO0qJo+YNYimuBOGZYbsW'
+    b'6+rTes7vl8//eAtLbPNnss6VG6BGGJJcWsfwVrvmv7AboeYPqNynI8ZcFzHNWkiMeYVs+k9eplok'
+    b'qPnPv01Dt06BwTSSlJXFiNOXEUU6qgYvxldCN/O3ReyMXxwlpoJCrd/7hRZseheBxv9o0c7rhOgy'
+    b'WFvFSkTbG8C6tqwRPZSKHkqFFV6vbvaO0m96mK3nlzVdHeb5pRc+RtamacMsn73Jxa/u6BU9lOrL'
+    b'D24f2T1fceo90UMpX9N8A6nr7aOWJmWJUV/2762YtirlGwFPRCiXsb5izDIuPPIn0UOpUP2/u7A/'
+    b'bkrk+aXnTokeSvmKk3vixtQldmHVV/2ih1KubP/WcbYGAIDEv6gKJXTHl+jAyAP+QToWhe9wfyJP'
+    b'NakHACjLWYZtrKG4nBHTjADA9l27/t0EjAtKH+4zGixnNw7FQu3z9nxPAROHSoPhwS8GxFzgnHoB'
+    b'vouXabQjCgCwzHVPuQD46tvpQMt/AYDYyp/SuX5TPJLW5b3k5is/PcS5XljM/SACAGjtH21nDNll'
+    b'jDjdyc588TRJq20AlTrAChmMIbeSYZP0aseh3RyjylEa61Ig9ytQo5ExiaReiUg9oFJP7IGVpIBE'
+    b'5QAgBaWRZtn7+8/B6VcTR9WrjCF3OXmkdC0AUDkoY6D1ihK8vEdp2fnh8Hg0AdAAhMZpyAogDOBB'
+    b'Irih+H4AygOjU5fYuaQ5s6ESvSJdbcbXZ74ap87Ug52KIhsyMqw/Tc+sLjAZzI2BwP2pqDkK/3SX'
+    b'vUQ9tbRpWbU3kfthjmECGEKG9hplErnJEGCsr1za8kVVzd1teXnLJho8GXOAdxmNuU5eICLL2iZN'
+    b'wM8zM+fOs1iyCVjmWl/g3rt37jQCSLyY0gDEZ/3tcNgOIHvoZzcGj+bEBLzz2Ny6BTb7iwVm0zyB'
+    b'ZRkAkDUNm7Nd1y4F/X/4ZVPTAQBY63AU7Sktv6InhLVwOgDA23OKd705pwgAcCUYOFFd/8nKCQn4'
+    b'+zz3lrrpGTsJwFwM9hy4FwmfFQmX5OCFReVWqyfPZNona0h67vOmv3UrSluD3783pqrCukdTNxo5'
+    b'jjnZ1XmcMOgCgB5Jvvyw4qPw1IwZeR2r1/Vqnlr6l7klY14xB8sXvEU9tfR69cq2LEAYQdk61qxT'
+    b'qaeWvlZQUPug3AfK5m8dPIZVrYlc/BSscUzb6BQE89VgoOXZz67sTHR858s7fw0pCp1lMmU96cpf'
+    b'PqHuvgXxvyCFFx4DAJHVkXNLlu5KdJSpxkQ1TTIAfI5BTJ10AXqWWADArOMye1WyPtGRBcGt8EDs'
+    b'Xpjt9sUibZMuQFW1EAB8GQqdmX/29IrJKvAwxPdAQJW8ACByXA4mdklplA7OBz3DTXiwxQU0+P0f'
+    b'hFRFKTSbc3YXz9s2XsCPnE5Hginok2J+AEg3JGVMVEBc8es3bpwtMifvrk1L//WmzKwdRcnJ87ul'
+    b'aH0wKvWaBcFoYdkcm45f1Kco0qLOzpIROWifojQDcCy3pTx/cvFiK1XB+mWJ1DVeeOE7CwCAusYL'
+    b'z0fd7jZ3sm1zqfWRtRzDrB3mIqpKW0Mh771I6F+JSeoD/leset2+fKM551FR2AoAx9rb3x/mZU2j'
+    b'AKANvrpGYcz1OASyOSu3rNBizhR0hO+OSIFzAd/Nw/fvt4zXyYL0dNEtCGWzTKbUuwNR3/ve5k9a'
+    b'h55wNU6nId9sLgmoasc/bt++OTLu/zboYU40Aq2CAAAAAElFTkSuQmCC'
+)
 
 
 class WindowCloseError(Exception):
@@ -127,11 +160,6 @@ def set_dpi_awareness(awareness_level=1):
     Will only work on Windows 8.1 or Windows 10. Not sure if earlier versions
     of Windows have this issue anyway.
 
-    AttributeError is raised if the dll loader was not created, OSError
-    is raised if setting the dpi awareness errors, and PermissionError is
-    raised if the dpi awareness was already set, since it can only be set
-    once per thread. All are ignored by this function.
-
     """
 
     # 'nt' designates Windows operating system
@@ -141,6 +169,10 @@ def set_dpi_awareness(awareness_level=1):
         try:
             ctypes.oledll.shcore.SetProcessDpiAwareness(awareness_level)
         except (AttributeError, OSError, PermissionError):
+            # AttributeError is raised if the dll loader was not created, OSError
+            # is raised if setting the dpi awareness errors, and PermissionError is
+            # raised if the dpi awareness was already set, since it can only be set
+            # once per thread. All are ignored.
             pass
 
 
@@ -247,7 +279,6 @@ def get_min_size(default_size, scale, dimension='both'):
     """
 
     indices = {'width': [0], 'height': [1], 'both': [0, 1]}
-
     screen_size = sg.Window.get_screen_size()
 
     return int(min(*(scale * screen_size[index] for index in indices[dimension]), default_size))
@@ -255,15 +286,15 @@ def get_min_size(default_size, scale, dimension='both'):
 
 def string_to_unicode(input_list):
     r"""
-    Converts strings to unicode by replacing '\\' with '\'.
+    Converts strings to unicode by replacing ``'\\'`` with ``'\'``.
 
-    Necessary because the user input from PySimpleGui's InputText element
-    will convert any '\' input by the user to '\\', which will not
+    Necessary because user input from text elements in GUIs are raw strings and
+    will convert any ``'\'`` input by the user to ``'\\'``, which will not
     be converted to the desired unicode. If the string already has unicode
     characters, it will be left alone.
 
-    Also converts things like '\\n' and '\\t' to '\n' and '\t', respectively,
-    so that inputs are correctly interpreted.
+    Also converts things like ``'\\n'`` and ``'\\t'`` to ``'\n'`` and ``'\t'``,
+    respectively, so that inputs are correctly interpreted.
 
     Parameters
     ----------
@@ -281,10 +312,10 @@ def string_to_unicode(input_list):
     Uses raw_unicode_escape encoding to ensure that any existing unicode is
     correctly decoded; otherwise, it would translate incorrectly.
 
-    If using mathtext in matplotlib and want to do something like $\nu$,
-    input $\\nu$ in the GUI, which gets converted to $\\\\nu$ by PySimpleGUI,
-    and in turn will be converted back to $\\nu$ by this fuction, which matplotlib
-    considers equivalent to $\nu$.
+    If using mathtext in matplotlib and want to do something like ``$\nu$``,
+    input ``$\\nu$`` in the GUI, which gets converted to ``$\\\\nu$`` by the GUI,
+    and in turn will be converted back to ``$\\nu$`` by this fuction, which
+    matplotlib considers equivalent to ``$\nu$``.
 
     """
 
@@ -305,7 +336,7 @@ def string_to_unicode(input_list):
 
 def stringify_backslash(input_string):
     r"""
-    Fixes strings containing backslash, such as '\n', so that they display properly in GUIs.
+    Fixes strings containing backslash, such as ``'\n'``, so that they display properly in GUIs.
 
     Parameters
     ----------
@@ -320,8 +351,8 @@ def stringify_backslash(input_string):
 
     Notes
     -----
-    It is necessary to replace multiple characters because things like '\n' are
-    considered unique characters, so simply replacing the '\\' would not work.
+    It is necessary to replace multiple characters because things like ``'\n'`` are
+    considered unique characters, so simply replacing the ``'\'`` would not work.
 
     """
 
@@ -415,7 +446,7 @@ def validate_inputs(window_values, integers=None, floats=None,
             try:
                 window_values[entry[0]] = int(window_values[entry[0]])
             except:
-                sg.popup(f'Need to enter integer in "{entry[1]}".\n', title='Error')
+                sg.popup(f'Need to enter integer in "{entry[1]}".\n', title='Error', icon=_LOGO)
                 return False
 
     if floats is not None:
@@ -423,14 +454,14 @@ def validate_inputs(window_values, integers=None, floats=None,
             try:
                 window_values[entry[0]] = float(window_values[entry[0]])
             except:
-                sg.popup(f'Need to enter number in "{entry[1]}".\n', title='Error')
+                sg.popup(f'Need to enter number in "{entry[1]}".\n', title='Error', icon=_LOGO)
                 return False
 
     if strings is not None:
         for entry in strings:
             if not window_values[entry[0]]:
                 sg.popup(f'Need to enter information in "{entry[1]}".\n',
-                         title='Error')
+                         title='Error', icon=_LOGO)
                 return False
 
     if user_inputs is not None:
@@ -462,7 +493,7 @@ def validate_inputs(window_values, integers=None, floats=None,
             except Exception as e:
                 sg.popup(
                     f'Need to correct entry for "{entry[1]}".\n\nError:\n    {repr(e)}\n',
-                    title='Error')
+                    title='Error', icon=_LOGO)
                 return False
 
     if constraints is not None:
@@ -495,7 +526,7 @@ def validate_inputs(window_values, integers=None, floats=None,
                     sg.popup(
                         (f'"{entry[1]}" must be {lower_key} {lower_bound} and '
                          f'{upper_key} {upper_bound}.\n'),
-                        title='Error'
+                        title='Error', icon=_LOGO
                     )
                     return False
 
@@ -520,7 +551,7 @@ def validate_sheet_name(sheet_name):
     ------
     ValueError
         Raised if the sheet name is greater than 31 characters or if it
-        contains any of the following: \, /, ?, *, [, ], :
+        contains any of the following: ``\, /, ?, *, [, ], :``
 
     """
 
@@ -620,10 +651,10 @@ def show_dataframes(dataframes, title='Raw Data'):
                                  tab_background_color=sg.theme_background_color())]
                 ]
 
-        window = sg.Window(title, layout, resizable=True, finalize=True)
+        window = sg.Window(title, layout, resizable=True, finalize=True, icon=_LOGO)
 
     except Exception as e: #TODO do I still need this try-except block?
-        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
+        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error', icon=_LOGO)
         window = None
 
     sg.set_options(enable_treeview_869_patch=original_setting)
@@ -815,7 +846,7 @@ def raw_data_import(window_values, file, show_popup=True):
     Notes
     -----
     If using a spreadsheet format ('xls', 'xlsx', 'odf', etc.), allows using
-    any of the available engines pandas.read_excel, and will just let pandas
+    any of the available engines for pandas.read_excel, and will just let pandas
     notify the user if the proper engine is not installed.
 
     Optimizes the memory usage of the imported data before returning.
@@ -906,7 +937,7 @@ def raw_data_import(window_values, file, show_popup=True):
         return dataframes
 
     except Exception as e:
-        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error')
+        sg.popup('Error reading file:\n    ' + repr(e) + '\n', title='Error', icon=_LOGO)
 
 
 def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_columns=False):
@@ -937,7 +968,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
     Notes
     -----
     If using a spreadsheet format ('xls', 'xlsx', 'odf', etc.), allows using
-    any of the available engines pandas.read_excel, and will just let pandas
+    any of the available engines for pandas.read_excel, and will just let pandas
     notify the user if the proper engine is not installed. The file selection
     window, however, will only show 'xlsx', 'xlsm', 'csv', 'txt', and potentially
     'xls', so that users are not steered towards selecting a format that does
@@ -1164,7 +1195,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         ]], expand_x=True, element_justification='right', pad=(0, 0))
     ])
 
-    window = sg.Window('Data Import', layout, finalize=True)
+    window = sg.Window('Data Import', layout, finalize=True, icon=_LOGO)
     if file is not None and Path(file).suffix.lower() in excel_formats:
         window['EXCEL_TAB'].select()
 
@@ -1342,7 +1373,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
             except ValueError:
                 window['repeat_unit'].update('')
                 sg.popup('Please enter an integer in "number of columns per dataset"',
-                         title='Error')
+                         title='Error', icon=_LOGO)
 
         elif event == 'columns' and assign_column_indices:
             update_text = [
@@ -1353,7 +1384,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
 
         elif event in ('Next', 'Test Import'):
             if file is None and values['file'] == 'Choose a file':
-                sg.popup('Please choose a file', title='Error')
+                sg.popup('Please choose a file', title='Error', icon=_LOGO)
                 continue
 
             elif validate_inputs(values, **validations):
@@ -1535,7 +1566,8 @@ def open_multiple_files():
     window = sg.Window(
         'Select Files',
         [[_manual_file_selector(0, 0)],
-         [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]]
+         [sg.Button('Next', button_color=PROCEED_COLOR, bind_return_key=True)]],
+        icon=_LOGO
     )
     while True:
         event = window.read()[0]
@@ -1551,7 +1583,7 @@ def open_multiple_files():
             if files:
                 break
             else:
-                sg.popup('Must add at least one file.\n', title='Error')
+                sg.popup('Must add at least one file.\n', title='Error', icon=_LOGO)
 
     window.close()
     del window

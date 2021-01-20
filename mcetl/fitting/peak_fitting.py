@@ -1229,7 +1229,7 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
              sg.Button('Clear Points', key='clear')]
         ]
 
-        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def event_loop(self):
@@ -1471,7 +1471,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             ]], vertical_alignment='center', pad=(5, (15, 0)))]
         ]
 
-        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def event_loop(self):

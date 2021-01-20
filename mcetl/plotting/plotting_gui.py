@@ -70,8 +70,8 @@ LINE_MAPPING = {
     'Dot': ':',
     'Dash-Dot-Dot': (0,
                      [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
-                     + plt.rcParams['lines.dashdot_pattern'][1:]
-                     + plt.rcParams['lines.dashdot_pattern'][-2:])
+                      + plt.rcParams['lines.dashdot_pattern'][1:]
+                      + plt.rcParams['lines.dashdot_pattern'][-2:])
 }
 MARKERS = (
     ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
@@ -85,7 +85,7 @@ TIGHT_LAYOUT_W_PAD = 0.6
 # column name for the blank columns inserted between data entries when saving data to csv
 _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 # the default figure name used by matplotlib
-_PREVIEW_NAME = 'Preview'
+_PREVIEW_NAME = '-Preview-'
 # the file extension for the json file containing all of the plot layout information
 _THEME_EXTENSION = '.figjson'
 
@@ -125,7 +125,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
-        file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
+        file_types=((f"Figure Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
     )
 
     if filename:
@@ -174,27 +174,27 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
             )
 
         try:
-            with open(filename, 'w') as f:
+            with open(filename, 'w') as fp:
                 json.dump(
                     {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
                      'GUI VALUES': gui_values,
                      'MATPLOTLIB RCPARAM CHANGES': rc_changes,
                      'ANNOTATIONS': annotations,
                      'PEAKS': peaks},
-                    f, indent=2
+                    fp, indent=2
                 )
         except PermissionError:
             sg.popup(
                 (f'The {_THEME_EXTENSION} file is currently open.\n'
                  'Please close and try to save again.\n'),
-                title='Save Failed'
+                title='Save Failed', icon=utils._LOGO
             )
         else:
             if data is None:
                 sg.popup(
                     ('Successfully saved to '
                      f'{str(Path(filename).with_suffix(""))}\n'),
-                    title='Save Successful'
+                    title='Save Successful', icon=utils._LOGO
                 )
             else:
                 saved_data = []
@@ -212,13 +212,13 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
                     sg.popup(
                         ('The .csv file is currently open.\n'
                          'Please close and try to save again.\n'),
-                        title='Save Failed'
+                        title='Save Failed', icon=utils._LOGO
                     )
                 else:
                     sg.popup(
                         ('Successfully saved to '
                          f'{str(Path(filename).with_suffix(""))}\n'),
-                        title='Save Successful'
+                        title='Save Successful', icon=utils._LOGO
                     )
 
 
@@ -326,8 +326,8 @@ def _load_theme_file(filename):
 
     """
 
-    with open(filename, 'r') as f:
-        theme_file = json.load(f)
+    with open(filename, 'r') as fp:
+        theme_file = json.load(fp)
 
     #TODO should change these to theme_file.get(key, default) since user can modify/delete; check that defaults will be okay
     fig_kwargs = theme_file['FIGURE KEYWORD ARGUMENTS']
@@ -353,20 +353,9 @@ def _load_theme_file(filename):
     return axes, gui_values, fig_kwargs, rc_changes
 
 
-def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
+def _load_figure_theme():
     """
     Load the options to recreate a figure layout.
-
-    Parameters
-    ----------
-    current_axes : dict
-        The current dictionary of plt.Axes objects. Returned if the
-        user does not load a file.
-    current_values : dict
-        The current window dictionary. Returned if user does not load a file.
-    current_fig_kwargs : dict
-        The dictionary used to create the current figure. Returned if user
-        does not load a file.
 
     Returns
     -------
@@ -444,7 +433,7 @@ def _save_image_options(figure):
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window_1 = sg.Window('Save Options', layout)
+    window_1 = sg.Window('Save Options', layout, icon=utils._LOGO)
     while True:
         event, values = window_1.read()
 
@@ -463,7 +452,7 @@ def _save_image_options(figure):
         elif event == 'Next':
             if not values['file_name']:
                 sg.popup('\nPlease select a file name.\n',
-                         title='Select a file name')
+                         title='Select a file name', icon=utils._LOGO)
             else:
                 window_1.hide()
                 selected_extension = values['extension'].split(' ')[0]
@@ -483,7 +472,8 @@ def _save_image_options(figure):
                             [sg.Button(f'Use Selected Extension ({selected_extension})',
                                        key='use_selected')],
                             [sg.Button('Back')]
-                        ]
+                        ],
+                        icon=utils._LOGO
                     )
                     error_event = error_window.read(close=True)[0]
                     error_window = None
@@ -502,7 +492,7 @@ def _save_image_options(figure):
                     pil_kwargs = None
                 else:
                     window_2 = sg.Window(f'Options for {file_extension.upper()}',
-                                         layout_2)
+                                         layout_2, icon=utils._LOGO)
                     event_2, pil_kwargs = window_2.read(close=True)
                     window_2 = None
                     if event_2 in (sg.WIN_CLOSED, 'Back'):
@@ -518,7 +508,8 @@ def _save_image_options(figure):
 
                 try:
                     figure.savefig(file_name, pil_kwargs=pil_kwargs)
-                    sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
+                    sg.popup(f'Saved figure to:\n    {file_name}\n',
+                             title='Saved Figure', icon=utils._LOGO)
                     break
 
                 except Exception as e:
@@ -526,7 +517,7 @@ def _save_image_options(figure):
                         (f'Save failed...\n\nSaving to "{file_extension}" may not '
                          'be supported by matplotlib, or an additional error may '
                          f'have occured.\n\nError:\n    {repr(e)}\n'),
-                        title='Error'
+                        title='Error', icon=utils._LOGO
                     )
                     window_1.un_hide()
 
@@ -727,8 +718,8 @@ def _create_figure(fig_kwargs, saving=False):
     plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(
         num=fig_kwargs['fig_name'], dpi=dpi,
-        figsize = (fig_kwargs['fig_width'] / fig_kwargs['dpi'],
-                   fig_kwargs['fig_height'] / fig_kwargs['dpi']),
+        figsize=(fig_kwargs['fig_width'] / fig_kwargs['dpi'],
+                 fig_kwargs['fig_height'] / fig_kwargs['dpi']),
         tight_layout={'pad': TIGHT_LAYOUT_PAD,
                       'w_pad': 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD,
                       'h_pad': 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD}
@@ -876,7 +867,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                     y_label = ''
                     label_left = False
 
-                if int(val[1][0]) + 1 !=  fig_kwargs['num_cols']:
+                if int(val[1][0]) + 1 != fig_kwargs['num_cols']:
                     twin_x_label = ''
                     label_right = False
 
@@ -1014,7 +1005,7 @@ def _create_advanced_layout(input_values, canvas, figure):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Table', layout, finalize=True)
+    window = sg.Window('Table', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -1160,7 +1151,7 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
          sg.Button('Submit', button_color=utils.PROCEED_COLOR,
                    bind_return_key=True)]
     ])
-    window = sg.Window('Twin Axes', layout, finalize=True)
+    window = sg.Window('Twin Axes', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.tkraise()
     window.TKroot.grab_set()
 
@@ -1284,7 +1275,7 @@ def _select_plot_type(user_inputs=None):
     fig = _create_figure(fig_kwargs)
     gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
     axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
-    window = sg.Window('Plot Types', layout, finalize=True)
+    window = sg.Window('Plot Types', layout, finalize=True, icon=utils._LOGO)
     _annotate_example_figure(axes, window['example_canvas'].TKCanvas, fig)
 
     validations = {
@@ -1923,7 +1914,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True,
-                       finalize=True, location=location)
+                       finalize=True, location=location, icon=utils._LOGO)
     plot_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
                                      window['controls_canvas'].TKCanvas, plot_utils.PlotToolbar)
     window['options_column'].expand(True, True) # expands the column when window changes size
@@ -2094,7 +2085,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_y_minor_ticks_{i}_{j}'] + 1))
 
     except Exception as e:
-        sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
+        sg.popup(f'Error creating plot:\n\n    {repr(e)}\n', icon=utils._LOGO)
     finally:
         # Ensures that the annotations and peaks are maintained if an exception occurres
         if old_axes is not None:
@@ -2239,7 +2230,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Entry Selection', layout, finalize=True)
+    window = sg.Window('Entry Selection', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2267,7 +2258,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                 break
             else:
                 window.TKroot.grab_release()
-                sg.popup('Please select an entry', title='Error')
+                sg.popup('Please select an entry', title='Error', icon=utils._LOGO)
                 window.TKroot.grab_set()
 
     window.close()
@@ -2560,7 +2551,7 @@ def _add_remove_annotations(axis, add_annotation):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window(window_text, layout, finalize=True)
+    window = sg.Window(window_text, layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2605,7 +2596,7 @@ def _add_remove_annotations(axis, add_annotation):
                 close = values['text_listbox'] or values['arrows_listbox']
                 if not close:
                     sg.popup('Please select an annotation to delete.',
-                             title='Error')
+                             title='Error', icon=utils._LOGO)
 
             if not close:
                 window.TKroot.grab_set()
@@ -2921,7 +2912,7 @@ def _add_remove_peaks(axis, add_peak):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window(window_text, layout, finalize=True)
+    window = sg.Window(window_text, layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2963,13 +2954,13 @@ def _add_remove_peaks(axis, add_peak):
                         close = False
                         sg.popup(
                             'The selected peak label is already a peak.\n',
-                            title='Error'
+                            title='Error', icon=utils._LOGO
                         )
                     elif not values['peak_listbox']:
                         close = False
                         sg.popup(
                             'Please select a line on which to add peak markers.\n',
-                            title='Error'
+                            title='Error', icon=utils._LOGO
                         )
 
             elif add_peak is None:
@@ -2981,13 +2972,14 @@ def _add_remove_peaks(axis, add_peak):
                     if len(labels) != len(set(labels)):
                         close = False
                         sg.popup(
-                            'There cannot be repeated peak labels.\n', title='Error'
+                            'There cannot be repeated peak labels.\n',
+                            title='Error', icon=utils._LOGO
                         )
 
             else:
                 close = values['peak_listbox']
                 if not close:
-                    sg.popup('Please select a peak to delete.\n', title='Error')
+                    sg.popup('Please select a peak to delete.\n', title='Error', icon=utils._LOGO)
 
             if not close:
                 window.TKroot.grab_set()
@@ -3178,7 +3170,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # load the options required to recreate a figure layout
                 elif event.startswith('Load Figure'):
                     window.hide()
-                    new_figure_theme = _load_figure_theme(axes, values, fig_kwargs)
+                    new_figure_theme = _load_figure_theme()
 
                     if not new_figure_theme:
                         window.un_hide()
@@ -3310,7 +3302,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
                         'All values will be returned to their default.\n\nProceed?\n',
-                        title='Reset to Defaults'
+                        title='Reset to Defaults', icon=utils._LOGO
                     )
                     if reset == 'Yes':
                         plt.close(_PREVIEW_NAME)

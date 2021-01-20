@@ -21,7 +21,7 @@ import traceback
 import pandas as pd
 import PySimpleGUI as sg
 
-from .utils import PROCEED_COLOR
+from . import utils
 #openpyxl is imported within methods of ExcelWriterHandler
 
 
@@ -80,11 +80,6 @@ class ExcelWriterHandler:
     Notes
     -----
     Either file_name or writer must be specified at initialization.
-
-    If writer is none during initialization, The ExcelWriterHandler does
-    not create a pd.ExcelWriter. The ExcelWriter must be started using the
-    initialize_writer method. The separation allows for opening an existing Excel
-    file in a separate thread.
 
     Examples
     --------
@@ -267,7 +262,7 @@ class ExcelWriterHandler:
                      'any current unsaved changes, save the file before closing '
                      'this window.\n\nAny changes to the file made within Excel '
                      'until the file is saved in Python will be lost.\n'),
-                    title='Close File'
+                    title='Close File', icon=utils._LOGO
                 )
 
         # TODO switch this to logging later, and make it log for either mode
@@ -308,8 +303,9 @@ class ExcelWriterHandler:
                                 'Please close the file and press Proceed'
                                 ' to save.\nPress Discard to not save.\n'))],
                         [sg.Button('Discard'),
-                        sg.Button('Proceed', button_color=PROCEED_COLOR)]
-                    ]
+                        sg.Button('Proceed', button_color=utils.PROCEED_COLOR)]
+                    ],
+                    icon=utils._LOGO
                 )
                 response = window.read()[0]
                 window.close()
@@ -685,7 +681,7 @@ class ExcelWriterHandler:
             if key in ('fgColor', 'bgColor', 'start_color', 'end_color'):
                 pattern_key = key
                 val = cls._openpyxl_color(value)
-            if key in ('patternType, fill_type'):
+            if key in ('patternType', 'fill_type'):
                 pattern_key = key
             if key in ('type', 'fill_type'):
                 gradient_key = 'type' # GradientFill does not take fill_type key

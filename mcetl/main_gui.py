@@ -353,7 +353,7 @@ def _select_processing_options(data_sources):
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Main Menu', layout, finalize=True)
+    window = sg.Window('Main Menu', layout, finalize=True, icon=utils._LOGO)
     window['DataSource_column'].expand(expand_x=True, expand_y=True)
     data_source = None
     while True:
@@ -412,7 +412,7 @@ def _select_processing_options(data_sources):
         elif event == 'save_as':
             file_name = sg.popup_get_file(
                 '', save_as=True, default_path=values['display_name'], no_window=True,
-                file_types=(("Excel Workbook (xlsx)", "*.xlsx"),)
+                file_types=(("Excel Workbook (xlsx)", "*.xlsx"),), icon=utils._LOGO
             )
             if file_name:
                 file_path = Path(file_name)
@@ -423,12 +423,14 @@ def _select_processing_options(data_sources):
 
         elif event == 'Next':
             if data_source is None:
-                sg.popup('Please select a data source.\n', title='Error')
+                sg.popup('Please select a data source.\n', title='Error', icon=utils._LOGO)
             elif (not any(values[key] for key in ('process_data', 'fit_data', 'plot_python',
                     'move_files', 'save_excel'))):
-                sg.popup('Please select a data processing option.\n', title='Error')
+                sg.popup('Please select a data processing option.\n',
+                         title='Error', icon=utils._LOGO)
             elif values['save_excel'] and not values['file_name']:
-                sg.popup('Please select a filename for the output Excel file.\n', title='Error')
+                sg.popup('Please select a filename for the output Excel file.\n',
+                         title='Error', icon=utils._LOGO)
             else:
                 break
 
@@ -730,7 +732,7 @@ def _create_column_labels_window(dataset, data_source, options, index,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    return validations, sg.Window(f'Dataset {index + 1} Options', layout, location=location, resizable=True)
+    return validations, sg.Window(f'Dataset {index + 1} Options', layout, location=location, resizable=True, icon=utils._LOGO)
 
 
 def _select_column_labels(dataframes, data_source, processing_options):
@@ -788,7 +790,7 @@ def _select_column_labels(dataframes, data_source, processing_options):
                      '\\u00B0": \u00B0\n"\\u03bc": \u03bc\n"\\u03bb": \u03bb\n'
                      '\nFor example, Acceleration'
                      ' (m/s\\u00B2) creates Acceleration (m/s\u00B2).\n'),
-                    title='Example Unicode', modal=False
+                    title='Example Unicode', modal=False, icon=utils._LOGO
                 )
 
             elif (event in ('Back', 'Next', 'Finish')
@@ -1090,7 +1092,7 @@ def _move_files(files):
     ]
 
     try:
-        window = sg.Window('Move Files', layout)
+        window = sg.Window('Move Files', layout, icon=utils._LOGO)
         while True:
             event, values = window.read()
 
@@ -1112,7 +1114,8 @@ def _move_files(files):
 
             elif event == 'Submit':
                 if any(not values[key] for key in values if key.startswith('folder_')):
-                    sg.popup('Please enter folders for all datasets', title='Error')
+                    sg.popup('Please enter folders for all datasets',
+                             title='Error', icon=utils._LOGO)
                 else:
                     break
 

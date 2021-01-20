@@ -888,7 +888,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=False):
     ]
 
     try:
-        window = sg.Window('Raw Data Generation', layout)
+        window = sg.Window('Raw Data Generation', layout, icon=utils._LOGO)
         while True:
             event, values = window.read()
             if event == sg.WIN_CLOSED:
@@ -905,7 +905,7 @@ def generate_raw_data(directory=None, num_files=None, show_plots=False):
                         break
                     else:
                         sg.popup('Please select a characterization technique.\n',
-                                 title='Error')
+                                 title='Error', icon=utils._LOGO)
 
     except (utils.WindowCloseError, KeyboardInterrupt):
         pass

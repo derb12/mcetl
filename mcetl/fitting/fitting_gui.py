@@ -262,7 +262,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         ]
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
-        self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
         self.window['results_output'].expand(expand_x=True, expand_y=True)
 
 
@@ -670,7 +670,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
          sg.Button('Skip Fitting')]
     ]
 
-    window = sg.Window('Fitting', layout, finalize=True)
+    window = sg.Window('Fitting', layout, finalize=True, icon=utils._LOGO)
     if default_inputs['manual_peaks']:
         window['manual_tab'].select()
         window['automatic_tab'].update(visible=False)
@@ -925,7 +925,7 @@ def fit_dataframe(dataframe, user_inputs=None):
         try:
             fit_result, values_df, params_df, descriptors_df = _process_fitting_kwargs(dataframe, gui_values)
         except Exception:
-            sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
+            sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n', icon=utils._LOGO)
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
             if gui_values['confirm_results'] and not ResultsPlot(fit_result).event_loop():
@@ -1027,7 +1027,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         elif event == 'Skip Fitting':
             skip = sg.popup_yes_no(
                 'Peak fitting will be skipped for this entry.\n\nProceed?\n',
-                title='Skip Fitting'
+                title='Skip Fitting', icon=utils._LOGO
             )
             if skip == 'Yes':
                 values = None
@@ -1036,7 +1036,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         elif event == 'Reset to Default':
             reset = sg.popup_yes_no(
                         'All values will be returned to their default.\n\nProceed?\n',
-                        title='Reset to Defaults'
+                        title='Reset to Defaults', icon=utils._LOGO
                     )
             if reset == 'Yes':
                 defaults = {
@@ -1053,7 +1053,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             try:
                 SimpleEmbeddedFigure(dataframe, values).event_loop()
             except Exception as e:
-                sg.popup(f'Error creating plot:\n    {repr(e)}')
+                sg.popup(f'Error creating plot:\n    {repr(e)}', icon=utils._LOGO)
 
             window.un_hide()
 
@@ -1074,7 +1074,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 bkg_points = peak_fitting.BackgroundSelector(
                     x_data, y_data, bkg_points).event_loop()
             except Exception as e:
-                sg.popup(f'Error launching Background Selector:\n    {repr(e)}')
+                sg.popup(f'Error launching Background Selector:\n    {repr(e)}', icon=utils._LOGO)
 
             window.un_hide()
 
@@ -1108,7 +1108,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                     background_kwargs, bkg_min, bkg_max, default_model
                 ).event_loop()
             except Exception as e:
-                sg.popup(f'Error launching Peak Selector:\n    {repr(e)}')
+                sg.popup(f'Error launching Peak Selector:\n    {repr(e)}', icon=utils._LOGO)
             else:
                 # updates values in the window from the peak selector plot
                 sorted_peaks = [[val[0], val[3]] for val in sorted(peak_list, key=lambda x: x[3])]
@@ -1206,18 +1206,18 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
             if bad_models:
                 sg.popup(
                     f'Need to correct terms in the model list:\n  {", ".join(bad_models)}\n',
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             elif values['automatic_peaks'] and not _find_peaks(dataframe, values):
                 sg.popup(
                     ('No peaks found in fitting range. Either manually enter \n'
                         'peak positions or change peak finding options.\n'),
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             elif values['manual_peaks'] and not peak_list:
                 sg.popup(
                     'Please manually select peaks or change peak finding to automatic.\n',
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             else:
                 break
@@ -1517,7 +1517,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
                 sg.Check('New File', key='new_file')]
             ]
 
-            window = sg.Window('File Selection', layout)
+            window = sg.Window('File Selection', layout, icon=utils._LOGO)
             while True:
                 event, values = window.read()
                 if event == sg.WIN_CLOSED:
