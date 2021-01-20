@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Provides GUIs to find files containing combinations of keywords and move files.
 
-#TODO add an option to select each file individually
-
 @author: Donald Erb
 Created on Sep 2, 2019
 
@@ -104,7 +102,7 @@ def _generate_num_keyword_window(file_directory=None, file_type=None, num_files=
          sg.Button('Next', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    return sg.Window('Search Criteria', layout, location=location)
+    return sg.Window('Search Criteria', layout, location=location, icon=utils._LOGO)
 
 
 def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
@@ -165,7 +163,7 @@ def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
                 ('All folders and files under the topmost folder will be searched.\n\n'
                  'The number of datasets is equal to the number of sheets '
                  'to create in Excel, if writing to Excel.\n'),
-                title='Help')
+                title='Help', icon=utils._LOGO)
 
         elif event == 'Next':
             if utils.validate_inputs(values, **validations):
@@ -174,7 +172,7 @@ def _get_num_keywords(file_directory=None, file_type=None, num_files=None,
                 else:
                     sg.popup(
                         'Minimum files must be less than or equal to maximum files.\n',
-                        title='Error'
+                        title='Error', icon=utils._LOGO
                     )
 
     window.close()
@@ -235,7 +233,7 @@ def _generate_keyword_window(num_datasets, previous_inputs=None, location=(None,
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    return sg.Window('Keyword Selection', layout, location=location)
+    return sg.Window('Keyword Selection', layout, location=location, icon=utils._LOGO)
 
 
 def _get_keywords(num_keyword_values):
@@ -289,7 +287,7 @@ def _get_keywords(num_keyword_values):
                  '"ti, 700, 20, ni", "ti, 700, 30, ni", "ti, 700, 10, fe", "ti, 700, 20, fe", '
                  '"ti, 700, 30, fe".\n\nLeave keyword(s) blank to find all '
                  'files with the given file extension under the specified folder.\n'),
-                title='Help')
+                title='Help', icon=utils._LOGO)
 
         elif event == 'Back':
             location = window.current_location()
@@ -439,17 +437,17 @@ def file_finder(file_directory=None, file_type=None, num_files=None):
                     [sg.Button('Submit', button_color=utils.PROCEED_COLOR)]
                 ]
 
-                window = sg.Window('Found Files', layout, location=window_location)
+                window = sg.Window('Found Files', layout, location=window_location, icon=utils._LOGO)
                 while True:
                     event, values = window.read()
                     if event == sg.WIN_CLOSED:
                         utils.safely_close_window(window)
                     elif len(values['listbox']) < min_files:
                         sg.popup(f'Please select at least {min_files} file(s).\n',
-                                 title='Error')
+                                 title='Error', icon=utils._LOGO)
                     elif len(values['listbox']) > max_files:
                         sg.popup(f'Please select no more than {max_files} file(s).\n',
-                                 title='Error')
+                                 title='Error', icon=utils._LOGO)
                     else:
                         window_location = window.current_location()
                         break
@@ -524,7 +522,7 @@ def _manual_options(file_extension=None, previous_inputs=None):
         ]
     }
 
-    window = sg.Window('Manual File Selection', layout)
+    window = sg.Window('Manual File Selection', layout, icon=utils._LOGO)
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED:
@@ -544,7 +542,8 @@ def _manual_options(file_extension=None, previous_inputs=None):
                 )
         elif event == 'Next' and utils.validate_inputs(values, **validations):
             if len(values['num_samples']) < values['num_datasets']:
-                sg.popup('Number of samples must be specified for each dataset.\n', title='Error')
+                sg.popup('Number of samples must be specified for each dataset.\n',
+                         title='Error', icon=utils._LOGO)
             else:
                 break
 
@@ -605,7 +604,7 @@ def _create_manual_window(datasets, previous_files=None):
             listbox_layout.append(
                 utils._manual_file_selector(
                     i, j, selected_files, f'Dataset {i + 1}, Sample {j + 1}',
-                    key=f'frame_{i}_{j}', visible=i==0 and j==0
+                    key=f'frame_{i}_{j}', visible=i == 0 and j == 0
                 )
             )
 
@@ -613,7 +612,7 @@ def _create_manual_window(datasets, previous_files=None):
         [
             sg.Column([[
                 sg.Tree(tree_data, ['Files'], enable_events=True,
-                    key='tree', show_expanded=True, select_mode=sg.TABLE_SELECT_MODE_BROWSE),
+                        key='tree', show_expanded=True, select_mode=sg.TABLE_SELECT_MODE_BROWSE),
             ]], pad=(0, 0), vertical_alignment='top'),
             sg.Column([listbox_layout], pad=(0, 0), vertical_alignment='top')
         ],
@@ -621,7 +620,7 @@ def _create_manual_window(datasets, previous_files=None):
          sg.Button('Finish', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('File Selection', layout, finalize=True)
+    window = sg.Window('File Selection', layout, finalize=True, icon=utils._LOGO)
     sg.set_options(enable_treeview_869_patch=original_setting)
 
     return window
@@ -691,14 +690,15 @@ def manual_file_finder(file_type=None):
             elif missing_indices:
                 if len(missing_indices) < 10:
                     sg.popup(
-                        (f'Need to select files for:\n\n  '
-                        + '\n  '.join(f'Dataset {i}, Sample {j}' for i, j in missing_indices)
-                        + '\n'), title='Error'
+                        ('Need to select files for:\n\n  '
+                         + '\n  '.join(f'Dataset {i}, Sample {j}' for i, j in missing_indices)
+                         + '\n'),
+                        title='Error', icon=utils._LOGO
                     )
                 else:
                     sg.popup(
                         'Need to select files for all Samples in all Datasets.\n',
-                        title='Error'
+                        title='Error', icon=utils._LOGO
                     )
 
             else:
@@ -745,7 +745,7 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
                        button_color=utils.PROCEED_COLOR)]
         ]
 
-        window = sg.Window('Folder Selection', layout)
+        window = sg.Window('Folder Selection', layout, icon=utils._LOGO)
         while True:
             event, values = window.read()
 
@@ -753,7 +753,7 @@ def file_mover(file_list, new_folder=None, skip_same_files=True):
                 utils.safely_close_window(window)
 
             elif values['folder'] == '':
-                sg.popup('Please select a folder.')
+                sg.popup('Please select a folder.', icon=utils._LOGO)
 
             else:
                 break

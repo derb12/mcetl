@@ -232,7 +232,7 @@ class EmbeddedFigure:
         ]
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
-        self.window = sg.Window(window_title, layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window(window_title, layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def _update_plot(self):
@@ -433,7 +433,7 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
         sg.popup(
             ('Exception occurred during figure creation. Could be due to '
              f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
-            title='Plotting Error'
+            title='Plotting Error', icon=utils._LOGO
         )
         _clean_canvas(canvas)
         if toolbar_canvas not in (None, canvas):
