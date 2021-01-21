@@ -950,7 +950,7 @@ def _fit_data(datasets, data_source, labels,
         respectively.
     rc_params : dict, optional
         A dictionary of changes to matplotlib's rcparams. If None, will
-        use data_source.figure_rc_params.
+        use data_source.figure_rcparams.
 
     Returns
     -------
@@ -972,7 +972,7 @@ def _fit_data(datasets, data_source, labels,
     if rc_params is not None:
         mpl_changes = rc_params.copy()
     else:
-        mpl_changes = data_source.figure_rc_params.copy()
+        mpl_changes = data_source.figure_rcparams.copy()
 
     results = [[[] for sample in dataset] for dataset in datasets]
 
@@ -1030,7 +1030,7 @@ def _plot_data(datasets, data_source):
     datasets : list
         A nested list of lists of lists of dataframes.
     data_source : DataSource
-        The DataSource object whose figure_rc_params attribute will be used
+        The DataSource object whose figure_rcparams attribute will be used
         to set matplotlib's rcParams.
 
     Returns
@@ -1050,7 +1050,7 @@ def _plot_data(datasets, data_source):
     for dataset in datasets: # Flattens the dataset to a single list per dataset
         plot_datasets.append(list(itertools.chain.from_iterable(dataset)))
 
-    return launch_plotting_gui(plot_datasets, data_source.figure_rc_params)
+    return launch_plotting_gui(plot_datasets, data_source.figure_rcparams)
 
 
 def _move_files(files):
@@ -1147,34 +1147,34 @@ def launch_main_gui(data_sources, fitting_mpl_params=None):
     data_sources : list(DataSource) or tuple(DataSource) or DataSource
         A list or tuple of mcetl.DataSource objects, or a single DataSource.
     fitting_mpl_params : dict, optional
-        A dictionary of changes for matplotlib's rcParams to use
+        A dictionary of changes for Matplotlib's rcParams to use
         during fitting. If None, will use the selected DataSource's
-        figure_rc_params attribute.
+        figure_rcparams attribute.
 
     Returns
     -------
     output : dict
         A dictionary containing the following keys and values:
 
-            dataframes : list or None
+            'dataframes': list or None
                 A list of lists of dataframes, with each dataframe containing the
                 data imported from a raw data file; will be None if the function
                 fails before importing data, or if the only processing step taken
                 was moving files.
-            fit_results : list or None
-                A nested list of lists of lmfit ModelResult objects, with each
+            'fit_results': list or None
+                A nested list of lists of lmfit.ModelResult objects, with each
                 ModelResult pertaining to the fitting of a data entry, each list of
                 ModelResults containing all of the fits for a single sample,
                 and east list of lists pertaining to the data within one dataset.
                 Will be None if fitting is not done, or only partially filled
                 if the fitting process ends early.
-            plot_results : list or None
+            'plot_results': list or None
                 A list of lists, with one entry per dataset. Each interior
                 list is composed of a matplotlib.Figure object and a
                 dictionary of matplotlib.Axes objects. Will be None if
                 plotting is not done, or only partially filled if the plotting
                 process ends early.
-            writer : pd.ExcelWriter or None
+            'writer': pd.ExcelWriter or None
                 The pandas ExcelWriter used to create the output Excel file; will
                 be None if the output results were not saved to Excel.
 

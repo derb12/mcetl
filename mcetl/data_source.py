@@ -43,7 +43,8 @@ class DataSource:
         Counts up from the last row, so the last row is 0, the second
         to last row is 1, etc.
     separator : str, optional
-        The separator to use when importing from raw data files.
+        The separator or delimeter to use to separate data columns when
+        importing from raw data files. For example, ',' for csv files.
     file_type : str, optional
         The file extension associated with the data files for the DataSource.
         For example, 'txt' or 'csv'.
@@ -60,8 +61,8 @@ class DataSource:
     xy_plot_indices : list(int, int) or tuple(int, int), optional
         The indices of the columns after processing that will be the default
         columns for plotting in Excel.
-    figure_rc_params : dict, optional
-        A dictionary containing any changes to matplotlib's rcParams to
+    figure_rcparams : dict, optional
+        A dictionary containing any changes to Matplotlib's rcParams to
         use if fitting or plotting.
     excel_writer_styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
@@ -150,6 +151,7 @@ class DataSource:
     def __init__(
             self,
             name,
+            *,
             functions=None,
             column_labels=None,
             column_numbers=None,
@@ -161,7 +163,7 @@ class DataSource:
             unique_variables=None,
             unique_variable_indices=None,
             xy_plot_indices=None,
-            figure_rc_params=None,
+            figure_rcparams=None,
             excel_writer_styles=None,
             excel_row_offset=0,
             excel_column_offset=0,
@@ -203,7 +205,7 @@ class DataSource:
         self.entry_separation = entry_separation
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
-        self.figure_rc_params = figure_rc_params if figure_rc_params is not None else {}
+        self.figure_rcparams = figure_rcparams if figure_rcparams is not None else {}
         self.separator = separator
 
         # Ensures excel_row_offset and excel_column_offset are >= 0
@@ -768,8 +770,8 @@ class DataSource:
                     else:
                         separation_cols = 0
 
-                    sample[j] = entry.astype(dtypes
-                        ).drop(range(len(entry.columns) - separation_cols, len(entry.columns)), axis=1)
+                    sample[j] = entry.astype(
+                        dtypes).drop(range(len(entry.columns) - separation_cols, len(entry.columns)), axis=1)
 
         # reset internal attributes
         self._added_separators = False
