@@ -853,6 +853,11 @@ def raw_data_import(window_values, file, show_popup=True):
 
     """
 
+    column_error_msg = (
+        'Too many columns specified. The last column in the imported'
+        ' data is Column {}.'
+    )
+
     excel_formats = _get_excel_engines()
 
     try:
@@ -888,24 +893,29 @@ def raw_data_import(window_values, file, show_popup=True):
             dataframes = []
             for num in range(max(1, len(total_dataframe.columns) // repeat_unit)):
                 indices = [(num * repeat_unit) + elem for elem in column_indices]
+                if any(num > max(total_dataframe.columns) for num in indices):
+                    raise ValueError(column_error_msg.format(max(total_dataframe.columns)))
+
                 dataframes.append(total_dataframe[indices])
 
-        elif window_values['fixed_width_file']:
-            # NOTE:delimeter is the proper key for read_fwf, sep is not used
-            dataframes = [
-                pd.read_fwf(
+        else:
+            if window_values['fixed_width_file']:
+                # NOTE: delimeter is the proper key for read_fwf, sep is not used
+                dataframes = pd.read_fwf(
                     file, skiprows=row_start, skipfooter=row_end, header=None,
                     delimiter=separator, usecols=column_numbers,
                     widths=window_values['fixed_width_columns']
-                )[column_numbers]
-            ]
-        else:
-            dataframes = [
-                pd.read_csv(
+                )
+            else:
+                dataframes = pd.read_csv(
                     file, skiprows=row_start, skipfooter=row_end, header=None,
                     sep=separator, usecols=column_numbers, engine='python'
-                )[column_numbers]
-            ]
+                )
+
+            if any(num > max(dataframes.columns) for num in column_numbers):
+                raise ValueError(column_error_msg.format(max(dataframes.columns)))
+            else:
+                dataframes = [dataframes[column_numbers]]
 
         if not show_popup:
             total_dataframe = None # so that the dataframes are not copies of total_dataframe
@@ -1057,7 +1067,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
         ]
     else:
         disable_bottom = False
-        file_element = [sg.Text(textwrap.fill(f'File::{file}', 40, subsequent_indent='  '))]
+        file_element = [sg.Text(textwrap.fill(f'file:///{file}', 40, subsequent_indent='  '))]
 
         if Path(file).suffix.lower() not in excel_formats:
             disable_other = False
@@ -1140,7 +1150,7 @@ def select_file_gui(data_source=None, file=None, previous_inputs=None, assign_co
                         sg.Combo(default_inputs['excel_columns'], size=(17, 4), key='last_col',
                                 readonly=True, default_value=default_inputs['last_column'],
                                 disabled=disable_excel, enable_events=True)],
-                        [sg.Text('Number of columns per dataset:'),
+                        [sg.Text('Number of columns per entry:'),
                         sg.Input(default_inputs['repeat_unit'], key='repeat_unit', size=(3, 1),
                                 disabled=disable_excel, enable_events=True)],
                     ], key='EXCEL_TAB', background_color=sg.theme_background_color()
