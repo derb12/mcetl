@@ -45,7 +45,7 @@ setup(
         'Topic :: Scientific/Engineering :: Physics',
         'Topic :: Scientific/Engineering :: Visualization'
     ],
-    description="An Extract-Transform-Load framework focused on materials characterization.",
+    description="A small-scale Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
     license="BSD 3-clause",
     long_description=long_description,

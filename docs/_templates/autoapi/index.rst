@@ -1,5 +1,10 @@
-API Reference [#f1]_
-====================
+API Reference
+=============
+
+.. warning::
+   mcetl is going to switch GUI backends in a later version (v0.5 or v0.6), so
+   any api that is not referenced in the Quick Start or Tutorial sections should
+   be used with caution since it is liable to be changed or removed.
 
 .. toctree::
    :titlesonly:
@@ -11,4 +16,4 @@ API Reference [#f1]_
    {% endfor %}
 
 
-.. [#f1] API reference documentation was auto-generated with `sphinx-autoapi <https://github.com/readthedocs/sphinx-autoapi>`_.
+API reference documentation was auto-generated using `sphinx-autoapi <https://github.com/readthedocs/sphinx-autoapi>`_.

@@ -15,7 +15,7 @@ mcetl requires `Python <https://python.org>`_ version 3.7 or later and the follo
 * `Matplotlib <https://matplotlib.org>`_ (>= 3.1)
 * `NumPy <https://numpy.org>`_ (>= 1.8)
 * `openpyxl <https://openpyxl.readthedocs.io/en/stable/>`_ (>= 2.4)
-* `pandas <https://pandas.pydata.org>`_ (>= 0.24)
+* `pandas <https://pandas.pydata.org>`_ (>= 0.25)
 * `PySimpleGUI <https://github.com/PySimpleGUI/PySimpleGUI>`_ (>= 4.29)
 * `SciPy <https://www.scipy.org/scipylib/index.html>`_
 
@@ -30,7 +30,8 @@ to allow for additional options when saving figures in the plotting GUI.
 Stable Release
 ~~~~~~~~~~~~~~
 
-mcetl is easily installed using `pip`_, simply by running the following command in your terminal:
+mcetl is easily installed from `pypi <https://pypi.org/project/mcetl>`_
+using `pip <https://pip.pypa.io>`_, simply by running the following command in your terminal:
 
 .. code-block:: console
 
@@ -42,13 +43,10 @@ most recent version of mcetl is downloaded and installed, even if an older versi
 is currently installed.
 
 
-.. _pip: https://pip.pypa.io
-
-
 Development Version
 ~~~~~~~~~~~~~~~~~~~
 
-The sources for mcetl can be downloaded from the `Github repo`_.
+The sources for mcetl can be downloaded from the `Github repo <https://github.com/derb12/mcetl>`_.
 
 The public repository can be cloned using:
 
@@ -63,7 +61,3 @@ Once the repository is downloaded, it can be installed with:
 
     cd mcetl
     python setup.py install
-
-
-.. _Github repo: https://github.com/derb12/mcetl
-

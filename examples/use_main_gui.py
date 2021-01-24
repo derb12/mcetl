@@ -496,7 +496,7 @@ if __name__ == '__main__':
     # the kwargs for some functions; make a variable so it can be shared between Function objects;
     # uses lists as the values so that they can be permanently alterred
     pore_kwargs = {'bin_size': [5], 'processed': [False]}
-    tensile_kwargs = {'lower_limit': [0.0015], 'upper_limit':[0.005], 'processed': [False]}
+    tensile_kwargs = {'lower_limit': [0.0015], 'upper_limit': [0.005], 'processed': [False]}
 
     # Definitions for the Function objects
     offset = mcetl.CalculationFunction(

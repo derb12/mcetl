@@ -33,6 +33,7 @@ extensions = [
     #'sphinx.ext.autodoc',
     #'sphinx.ext.autosummary',
     'autoapi.extension',
+    'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
@@ -74,6 +75,16 @@ release = version
 # Usually you set "language" from the command line for these cases.
 language = None
 
+# smartquotes converts quotes and dashes to typographically correct entities
+# but I think it's been messing up my html documentation.
+smartquotes = False
+
+# used for generator .po and/or .pot files, for translating to other languages
+gettext_compact = False
+
+# used for version tracking in the generated .po and/or .pot files
+gettext_uuid = True
+
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
@@ -85,6 +96,18 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
+# outside documentation references for the intersphinx extension
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    'lmfit': ('https://lmfit.github.io/lmfit-py/', None),
+    'matplotlib': ('https://matplotlib.org', None),
+    'openpyxl': ('https://openpyxl.readthedocs.io/en/stable', None),
+    'pandas': ('https://pandas.pydata.org/docs', None)
+}
+
+# cache remote doc inventories for 14 days
+intersphinx_cache_limit = 14
+
 # -- Settings for autoapi extension ----------------------------
 
 # autoapi gets the docstrings for all public modules in the package
@@ -95,8 +118,8 @@ autoapi_root = 'api'
 autoapi_options = [
     'members',
     'inherited-members',
-    #'undoc-members',
-    #'private_members',
+    #'undoc-members', # show objects that do not have doc strings
+    #'private_members', # show private objects (_variable)
     'show-inheritance',
     'show-module-summary',
     #'special-members', # show things like __str__
@@ -178,6 +201,7 @@ latex_documents = [
 latex_show_pagerefs = True
 
 # If true, show URL addresses after external links.
+# 'footnote' puts the URL addresses at the footnote.
 latex_show_urls = 'footnote'
 
 # Documents to append as an appendix to all manuals.
