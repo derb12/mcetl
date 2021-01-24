@@ -3,162 +3,181 @@ Changelog
 =========
 
 
-Version 0.4.0 (2021-01-04)
+Version 0.4.0 (2021-01-24)
 --------------------------
 
-This is a minor version with new features, bug fixes, deprecations, and documentation improvements.
+This is a minor version with new features, bug fixes, deprecations,
+and documentation improvements.
 
 New Features
 ~~~~~~~~~~~~
 
-* Column labels now specified individually
-  Column labels and Excel plot indices are now specified individually. This allows processing uneven-sized data and working with already processed data. HUGE update.
-* Added manual file selection to launch_main_gui
-  Changed the file selection in the main menu of the main gui to use either manual selection of files, keyword search for files, or previous files. Cleaned up the file selection/import in utils.
-* Added/improved manual file selection
-  Added a much more usable manual file selection for use in utils.select_multiple_files. Also added manual file selection in file_organizer.py that allows selecting files for all datasets and samples within one window.
-* Improve usability of multiple GUIs
-  Improved multiple GUIs: 1) the first window of the main gui now uses textwrap for the DataSources in case their names are too long, and includes a scrollbar; 2) the results window for fitting now uses expand_x/y to fill the entire tab rather than guessing using character width/height; 3) the peak selector window now aligns the buttons and checks correctly.
-* Each DataSource keeps a previous search
-  The main GUI will now save the previous search for each DataSource separately, with a filename of previous_search_(DataSource.name).json (eg. prevous_search_XRD.json).
-* Pass kwargs for background for fitting
-  For peak fitting, all models in lmfit and mcetl are available to use as the background. The few models that need kwargs during initialization now allow selecting them in the GUI.
-* Simplified the use of model names for fitting
-  Added several functions to fitting_utils to allow using the lmfit model names within code while displaying shortened versions in GUIs. Also, a full list of models available through lmfit and mcetl are generated at runtime, so that the available models match for different versions.
-* Reduce import time by lazy importing openpyxl
-  Placed openpyxl imports within the functions that write to Excel since it is not needed otherwise. Wrote a function for converting 1-index numbers to column letters to replace openpyxl's implementation. Due to this commit and the previous one with ExcelWriterHandler, the import time of mcetl is reduced ~35%, bringing the total import time reduction since v0.3.0 to ~75%.
-* Created ExcelWriterHandler class
-  Created an ExcelWriterHandler class, which is used to correctly handle opening and saving existing Excel files and to apply openpyxl NamedStyles to the Excel workbook. The new class allows removing openpyxl imports in several other modules and removes repeated code for creating pd.ExcelWriter objects.
-* Improved fit confirmation window
-  The confirmation window for fitting now includes a separate tab with the fit report for the fitting. Also improved the plot by adding residuals, and allowing the background to be subtracted, if the model has a background.
-* Allow specifying fitting rcparams for main gui
-  The launch_main_gui function now allows inputting a dictionary of changes for matplotlib's rcparams to apply only when doing fitting.
-* Selecting Excel plot columns updates labels
-  Selecting the Excel columns to use for plotting automatically updates the axis label corresponding to the selected column. Also made the column labels line up a little better and increased the input space for column labels.
-* Allow PreprocessingFunctions to delete columns
-  Renamed SeparationFunction to PreprocessingFunction to give it a more general meaning. Allow columns to be removed by PreprocessingFunctions, which update the unique variable references. If not processing, the column numbers for the deleted columns are removed from the DataSource before showing the import window. Made the string representation for DataSource and Function objects better and removed their repr. Added doc strings for everything in mcetl.functions.
-* Allow sorting columns during import
-  Columns of the imported data are now sorted following the user-input column numbers. Note that this feature was already implemented for Excel formats, but is now extended to all other formats.
-* Allow using matplotlib keybindings
-  Added the ability to use matplotlib keybindings to trigger events within embedded figures. Use the default toolbar for the fitting figures, since the subplot tool is sometimes needed when tight layout fails.
-* Added more fit descriptions to Excel output
-  Added additional fit descriptors to the saved Excel file, such as whether the fit converged and the number of independant variables.
-* Added numerical calculations for peak params
-  Added numerical calculations for area, max/min, mode, and fwhm. These calculations are performed on the peak models after fitting, and are included to at least give an estimate for their values for models that do not have analytical solutions, like BWF and skewed Gaussian/Voigt.
-* File import options are more flexible
-  Made the file import options more flexible when used from the main gui by allowing user to select whether or not to use same import options for all files (option is disabled for Excel files). Also allow inputting previous inputs for the file import function, so that any changes to the defaults can be maintained, especially helpful when manually opening files for fitting or plotting.
-* Added numerical integration for peaks
-  Added numerical integration as an added parameter for all peak models after fitting in order to estimate the area for models that don't have amplitude=area (such as BWF, Moffat). Removed the code in fitting_gui that changed the 'amplitude' parameter to 'area' since amplitude is not always area.
-* Added BWF function for peak fitting
-  Added a modified Breit-Wigner-Fano peak model for fitting. Fixed issue where Voigt models with manual peak selection and vary gamma parameter set to True would not set an initial value for gamma.
-* Allow redoing fitting
-  The fitting gui now allows confirmation of the fit results before proceeding. Divided the fit_dataframe function into several smaller functions to make it easier to read and change.
-* Allow inputting excel styles in launch_fitting_gui
-  Added the ability to input custom styles to use when writing fit results to Excel when using launch_fitting_gui directly.
-* Reordered module layout
-  Moved all fitting related files to a new "fitting" folder and moved all plotting related files to a new "plotting" folder. This will allow expansion of the fitting and plotting sections without burdening the main folder. Renamed peak_fitting_gui to fitting_gui since I intend to extend the fitting beyond just peak fitting.
-* Reduced module import timing
-  Reduced the time it takes to import mcetl by ~ 60% by removing the peak fitting and plotting guis from the main namespace. Also moved the sympy import in the plotting gui to within its own function since it will rarely be called and takes a significant time to import.
-* Added validations for plotting gui
-  Added validations for some windows for the plotting gui. The main window still needs its validations corrected.
-* Made draw_figure_on_canvas more flexible
-  Made the draw_figure_on_canvas function more flexible by allowing kwargs for packing the figure on the window, and allow using the same canvas for both the figure and the toolbar.
-* Created class for embedded figures
-  Created a class in plotting_utils for easily creating windows with embedded matplotlib figures that optionally have events. Created subclasses in peak_fitting for selecting peaks and selecting background points for doing peak fitting, and a subclass in peak_fitting_gui for a simple embedded figure in a window with no events.
-* Allow using data from .xls, .xlsm, and fixed-width files
-  Added the ability to read raw data from .xls and .xlsm files.
+* The data import window extended the support of importing from spreadsheet-like
+  files beyond just xlsx and now supports importing from any spreadsheet-like
+  file format supported by pandas.read_excel (eg. xls, xlsm, xlsb, ods, etc). For
+  spreadsheet formats not supported by openpyxl, and thus not supported by the default
+  mcetl installation, it will require installing the appropriate library. For
+  example, to read xls files, the xlrd library would need to be installed.
+* Greatly improved load time of spreadsheets when using the data import window.
+  Now, only one sheet is loaded into memory at a time (if supported by the engine
+  used for reading the spreadsheet).
+* The data import window now supports importing from fixed-width files.
+* Column labels and Excel plot indices are now specified individually when using
+  the main GUI. This allows processing uneven-sized data and working with already
+  processed data.
+* Column labels are now added to the dataframes in launch_main_gui if any processing
+  step is specified besides moving files.
+* Excel styles no longer have to be NamedStyles, allowing not adding styles to the
+  output Excel workbook. Also, non-named styles are ~50% faster for writing to Excel.
+* Added test_excel_styles method to DataSource, to allow testing whether the
+  input styles will create valid Excel styles.
+* Added a more usable window for manual file selection, which is used for launch_main_gui
+  launch_fitting_gui, and launch_plotting_gui.
+* The main GUI will now save the previous search for each DataSource separately,
+  with a filename of previous_files_(DataSource.name).json (eg. prevous_files_XRD.json).
+* Allow using all models available from lmfit and mcetl to use as the background for
+  fitting. The few models that need kwargs during initialization now allow selecting them in the GUI.
+* Added several functions to mcetl.fitting.fitting_utils to allow using the lmfit model names
+  within code while displaying shortened versions in GUIs. Also, a full list of
+  models available through lmfit and mcetl are generated at runtime, so that the
+  available models match for different versions.
+* Created an ExcelWriterHandler class, which is used to correctly handle opening and
+  saving existing Excel files and to apply styles to the Excel workbook.
+* Allow specifying changes to Matplotlib's rcParams for fitting when using launch_main_gui.
+  If None are specified, will use the selected DataSource's figure_rcparams attribute.
+* Allow columns to be removed by PreprocessFunctions, which also correctly updates
+  the unique variable references.
+* When importing data, columns of the imported data are now sorted following the user-input
+  column numbers (eg. if the user-specified columns were 1, 0, 2, then the data would first
+  be imported with columns ordered as 0, 1, 2 and then the columns are rearranged to 1, 0, 2.
+  Note that column names are still specified as ascending numbers, so even though the data
+  corresponds to columns 1, 0, 2 in the data file, the column names in the pandas DataFrame
+  are still 0, 1, 2). Note that this feature was already implemented when importing from
+  spreadsheets, but is now extended to all other formats.
+* Allow using Matplotlib keybindings for most embedded figures, such as within the fitting GUI.
+  This allows doing things like switching axis scales from linear to log.
+* Added more fit descriptors to the saved Excel file from fitting, such as whether the
+  fit converged and the number of independant variables.
+* Added numerical calculations for area, extremum, mode, and full-width-at-half-maximum
+  when doing data fitting. These calculations are performed on the peak models after
+  fitting, and are included to at least give an estimate of their values for models
+  that do not have analytical solutions, like Breit-Wigner-Fano, Moffat, and skewed Gaussian/Voigt.
+* Made the file import options more flexible by allowing user to select whether or not
+  to use same import options for all files (option is ignored for spreadsheet-like files).
+  Also allow inputting previous inputs for the file import function, so that any changes
+  to the defaults can be maintained, especially helpful when manually opening files for
+  fitting or plotting.
+* Added a modified Breit-Wigner-Fano peak model for fitting.
+* The fitting GUI now allows confirmation of the fit results before proceeding. A plot of
+  the fit results and a printed out fit report are given, and the user can select to go
+  back and redo the fit.
+* Allow inputting Excel styles in launch_fitting_gui so that custom styles can be used
+  when writing fit results to Excel when using launch_fitting_gui directly.
+* Created a EmbeddedFigure class in plot_utils for easily creating windows with
+  embedded Matplotlib figures that optionally have events. Is easily subclassed to
+  create custom windows with embedded figures and event loops.
 
 Bug Fixes
 ~~~~~~~~~
 
-* Improved conversion from pandas to numpy
-  Added a function in utils for converting pandas series to numpy to reduce the change of error occuring during conversion. Improved handling of nan data in fitting gui and all embedded figures.
-* Fixed error with Excel plot options when not plotting
-  Fixed error with Excel plot options when not plotting. Column labels are now added to the dataframes.
-* Fix issue using log scale with values <= 0
-  Fixed an issue when plotting in Excel with a log scale if one of the specified bounds was <= 0.
-* Fixed matplotlib toolbar size and packing
-  In matplotlib version 3.3, the toolbar size was increased, so all toolbars in mcetl are likewise incrased in size. Likewise, a pack_toolbar keyword was added for NavigationToolbarTK, so try using that key when creating toolbars. Otherwise, use pack_forget to unpack the toolbar and then pack with the desired keys.
-* Improve data import window
-  The data import window will only attempt to assign indices for DataSource variables if processing. Also improved the layout of the import window.
-* Separation columns are removed before returning dataframes
-  The entry and sample separation columns that are added if processing and writing to Excel are now removed when splitting the merged dataframes back into individual entries. This only affects the dataframes output by the launch_main_gui function.
-* Ensure that Excel sheet name is valid
-  Added a function in utils for ensuring that input strings are valid Excel sheet names. Added to validations in fitting_gui and main_gui.
-* Simplified writing to csv for plotting gui
-  Removed the column indices when reading/writing csv data within the plotting gui. Now, columns are just directly taken from the data.
-* Use df.iloc to get columns by index
-  Switched to using df.iloc[:, col_number] to get columns by their indices so that dataframes with repeated column names will not produce errors. Further, use df.astype(float).to_numpy() to create numpy arrays from dataframes, since in later pandas versions, converting dirrectly using np.array(df[col], float) would cause issues if the series was an IntegerArray and contained pd.NA, which cannot be converted to float by numpy.
-* Only remove first '.' for file search extension
-  Made it so that '.' is removed from the user-input file extension when doing file searching only if the '.' is the first character in the string. This way, file types with multiple extensions, like tar.gz, are now possible to use.
-* Fixed Raman raw data file extension
-  The raw data generated for Raman was accidently being saved as a csv rather than a tab-separated txt file.
-* Ensure Excel file is closed before overwriting
-  Added create_excel_writer to utils that ensures a current Excel file is closed if appending to the file before creating the pandas ExcelWriter object. This is because any changes to the file after creating the ExcelWriter object will be lost.
-* Fixed issue when using ConstantModel
-  Ensured that the background model for peak fitting is always an array with the same size as the data being fit so that it does not cause errors when plotting. Made the plotting convenience functions in peak_fitting take just the fit result, since the x and y values are within the result. Renamed the peak_fitting function to fit_peaks because it was causing a namespace issue.
-* Fixed issue from input conversion
-  Fixed an inssue in the plotting gui caused by the auto-dtype-conversion during input validation.
+* DPI awareness is no longer set immediately upon importing mcetl on Windows
+  operating systems. That way, users can decide whether or not to set dpi
+  awareness. To set dpi awareness, users must call mcetl.set_dpi_awareness()
+  before opening any GUIs.
+* Correctly handle PermissionError for the main GUI when deciding which folder
+  to save file searches to and when writing file searches to file. PermissionError
+  is still raised if read access is not granted, so that user is made aware that
+  they need to set the folder to something that grants access.
+* Added a function in utils for converting pandas series to numpy with a specific
+  dtype to reduce the chance of error occuring during conversion.
+* Fixed an issue when plotting in Excel with a log scale if one of the specified bounds was <= 0.
+* The data import window will only attempt to assign indices for a DataSource's
+  unique variables if processing.
+* The entry and sample separation columns that are added when using the main GUI if
+  processing and writing to Excel are now removed when splitting the merged dataframes
+  back into individual entries, so that the returned DataFrames contain only the
+  actual data.
+* Ensured that Excel sheet names are valid.
+* Simplified writing to csv for plotting GUI. Removed the column indices when reading/writing
+  csv data within the plotting GUI. Now, columns are just directly taken from the data.
+* Switched to using df.iloc[:, col_number] rather than df[col_number] to get columns
+  by their indices so that dataframes with repeated column names will not produce errors.
+* Made it so that '.' is removed from the user-input file extension when doing file searching
+  only if the '.' is the first character in the string. This way, file types with multiple
+  extensions, like tar.gz, are now possible to use.
+* The raw data generated for Raman was accidently being saved as a csv
+  rather than as a tab-separated txt file.
+* Fixed issue when using lmfit.models.ConstantModel for fitting, which
+  gives a single value rather than an array. Now, replace the single value
+  with an array with the same size as the data being fit so that it does not
+  cause errors when plotting.
+* Fixed IndexError that occurred when using the fitting GUI and trying
+  to fit residuals.
+* Fixed issue where Voigt models with manual peak selection and vary gamma parameter
+  set to True would not set an initial value for gamma.
 
 Other Changes
 ~~~~~~~~~~~~~
 
-* Replace sympy with asteval
-  Use asteval instead of sympy to parse user expressions when creating secondary axes for the plotting gui. This requires the user to input forward and backward expressions, but otherwise requires no changes. Also, it now drops a requirement for mcetl, since asteval is already required for lmfit. Updated requirements in setup.py and requirements.txt.
-* Made internal methods private
-  Made all of the methods that are only internally used private for DataSource and the Function objects. Updated the doc string for DataSource.
-* Update required PySimpleGUI version
-  Bumped the required version of PySimpleGUI to v4.29 in setup.py.
-* Added Excel style test to DataSource
-  Added a wrapper for ExcelWriterHandler's test_excel_styles method to DataSource, since DataSource is the main user-facing object. Removed ExcelWriterHandler from __init__.
-* Update python version in setup.py
-  Added python 3.9 to the supported python versions.
-* Added function to compute min element size
-  Added a function to utils.py to compute the minimum allowable dimensions for scalable elements. This improves usage on smaller screens.
-* Update requirements
-  Rearranged modules in requirements_development and requirements_documentation. Added version numbers for all modules.
-* Made canvas packing more flexible
-  The function for placing figures on tkinter canvases is more flexible and now works in the case where the figure canvas and the toolbar canvas are the same. Also handles exceptions better, and allows different kwargs for packing the figure and the toolbar.
-* Created mcetl.fitting.models
-  Created a new file in mcetl.fitting called models, which can be filled later with any additional models. Put the modified BWF function in fitting.models.
-* Simplified data import code in main gui
-  When opening multiple files, use the same logic for both Excel files and other files since there is no longer a need to differentiate. Also renamed peak fitting to just fitting or data fitting. Fixed issue in fitting_gui where user_inputs is not None but does not contain the desired key.
-* Improved manual peak initialization
-  Simplified manual peak initialization by including all relevant parameters for a peak model in the peak_transformer dictionary. Improved the guess function for the modified BWF model.
-* plotting gui uses canvas size from plot_utils
-  Changed all references in the plotting_gui from CANVAS_SIZE to plot_utils.CANVAS_SIZE because the constant would not change once the file was imported.
-* Reduce namespace for mcetl.fitting
-  Took out several functions and classes from mcetl.fitting.__init__ since they are not needed.
-* Made utils function for fixing backslash
-  Made the stringify_backslash function in utils to help displaying strings with backslashes in GUIs. Removed the code in other files that can now use stringify_backslash.
-* Simplified initialization for peak models
-  Created functions for estimating sigma and amplitude for lognormal, which allowed deleting a lot of repeated code in peak_fitting.py. Cleaned up the code for initializing peak models.
-* Created an additional module called plot_utils that contains all helper functions and classes for plotting.
-  Moved some functions from plotting_gui and utils to plot_utils.
+* Reduced import time of mcetl. On my machine, the import time for version 0.4.0
+  is ~80% less than version 0.3.0.
+* Replaced sympy with asteval for parsing user expressions when creating secondary
+  axes for the plotting GUI. This requires the user to input forward and backward
+  expressions, but otherwise requires no changes. Also, it technically drops a requirement
+  for mcetl, since asteval is already required for lmfit.
+* Reordered package layout. Moved all fitting related files to a mcetl.fitting,
+  and moved all plotting related files to mcetl.plotting. This will allow expansion
+  of the fitting and plotting sections without burdening the main folder.
+* Renamed peak_fitting_gui to fitting_gui since I intend to extend the fitting
+  beyond just peak fitting.
+* Made all of the methods that are only internally used private for DataSource and
+  the Function objects, so that users do not use them.
+* Updated required versions for several dependencies.
+* Added Python 3.9 to the supported Python versions.
+* Created mcetl.fitting.models, which can be filled later with any additional models.
+  Put the modified Breit-Wigner-Fano function in fitting.models.
+* Created mcetl.plot_utils that contains all helper functions and classes for plotting.
+* The plotting GUI switched back to using "utf-8" encoding when saving data to a csv file
+  (was made to use "raw_unicode_escape" in v0.3.0).
 
 Deprecations/Breaking Changes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Renamed SeparationFunction to PreprocessingFunction to make its usage more clear.
-* The peak_fitting function no longer takes the keyword 'poly_n' as an argument. Instead, the
+* Renamed SeparationFunction to PreprocessFunction to make its usage more clear.
+* Changed the file extension for the theme files for the plotting GUI from ".figtheme"
+  to ".figjson" to make it more clear that it is just a json file. Converting existing
+  files should be easy, just change the extension.
+* mcetl.launch_peak_fitting_gui() and mcetl.launch_plotting_gui() are no longer valid.
+  Instead, use 'from mcetl import fitting, plotting; fitting.launch_fitting_gui();
+  plotting.launch_plotting_gui()'.
+* The keyword arguments 'excel_writer_formats' and 'figure_rcParams' for DataSource
+  were changed to 'excel_writer_styles' and 'figure_rcparams', respectively.
+* DataSource only accepts keyword arguments besides the first argmument, which
+  is the DataSource's name.
+* The keyword argument 'peaks_dataframe' for mcetl.fitting.fit_to_excel was changed to
+  'values_dataframe' to make its usage more clear.
+* mcetl.fitting.peak_fitting.fit_peaks no longer takes the keyword 'poly_n' as an argument. Instead, the
   function takes the keyword 'background_kwargs' which is a dictionary for background keyword
   arguments, allowing any model to be used as the background. For example, to get the same behavior
-  as with the old 'poly_n' keyword, the new input would be background_kwargs = {'degree': 1}.
+  as with the old 'poly_n' keyword, the new input would be background_kwargs={'degree': 1}.
 * Renamed datasource.py to data_source.py. This should have little effect on user code
   since the DataSource object is available through the main mcetl namespace.
+* Renamed the keyword argmument vary_Voigt for mcetl.fitting.peak_fitting.fit_peaks to vary_voigt.
+* The constants mcetl.main_gui.SAVE_FOLDER and mcetl.fitting.peak_fitting._PEAK_TRANSFORMS
+  are used instead of the functions mcetl.main_gui.get_save_location (now _get_save_location)
+  and mcetl.fitting.peak_fitting.peak_transformer (now _peak_transformer), respectively.
+  This way, do not need to repeatedly call the functions, and their contents can be alterred
+  by users, if desired.
 
 Documentation/Examples
 ~~~~~~~~~~~~~~~~~~~~~~
 
 * Improved the api documentation, added tutorials, and improved the overall documentation.
-* Updated examples for previous two commits
-  Renamed SeparationFunctions to PreprocessingFunctions in the examples, wrote new examples for preprocessing and reordered the import column indices in use_main_gui. Other minor changes in the other files, just wanted to commit their changes.
-* Create epub and htmlzip files with docs
-  Used the 'all' key for the formats to build during documentation, so that pdf, epub, and htmlzip files are all created when the documentation is made by readthedocs.
-* Added peak fitting example
-  Added an example program using just mcetl.fitting.fit_peaks rather than the GUI.
-* Updated example programs
-  Updated the example programs to account for the new module layout from the last commit.
+* Updated example programs for all of the new changes in version 0.4.0.
+* Added an example program showing how to use just mcetl.fitting.fit_peaks to do
+  peak fitting instead of using the fitting GUI.
+* Changed the readthedocs config to create static epub and htmlzip files in addition
+  to pdf files each time the documentation is built.
 
 
 Version 0.3.0 (2020-11-08)
@@ -198,7 +217,7 @@ Other Changes
 * The output of the launch_main_gui function is now a single dictionary. This will allow potential
   changes to the output in later versions to not cause breaking changes.
 * The output of launch_main_gui now includes the ExcelWriter object used when saving to Excel.
-  This allows access to the Excel file in python after running the launch_main_gui function, in
+  This allows access to the Excel file in Python after running the launch_main_gui function, in
   case further processing is desired.
 * The peak_fitting_gui module now includes full coverage for the data validation of user-inputs
   for all events.
@@ -283,7 +302,7 @@ This is a minor patch with a critical bug fix.
 Bug Fixes
 ~~~~~~~~~
 
-* Fixed issue using reversed() with a dictionary causing the plotting GUI to fail with python 3.7.
+* Fixed issue using reversed() with a dictionary causing the plotting GUI to fail with Python 3.7.
   Used reversed(list(dictionary.keys())) instead.
 
 
@@ -295,9 +314,9 @@ This is a minor patch with new features, bug fixes, and documentation improvemen
 New Features
 ~~~~~~~~~~~~
 
-* Extended the Unicode conversion to cover any input with backslash. This mainly helps with text
-  in the plotting GUI, such as allowing multiline text using "\\n", while still giving the correct behavior
-  when using mathtext with matplotlib.
+* Extended the Unicode conversion to cover any input with ``"\"``. This mainly helps with text
+  in the plotting GUI, such as allowing multiline text using ``"\n"``, while still giving the
+  correct behavior when using mathtext with Matplotlib.
 
 Bug Fixes
 ~~~~~~~~~

@@ -1,139 +1,129 @@
-===========
-Basic Usage
-===========
+==================
+Using the Main GUI
+==================
 
-To use mcetl in a project:
+Once all of the desired DataSource objects are created, simply group the DataSource
+objects together in a list or tuple, and then call :func:`.launch_main_gui`. For
+example, using the two DataSource objects created from the last section gives:
 
 .. code-block:: python
 
     import mcetl
 
+    all_datasources = (xrd, tensile)
+    mcetl.launch_main_gui(all_datasources)
 
-Fitting Data
-~~~~~~~~~~~~
+The main GUI has the following steps:
 
-To use the fitting module in mcetl, simply do:
+* Main Menu (Choosing the DataSource and Processing Steps)
+* File Selection
+* Importing Data from Files
+* Naming Samples & Columns
+* Processing
 
-.. code-block:: python
+Main Menu
+---------
 
-    from mcetl import fitting
-    fitting.launch_peak_fitting_gui()
+In the main menu, the desired DataSource, the file selection method, and
+any processing steps are selected.
 
+The possible processing steps are:
 
-A window will then appear to select the data file(s) to be fit and the Excel file for saving the results.
-No other setup is required for doing fitting.
+* Process the data using the Function objects for the selected DataSource
+* Fit the data
+* Plot the data
+* Save the data to Excel
+* Move files
 
-After doing the fitting, the fit results and plots will be saved to Excel.
+Note that if the only selected processing step is moving files, then no data is actually
+imported.
 
+File Selection
+--------------
 
-Plotting
-~~~~~~~~
+Manually Selecting Files
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-To use the plotting module in mcetl, simply do:
+Manual selection of files is easy and fast. To start, the number of datasets
+needs to be entered, and then the number of samples per dataset. Each dataset
+will be one sheet when writing to Excel.
 
-.. code-block:: python
+Next, a window will appear to select the files for each sample in each dataset
+(see the file selection window in the :doc:`gallery section <../../gallery>` of
+the documentation). Simply press 'Add Files', and select all of the files for
+each sample. To remove a file, just select it and press 'Del Files'.
 
-    from mcetl import plotting
-    plotting.launch_plotting_gui()
+Searching Using Keywords
+~~~~~~~~~~~~~~~~~~~~~~~~
 
+Files can also be searched for using keywords. However, this is usually
+more difficult than manually selecting the files and should only be
+used if searching for files within a deeply nested folder structure.
+Further explanation of keyword searching for files is given when
+actually using within the main GUI, and will not be covered here since
+its usage is discouraged.
 
-Similar to fitting, a window will then appear to select the data file(s) to be plotted,
-and no other setup is required for doing plotting.
+.. note::
+   After selecting files, a file called "previous_files_{DataSource.name}.json" is
+   locally saved, where {DataSource.name} is the name of the selected DataSource. This
+   allows quickly bypassing file selection in case of repeated processing of the same files.
 
+   To get the file path where the files are saved, simply do:
 
-When plotting, the image of the plots can be saved to all formats supported by matplotlib,
-including tiff, jpg, png, svg, and pdf.
+   .. code-block:: python
 
-
-In addition, the layout of the plots can be saved to apply to other figures later, and the data
-for the plots can be saved so that the entire plot can be recreated.
-
-
-To reopen a figure saved through mcetl, do:
-
-.. code-block:: python
-
-    plotting.load_previous_figure()
-
-
-Main GUI
-~~~~~~~~
-
-The main GUI for mcetl contains options for processing data, fitting, plotting, writing data to Excel, and moving files.
-
-Before using the main GUI, DataSource objects must be created. Each DataSource contains the information for reading files
-for that DataSource (such as what separator to use, which rows and columns to use, labels for the columns, etc.),
-the calculations that will be performed on the data, and the options for writing the data to Excel (formatting, placement in the worksheet, etc.).
-
-For more information on creating a DataSource object, refer to the `example program`_ that shows how to use the main gui.
-
-
-.. _example program: https://github.com/derb12/mcetl/tree/master/examples
-
-
-Generating Example Data
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Files for example data from characterization techniques can be created using:
-
-.. code-block:: python
-
-    from mcetl import raw_data
-    raw_data.generate_raw_data()
+        print(str(mcetl.main_gui.SAVE_FOLDER))
 
 
-Data produced by the generate_raw_data function covers the following characterization techniques:
+Importing Data from Files
+-------------------------
 
-* X-ray diffraction (XRD)
-* Fourier-transform infrared spectroscopy (FTIR)
-* Raman spectroscopy
-* Thermogravimetric analysis (TGA)
-* Differential scanning calorimetry (DSC)
-* Rheometry
-* Uniaxial tensile tests
-* Pore size measurements
+See the :doc:`Importing Data section <../importing_data>` of the tutorial
+for the explanation of how mcetl imports raw data.
 
+Note that numeric data after importing is downcast to the lowest
+possible representation (for example float is converted to numpy.float32)
+to reduce memory usage. If this would be an issue, be sure to include
+appropriate Function objects to convert to the desired dtype.
 
-Example Programs
-~~~~~~~~~~~~~~~~
+Naming Samples & Columns
+------------------------
 
-`Example programs`_  are available to show basic usage of mcetl. The examples include:
+The name of each sample for each dataset can be specified, as
+well as the column name for each column in the dataset. Column names
+are generated using the ``column_names`` input for the selected DataSource.
+The :doc:`gallery section <../../gallery>` of the documentation shows an
+example of the sample and column naming window.
 
-* Generating raw data
-* Using the main GUI
-* Using the fitting GUI
-* Using the plotting GUI
-* Reopening a figure saved with the plotting GUI
+Processing
+----------
 
+Processing includes any processing steps selected in the main menu, including
+processing the data using the Function objects for the selected DataSource,
+fitting the data, plotting the data, writing to Excel, or moving files. Each
+step should be self-explanatory.
 
-The example program for using the main GUI contains all necessary inputs for processing the
-example raw data generated by the generate_raw_data function as described above and is an
-excellent resource for creating new DataSource objects.
+The output of the launch_main_gui function will be a single dictionary with
+the following keys and values:
 
-
-.. _Example programs: https://github.com/derb12/mcetl/tree/master/examples
-
-
-Changing GUI Colors
-~~~~~~~~~~~~~~~~~~~
-
-All user interfaces are created using PySimpleGUI, which allows easily changing the theme of the GUIs.
-For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme:
-
-.. code-block:: python
-
-    import PySimpleGUI as sg
-    sg.theme('darkblue10')
-
-
-Additionally, mcetl uses a unique coloring for the button that advances to the next window.
-To change this button's colors (for example to use white text on a green background), do:
-
-.. code-block:: python
-
-    from mcetl import utils
-    utils.PROCEED_COLOR = ('white', 'green')
-
-
-Valid inputs for PROCEED_COLOR are color strings supported by PySimpleGUI, such as 'green',
-or hex colors such as '#F9B381'.
+    'dataframes': list or None
+        A list of lists of pandas.DataFrame, with each dataframe containing the
+        data imported from a raw data file; will be None if the function
+        fails before importing data, or if the only processing step taken
+        was moving files.
+    'fit_results': list or None
+        A nested list of lists of lmfit ModelResult objects, with each
+        ModelResult pertaining to the fitting of a data entry, each list of
+        ModelResults containing all of the fits for a single sample,
+        and east list of lists pertaining to the data within one dataset.
+        Will be None if fitting is not done, or only partially filled
+        if the fitting process ends early.
+    'plot_results': list or None
+        A list of lists, with one entry per dataset. Each interior
+        list is composed of a matplotlib.Figure object and a
+        dictionary of matplotlib.Axes objects. Will be None if
+        plotting is not done, or only partially filled if the plotting
+        process ends early.
+    'writer': pandas.ExcelWriter or None
+        The pandas ExcelWriter used to create the output Excel file; will
+        be None if the output results were not saved to Excel.

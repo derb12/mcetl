@@ -2,8 +2,8 @@
 Tutorials
 =========
 
-Tutorials are available for using the main, fitting, and plotting GUIs, as well as generating
-example raw data and changing the GUI colors.
+Tutorials are available for using the main, fitting, and plotting GUIs, as well
+as for importing data, changing the style of the Excel output, and generating example raw data.
 
 
 .. toctree::
@@ -11,7 +11,8 @@ example raw data and changing the GUI colors.
    :caption: Contents:
 
    main_gui/index
-   fitting/index
-   plotting/index
+   fitting
+   plotting
+   importing_data
+   excel
    examples
-   gui_colors

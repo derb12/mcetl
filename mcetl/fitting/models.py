@@ -52,8 +52,8 @@ class BreitWignerFanoModel(lmfit.model.Model):
         self.set_param_hint(
             'fwhm',
             expr=f'2 * {self.prefix}sigma * (1 + {self.prefix}q**2) / max({lmfit.models.tiny}, abs(-1 + {self.prefix}q**2))')
-        self.set_param_hint('x_mode', expr=f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center + {self.prefix}sigma/(2*{self.prefix}q)')
-        self.set_param_hint('maximum', expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))')
+        self.set_param_hint('mode', expr=f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center + {self.prefix}sigma/(2*{self.prefix}q)')
+        self.set_param_hint('extremum', expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))')
 
 
     def guess(self, data, x=None, negative=False, **kwargs):

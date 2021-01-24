@@ -83,6 +83,7 @@ Functions
 ~~~~~~~~~
 
 .. autoapisummary::
+   :nosignatures:
 
 {% for function in visible_functions %}
    {{ function.id }}

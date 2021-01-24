@@ -194,9 +194,9 @@ def print_available_models():
     """
     Prints out a dictionary of all models supported by mcetl.
 
-    Notes
-    -----
-
+    Also prints out details for each model, including its class,
+    the name used when displaying in GUIs, its parameters, and
+    whether it is considered a peak function.
 
     """
     for model_name, model_values in _TOTAL_MODELS.items():

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-mcetl - An Extract-Transform-Load framework focused on materials characterization
-=======================================================================================
+mcetl - A small-scale Extract-Transform-Load framework focused on materials characterization
+============================================================================================
 
 mcetl provides user interfaces for processing, fitting, and plotting data.
 
@@ -13,7 +13,7 @@ will be performed on the data, and the options for writing the data to Excel
 (formatting, placement in the worksheet, etc.).
 
 In addition, mcetl provides fitting and plotting user interfaces that
-can be used without creating any DataSource objects.
+can be used without any prior setup.
 
 Subpackages include:
 
