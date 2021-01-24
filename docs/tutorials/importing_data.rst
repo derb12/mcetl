@@ -25,7 +25,8 @@ for the selected DataSource.
 
 .. figure:: ../images/data_import_1.png
    :align: center
-   :scale: 60 %
+   :width: 280 px
+   :height: 396 px
 
    Figure 1: Options for importing raw data. Columns for unique
    variables for a DataSource are also selected.
@@ -38,7 +39,8 @@ bottom-most row is row 0, the row above it is row 1, etc.
 
 .. figure:: ../images/data_import_4.png
    :align: center
-   :scale: 60 %
+   :width: 553 px
+   :height: 324 px
 
    Figure 2: Three raw data files with different import options.
 
@@ -52,7 +54,8 @@ seen in Figure 3.
 
 .. figure:: ../images/data_import_2.png
    :align: center
-   :scale: 60 %
+   :width: 235 px
+   :height: 281 px
 
    Figure 3: Importing raw data from fixed-width file.
 
@@ -75,7 +78,8 @@ sheet to use, number of columns per dataset, etc.
 
 .. figure:: ../images/data_import_3.png
    :align: center
-   :scale: 60 %
+   :width: 234 px
+   :height: 270 px
 
    Figure 4: Importing raw data from a spreadsheet-like file.
 

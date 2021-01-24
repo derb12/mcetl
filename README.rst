@@ -23,7 +23,7 @@ mcetl
     :alt: BSD 3-clause license
 
 
-mcetl is a small-scale Extract-Transform-Load framework focused on materials characterization.
+mcetl is a small-scale, GUI-based Extract-Transform-Load framework focused on materials characterization.
 
 * For Python 3.7+
 * Open Source: BSD 3-Clause License
@@ -31,11 +31,12 @@ mcetl is a small-scale Extract-Transform-Load framework focused on materials cha
 * Documentation: https://mcetl.readthedocs.io.
 
 
-mcetl is focused on easing the time required to process data files and write the
-results to Excel. It does this by allowing the user to define DataSource objects
+mcetl is focused on reducing the time required to repeatedly process data files and
+write the results to Excel. It does this by allowing the user to define DataSource objects
 for each separate source of data. Each DataSource contains information such as the
 options needed to import data from files, the calculations that will be performed
-on the data, and the options for writing the data to Excel.
+on the data, and the options for writing the data to Excel. Once a DataSource is created,
+it can be selected within mcetl's main user interface.
 
 In addition, mcetl provides fitting and plotting user interfaces that
 can be used without any prior setup.
@@ -68,10 +69,9 @@ results, or it can append to an existing Excel file to easily work with already 
 Limitations
 ~~~~~~~~~~~
 
-* Since mcetl uses the `pandas <https://pandas.pydata.org>`_ library to load data
-  from files into memory for processing, it is not suited for processing files whose
-  total memory size is large (e.g. cannot load a 10 GB file on a computer with
-  only 8 GB of RAM).
+* Data from files is fully loaded into memory for processing, so mcetl is not
+  suited for processing files whose total memory size is large (e.g. cannot
+  load a 10 GB file on a computer with only 8 GB of RAM).
 * mcetl does not provide any resources for processing data files directly from
   characterization equipment (such as .XRDML, .PAR, etc.). Other libraries such
   as `xylib <https://github.com/wojdyr/xylib>`_ already exist and are capable of
