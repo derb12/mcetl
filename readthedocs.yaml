@@ -9,7 +9,9 @@ sphinx:
   configuration: docs/conf.py
 
 # Build pdf, epub, and htmlzip files in addition to the html documentation
-formats: all
+formats:
+  - pdf
+  - htmlzip
 
 # Additional requirements for the documentation
 python:
