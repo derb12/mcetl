@@ -152,7 +152,7 @@ The sections below give a quick introduction to using mcetl, requiring no setup.
 For a more detailed introduction, refer to the `tutorials section`_ of mcetl's
 documentation.
 
-.. _tutorials section: https://mcetl.readthedocs.io/en/latest/tutorials.html
+.. _tutorials section: https://mcetl.readthedocs.io/en/latest/tutorials/index.html
 
 Note: on Windows operating systems, the GUIs can appear blurry due to how dpi
 scaling is handled. To fix, simply do:
