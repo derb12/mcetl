@@ -3,6 +3,7 @@ Welcome to mcetl's documentation!
 
 .. image:: images/logo.png
    :align: center
+   :scale: 35 %
 
 
 
