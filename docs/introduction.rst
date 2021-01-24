@@ -22,10 +22,9 @@ results, or it can append to an existing Excel file to easily work with already 
 Limitations
 ~~~~~~~~~~~
 
-* Since mcetl uses the `pandas <https://pandas.pydata.org>`_ library to load data
-  from files into memory for processing, it is not suited for processing files whose
-  total memory size is large (e.g. cannot load a 10 GB file on a computer with
-  only 8 GB of RAM).
+* Data from files is fully loaded into memory for processing, so mcetl is not
+  suited for processing files whose total memory size is large (e.g. cannot
+  load a 10 GB file on a computer with only 8 GB of RAM).
 * mcetl does not provide any resources for processing data files directly from
   characterization equipment (such as .XRDML, .PAR, etc.). Other libraries such
   as `xylib <https://github.com/wojdyr/xylib>`_ already exist and are capable of

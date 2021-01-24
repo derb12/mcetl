@@ -176,7 +176,7 @@ Documentation/Examples
 * Updated example programs for all of the new changes in version 0.4.0.
 * Added an example program showing how to use just mcetl.fitting.fit_peaks to do
   peak fitting instead of using the fitting GUI.
-* Changed the readthedocs config to create static epub and htmlzip files in addition
+* Changed the readthedocs config to create static htmlzip files in addition
   to pdf files each time the documentation is built.
 
 
