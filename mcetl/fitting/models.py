@@ -23,7 +23,7 @@ def breit_wigner_fano_alt(x, height=1.0, center=0.0, sigma=1.0, q=-3.0):
     return height * (1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
 
 
-class BreitWignerFanoModel(lmfit.Model):
+class BreitWignerFanoModel(lmfit.model.Model):
     """
     A modified version of lmfit's BreitWignerModel.
 
@@ -52,8 +52,8 @@ class BreitWignerFanoModel(lmfit.Model):
         self.set_param_hint(
             'fwhm',
             expr=f'2 * {self.prefix}sigma * (1 + {self.prefix}q**2) / max({lmfit.models.tiny}, abs(-1 + {self.prefix}q**2))')
-        self.set_param_hint('x_mode', expr=f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center + {self.prefix}sigma/(2*{self.prefix}q)')
-        self.set_param_hint('maximum', expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))')
+        self.set_param_hint('mode', expr=f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center + {self.prefix}sigma/(2*{self.prefix}q)')
+        self.set_param_hint('extremum', expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))')
 
 
     def guess(self, data, x=None, negative=False, **kwargs):

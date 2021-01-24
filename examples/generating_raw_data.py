@@ -7,7 +7,10 @@ Created on Aug 22, 2020
 """
 
 import matplotlib.pyplot as plt
-from mcetl import raw_data
+from mcetl import raw_data, set_dpi_awareness
+
+#set dpi awareness so GUI is not blurry on Windows os
+set_dpi_awareness()
 
 raw_data.generate_raw_data()
 

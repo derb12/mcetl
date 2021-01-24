@@ -9,14 +9,14 @@ with open('README.rst') as readme_file:
     long_description = readme_file.read()
 
 requirements = [
+    'asteval',
     'lmfit>=1.0',
     'matplotlib>=3.1',
     'numpy>=1.8',
     'openpyxl>=2.4',
-    'pandas>=0.24',
-    'pysimplegui>=4.19',
-    'scipy',
-    'sympy',
+    'pandas>=0.25',
+    'pysimplegui>=4.29',
+    'scipy'
 ]
 
 setup_requirements = [
@@ -39,19 +39,14 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Scientific/Engineering :: Chemistry',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Topic :: Scientific/Engineering :: Physics',
         'Topic :: Scientific/Engineering :: Visualization'
     ],
-    description="An Extract-Transform-Load framework focused on materials characterization.",
+    description="A small-scale Extract-Transform-Load framework focused on materials characterization.",
     install_requires=requirements,
-    extras_require={
-        'extras': [
-            'pillow>=6.2',
-            'xlrd'
-        ]
-    },
     license="BSD 3-clause",
     long_description=long_description,
     long_description_content_type='text/x-rst',
@@ -63,6 +58,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/derb12/mcetl',
-    version='0.3.0',
+    version='0.4.0',
     zip_safe=False,
 )

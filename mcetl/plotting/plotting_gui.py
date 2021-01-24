@@ -6,30 +6,37 @@ Created on Jun 28, 2020
 
 Attributes
 ----------
-COLORS : tuple(str)
+COLORS : tuple(str, ...)
     A tuple with values that are used in GUIs to select the color to
-    plot with in matplotlib.
+    plot with in matplotlib. The default is ('None', 'Black', 'Blue', 'Red',
+    Green', 'Chocolate', 'Magenta', 'Cyan', 'Orange', 'Coral', 'Dodgerblue').
 LINE_MAPPING : dict
     A dictionary with keys that are displayed in GUIs, and values that
-    are used by matplotlib to specify the line style.
-MARKERS : tuple(str)
-    A tuple of strings for the default markers to use for plotting.
+    are used by matplotlib to specify the line style. The default is
+    {
+        'None': '',
+        'Solid': '-',
+        'Dashed': '--',
+        'Dash-Dot': '-.',
+        'Dot': ':',
+        'Dash-Dot-Dot': (0, [0.75 * plt.rcParams['lines.dashdot_pattern'][0]] +
+                             plt.rcParams['lines.dashdot_pattern'][1:] +
+                             plt.rcParams['lines.dashdot_pattern'][-2:])
+    }
+MARKERS : tuple(str, ...)
+    A tuple of strings for the default markers to use for plotting. The default
+    is (' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond', 'v Triangle-Down',
+    'p Pentagon', '< Triangle-Left', '> Triangle-Right', '* Star').
 TIGHT_LAYOUT_PAD : float
     The padding placed between the edge of the figure and the edge of
-    the canvas; used by matplotlib's tight_layout option.
+    the canvas; used by matplotlib's tight_layout option. Default
+    is 0.3.
 TIGHT_LAYOUT_H_PAD : float
     The height (vertical) padding between axes in a figure; used by
-    matplotlib's tight_layout option.
+    matplotlib's tight_layout option. Default is 0.6.
 TIGHT_LAYOUT_W_PAD : float
     The width (horizontal) padding between axes in a figure; used by
-    matplotlib's tight_layout option.
-
-Notes
------
-The sympy import is within the _parse_equation function because sympy
-takes a significant time to load, is only used for that function, and
-the function is only used when making secondary axes with different scales
-than the main axes.
+    matplotlib's tight_layout option. Default is 0.6.
 
 """
 
@@ -41,6 +48,7 @@ from pathlib import Path
 import string
 import traceback
 
+import asteval
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MaxNLocator
 import numpy as np
@@ -48,15 +56,6 @@ import pandas as pd
 import PySimpleGUI as sg
 
 from .. import plot_utils, utils
-
-# determine if Pillow is available; was not a requirement for matplotlib until v3.3.0
-try:
-    import PIL
-except ImportError:
-    _HAS_PIL = False
-else:
-    _HAS_PIL = True
-    del PIL
 
 
 COLORS = (
@@ -71,8 +70,8 @@ LINE_MAPPING = {
     'Dot': ':',
     'Dash-Dot-Dot': (0,
                      [0.75 * plt.rcParams['lines.dashdot_pattern'][0]]
-                     + plt.rcParams['lines.dashdot_pattern'][1:]
-                     + plt.rcParams['lines.dashdot_pattern'][-2:])
+                      + plt.rcParams['lines.dashdot_pattern'][1:]
+                      + plt.rcParams['lines.dashdot_pattern'][-2:])
 }
 MARKERS = (
     ' None', 'o Circle', 's Square', '^ Triangle-Up', 'D Diamond',
@@ -86,9 +85,9 @@ TIGHT_LAYOUT_W_PAD = 0.6
 # column name for the blank columns inserted between data entries when saving data to csv
 _FILLER_COLUMN_NAME = 'BLANK SEPARATION COLUMN'
 # the default figure name used by matplotlib
-_PREVIEW_NAME = 'Preview'
+_PREVIEW_NAME = '-Preview-'
 # the file extension for the json file containing all of the plot layout information
-_THEME_EXTENSION = '.figtheme'
+_THEME_EXTENSION = '.figjson'
 
 
 def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
@@ -115,7 +114,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
     Notes
     -----
     The gui_values, fig_kwargs, rc_changes, and axes annotations are saved to
-    a .figtheme file (just a json file).
+    a .figjson file (just a json file).
 
     If saving the data for the figure, the data is saved to a csv file
     containing all of the data, separated by columns labeled with the
@@ -126,7 +125,7 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
     filename = sg.popup_get_file(
         '', no_window=True, save_as=True,
-        file_types=((f"Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
+        file_types=((f"Figure Theme Files (*{_THEME_EXTENSION})", f"*{_THEME_EXTENSION}"),)
     )
 
     if filename:
@@ -175,27 +174,27 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
             )
 
         try:
-            with open(filename, 'w') as f:
+            with open(filename, 'w') as fp:
                 json.dump(
                     {'FIGURE KEYWORD ARGUMENTS': fig_kwargs,
                      'GUI VALUES': gui_values,
                      'MATPLOTLIB RCPARAM CHANGES': rc_changes,
                      'ANNOTATIONS': annotations,
                      'PEAKS': peaks},
-                    f, indent=2
+                    fp, indent=2
                 )
         except PermissionError:
             sg.popup(
-                ('The .figtheme file is currently open.\n'
+                (f'The {_THEME_EXTENSION} file is currently open.\n'
                  'Please close and try to save again.\n'),
-                title='Save Failed'
+                title='Save Failed', icon=utils._LOGO
             )
         else:
             if data is None:
                 sg.popup(
                     ('Successfully saved to '
                      f'{str(Path(filename).with_suffix(""))}\n'),
-                    title='Save Successful'
+                    title='Save Successful', icon=utils._LOGO
                 )
             else:
                 saved_data = []
@@ -208,19 +207,18 @@ def _save_figure_json(gui_values, fig_kwargs, rc_changes, axes, data=None):
 
                 filename = str(Path(filename).with_suffix('.csv'))
                 try:
-                    pd.concat(saved_data, axis=1).to_csv(filename, index=False,
-                                                         encoding='raw_unicode_escape')
+                    pd.concat(saved_data, axis=1).to_csv(filename, index=False)
                 except PermissionError:
                     sg.popup(
                         ('The .csv file is currently open.\n'
                          'Please close and try to save again.\n'),
-                        title='Save Failed'
+                        title='Save Failed', icon=utils._LOGO
                     )
                 else:
                     sg.popup(
                         ('Successfully saved to '
                          f'{str(Path(filename).with_suffix(""))}\n'),
-                        title='Save Successful'
+                        title='Save Successful', icon=utils._LOGO
                     )
 
 
@@ -244,7 +242,7 @@ def load_previous_figure(filename=None, new_rc_changes=None):
     Notes
     -----
     Will load the data from the csv file specified by filename. If there also
-    exists a .figtheme file with the same name as the csv file, it will be
+    exists a .figjson file with the same name as the csv file, it will be
     loaded to set the figure layout. Otherwise, a new figure is created.
 
     """
@@ -270,8 +268,8 @@ def load_previous_figure(filename=None, new_rc_changes=None):
             axes = None
             gui_values = None
 
-        # try standard utf-8 encoding first; will throw an error only if there is
-        # unicode previously saved by this module using 'raw_unicode_escape' encoding.
+        # try standard utf-8 encoding first; will throw an error if there is
+        # raw unicode such as \u00b0, so try using 'raw_unicode_escape' encoding.
         try:
             dataframe = pd.read_csv(filename, header=None, index_col=False)
         except UnicodeDecodeError:
@@ -328,8 +326,8 @@ def _load_theme_file(filename):
 
     """
 
-    with open(filename, 'r') as f:
-        theme_file = json.load(f)
+    with open(filename, 'r') as fp:
+        theme_file = json.load(fp)
 
     #TODO should change these to theme_file.get(key, default) since user can modify/delete; check that defaults will be okay
     fig_kwargs = theme_file['FIGURE KEYWORD ARGUMENTS']
@@ -355,20 +353,9 @@ def _load_theme_file(filename):
     return axes, gui_values, fig_kwargs, rc_changes
 
 
-def _load_figure_theme(current_axes, current_values, current_fig_kwargs):
+def _load_figure_theme():
     """
     Load the options to recreate a figure layout.
-
-    Parameters
-    ----------
-    current_axes : dict
-        The current dictionary of plt.Axes objects. Returned if the
-        user does not load a file.
-    current_values : dict
-        The current window dictionary. Returned if user does not load a file.
-    current_fig_kwargs : dict
-        The dictionary used to create the current figure. Returned if user
-        does not load a file.
 
     Returns
     -------
@@ -446,7 +433,7 @@ def _save_image_options(figure):
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window_1 = sg.Window('Save Options', layout)
+    window_1 = sg.Window('Save Options', layout, icon=utils._LOGO)
     while True:
         event, values = window_1.read()
 
@@ -465,7 +452,7 @@ def _save_image_options(figure):
         elif event == 'Next':
             if not values['file_name']:
                 sg.popup('\nPlease select a file name.\n',
-                         title='Select a file name')
+                         title='Select a file name', icon=utils._LOGO)
             else:
                 window_1.hide()
                 selected_extension = values['extension'].split(' ')[0]
@@ -485,7 +472,8 @@ def _save_image_options(figure):
                             [sg.Button(f'Use Selected Extension ({selected_extension})',
                                        key='use_selected')],
                             [sg.Button('Back')]
-                        ]
+                        ],
+                        icon=utils._LOGO
                     )
                     error_event = error_window.read(close=True)[0]
                     error_window = None
@@ -504,7 +492,7 @@ def _save_image_options(figure):
                     pil_kwargs = None
                 else:
                     window_2 = sg.Window(f'Options for {file_extension.upper()}',
-                                         layout_2)
+                                         layout_2, icon=utils._LOGO)
                     event_2, pil_kwargs = window_2.read(close=True)
                     window_2 = None
                     if event_2 in (sg.WIN_CLOSED, 'Back'):
@@ -520,7 +508,8 @@ def _save_image_options(figure):
 
                 try:
                     figure.savefig(file_name, pil_kwargs=pil_kwargs)
-                    sg.popup(f'Saved figure to:\n    {file_name}\n', title='Saved Figure')
+                    sg.popup(f'Saved figure to:\n    {file_name}\n',
+                             title='Saved Figure', icon=utils._LOGO)
                     break
 
                 except Exception as e:
@@ -528,7 +517,7 @@ def _save_image_options(figure):
                         (f'Save failed...\n\nSaving to "{file_extension}" may not '
                          'be supported by matplotlib, or an additional error may '
                          f'have occured.\n\nError:\n    {repr(e)}\n'),
-                        title='Error'
+                        title='Error', icon=utils._LOGO
                     )
                     window_1.un_hide()
 
@@ -565,7 +554,7 @@ def _get_image_options(extension):
 
     """
 
-    if not _HAS_PIL:
+    if not utils.check_availability('PIL'):
         return [], {}
 
     if extension == 'JPEG':
@@ -720,13 +709,17 @@ def _create_figure(fig_kwargs, saving=False):
     if saving:
         dpi = fig_kwargs['dpi']
     else:
-        dpi = plot_utils.determine_dpi(fig_kwargs)
+        dpi = plot_utils.determine_dpi(
+            fig_height=float(fig_kwargs['fig_height']),
+            fig_width=float(fig_kwargs['fig_width']),
+            dpi=float(fig_kwargs['dpi'])
+        )
 
     plt.close(fig_kwargs['fig_name'])
     figure = plt.figure(
         num=fig_kwargs['fig_name'], dpi=dpi,
-        figsize = (fig_kwargs['fig_width'] / fig_kwargs['dpi'],
-                   fig_kwargs['fig_height'] / fig_kwargs['dpi']),
+        figsize=(fig_kwargs['fig_width'] / fig_kwargs['dpi'],
+                 fig_kwargs['fig_height'] / fig_kwargs['dpi']),
         tight_layout={'pad': TIGHT_LAYOUT_PAD,
                       'w_pad': 0 if fig_kwargs['share_y'] else TIGHT_LAYOUT_W_PAD,
                       'h_pad': 0 if fig_kwargs['share_x'] else TIGHT_LAYOUT_H_PAD}
@@ -874,7 +867,7 @@ def _create_axes(gridspec, gridspec_layout, figure, fig_kwargs):
                     y_label = ''
                     label_left = False
 
-                if int(val[1][0]) + 1 !=  fig_kwargs['num_cols']:
+                if int(val[1][0]) + 1 != fig_kwargs['num_cols']:
                     twin_x_label = ''
                     label_right = False
 
@@ -970,13 +963,13 @@ def _create_advanced_layout(input_values, canvas, figure):
     validations = {'floats': [], 'constraints': []}
     for i in range(num_cols):
         validations['floats'].append([f'width_{i}', f'width {i + 1}'])
-        validations['constraints'].append( [f'width_{i}', f'width {i + 1}', '> 0'])
+        validations['constraints'].append([f'width_{i}', f'width {i + 1}', '> 0'])
 
     for i in range(num_rows):
         validations['floats'].append([f'height_{i}', f'height {i + 1}'])
         validations['constraints'].append([f'height_{i}', f'height {i + 1}', '> 0'])
 
-    columm_layout =  [
+    columm_layout = [
         [sg.Text(i + 1, size=(2, 1), justification='right')]
         + [sg.Input(input_values[f'gridspec_{i}_{j}'], size=(5, 1), pad=(1, 1),
                     justification='right', key=f'gridspec_{i}_{j}') for j in range(num_cols)]
@@ -991,7 +984,7 @@ def _create_advanced_layout(input_values, canvas, figure):
 
     header_layout = [
         [sg.Text('', size=(2, 1))] +
-        [sg.Text(j + 1, size=(5,1), justification='center') for j in range(num_cols)]]
+        [sg.Text(j + 1, size=(5, 1), justification='center') for j in range(num_cols)]]
 
     layout = [
         [sg.Text('Figure Layout\n')],
@@ -1012,7 +1005,7 @@ def _create_advanced_layout(input_values, canvas, figure):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Table', layout, finalize=True)
+    window = sg.Window('Table', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -1063,7 +1056,7 @@ def _create_gridspec_labels(fig_kwargs):
     new_kwargs = fig_kwargs.copy()
     # deletes previous gridspec values
     for key in fig_kwargs:
-        if key.startswith('gridspec') or key.startswith('width') or key.startswith('height'):
+        if key.startswith(('gridspec', 'width', 'height')):
             if key.startswith('gridspec'):
                 index = key.split('_')[-2:]
                 if num_rows <= int(index[0]) or num_cols <= int(index[1]):
@@ -1158,7 +1151,7 @@ def _set_twin_axes(gridspec_layout, user_inputs, canvas):
          sg.Button('Submit', button_color=utils.PROCEED_COLOR,
                    bind_return_key=True)]
     ])
-    window = sg.Window('Twin Axes', layout, finalize=True)
+    window = sg.Window('Twin Axes', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.tkraise()
     window.TKroot.grab_set()
 
@@ -1272,7 +1265,7 @@ def _select_plot_type(user_inputs=None):
             [sg.Button('Preview'),
              sg.Button('Next', bind_return_key=True, size=(6, 1),
                        button_color=utils.PROCEED_COLOR)]
-         ]),
+         ], vertical_alignment='top'),
          sg.Column([
              [sg.Canvas(key='example_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
          ], size=(plot_utils.CANVAS_SIZE[0] + 10, plot_utils.CANVAS_SIZE[1] + 10),
@@ -1282,10 +1275,10 @@ def _select_plot_type(user_inputs=None):
     fig = _create_figure(fig_kwargs)
     gridspec, gridspec_layout = _create_gridspec(fig_kwargs, fig)
     axes = _create_axes(gridspec, gridspec_layout, fig, fig_kwargs)
-    window = sg.Window('Plot Types', layout, finalize=True)
+    window = sg.Window('Plot Types', layout, finalize=True, icon=utils._LOGO)
     _annotate_example_figure(axes, window['example_canvas'].TKCanvas, fig)
 
-    validations= {
+    validations = {
         'floats': [['fig_width', 'Figure Width'], ['fig_height', 'Figure Height'],
                    ['dpi', 'DPI']],
         'integers': [['num_rows', 'Number of rows'],
@@ -1450,10 +1443,12 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                 f'secondary_x_label_{i}_{j}': '',
                 f'secondary_x_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
                 f'secondary_x_expr_{i}_{j}': '',
+                f'secondary_x_expr_backward_{i}_{j}': '',
                 f'secondary_y_{i}_{j}': False,
                 f'secondary_y_label_{i}_{j}': '',
                 f'secondary_y_label_offset_{i}_{j}': plt.rcParams['axes.labelpad'],
                 f'secondary_y_expr_{i}_{j}': '',
+                f'secondary_y_expr_backward_{i}_{j}': '',
                 f'show_legend_{i}_{j}': True,
                 f'legend_cols_{i}_{j}': 1 if len(data) < 5 else 2,
                 f'legend_auto_{i}_{j}': True,
@@ -1550,7 +1545,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     f'secondary_y_{i}_{j}': False,
                     f'secondary_y_label_{i}_{j}': '',
                     f'secondary_y_label_offset_{i}_{j}': '',
-                    f'secondary_y_expr_{i}_{j}': ''
+                    f'secondary_y_expr_{i}_{j}': '',
+                    f'secondary_y_expr_backward_{i}_{j}': ''
                 })
             else:
                 secondary_y_disabled = False
@@ -1561,7 +1557,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     f'secondary_x_{i}_{j}': False,
                     f'secondary_x_label_{i}_{j}': '',
                     f'secondary_x_label_offset_{i}_{j}': '',
-                    f'secondary_x_expr_{i}_{j}': ''
+                    f'secondary_x_expr_{i}_{j}': '',
+                    f'secondary_x_expr_backward_{i}_{j}': ''
                 })
             else:
                 secondary_x_disabled = False
@@ -1591,7 +1588,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                             [sg.Text('Label:', size=(6, 1)),
                              sg.Input(default_inputs[f'label_{i}_{j}_{k}'], key=f'label_{i}_{j}_{k}',
                                       size=(8, 1), disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((5, 5), 5)),
+                        ], pad=((5, 5), 5), vertical_alignment='top'),
                         sg.Column([
                             [sg.Text('      Marker')],
                             [sg.Text('Face\nColor:'),
@@ -1623,7 +1620,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                              sg.Input(default_text=default_inputs[f'marker_size_{i}_{j}_{k}'],
                                       key=f'marker_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((20, 5), 5), element_justification='center'),
+                        ], pad=((20, 5), 5), element_justification='center', vertical_alignment='top'),
                         sg.Column([
                             [sg.Text('      Line')],
                             [sg.Text('Color:'),
@@ -1644,7 +1641,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                              sg.Input(default_text=default_inputs[f'line_size_{i}_{j}_{k}'],
                                       key=f'line_size_{i}_{j}_{k}', size=(4, 1),
                                       disabled=not default_inputs[f'plot_boolean_{i}_{j}_{k}'])]
-                        ], pad=((20, 5), 5), element_justification='center')
+                        ], pad=((20, 5), 5), element_justification='center', vertical_alignment='top')
                     ]])
                 ]])
 
@@ -1688,19 +1685,19 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         [sg.Text('X Axis:')],
                         [sg.Check('Major Ticks', key=f'x_major_grid_{i}_{j}',
                                   default=default_inputs[f'x_major_grid_{i}_{j}'],
-                                  disabled=label=='Twin X')],
+                                  disabled=label == 'Twin X')],
                         [sg.Check('Minor Ticks', key=f'x_minor_grid_{i}_{j}',
                                   default=default_inputs[f'x_minor_grid_{i}_{j}'],
-                                  disabled=label=='Twin X')]
+                                  disabled=label == 'Twin X')]
                      ], pad=((20, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Check('Major Ticks', key=f'y_major_grid_{i}_{j}',
                                    default=default_inputs[f'y_major_grid_{i}_{j}'],
-                                   disabled=label=='Twin Y')],
+                                   disabled=label == 'Twin Y')],
                          [sg.Check('Minor Ticks', key=f'y_minor_grid_{i}_{j}',
                                    default=default_inputs[f'y_minor_grid_{i}_{j}'],
-                                   disabled=label=='Twin Y')]
+                                   disabled=label == 'Twin Y')]
                      ], pad=((20, 5), 3), element_justification='center')]
                 ],
                 'Axes': [
@@ -1729,16 +1726,16 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     [sg.Text('Bounds')],
                     [sg.Text('    X Minimum:'),
                      sg.Input(default_inputs[f'x_axis_min_{i}_{j}'], size=(12, 1),
-                              key=f'x_axis_min_{i}_{j}', disabled=label=='Twin X'),
+                              key=f'x_axis_min_{i}_{j}', disabled=label == 'Twin X'),
                      sg.Text('X Maximum:'),
                      sg.Input(default_inputs[f'x_axis_max_{i}_{j}'], size=(12, 1),
-                              key=f'x_axis_max_{i}_{j}', disabled=label=='Twin X')],
+                              key=f'x_axis_max_{i}_{j}', disabled=label == 'Twin X')],
                     [sg.Text('    Y Minimum:'),
                      sg.Input(default_inputs[f'y_axis_min_{i}_{j}'], size=(12, 1),
-                              key=f'y_axis_min_{i}_{j}', disabled=label=='Twin Y'),
+                              key=f'y_axis_min_{i}_{j}', disabled=label == 'Twin Y'),
                      sg.Text('Y Maximum:'),
                      sg.Input(default_inputs[f'y_axis_max_{i}_{j}'], size=(12, 1),
-                              key=f'y_axis_max_{i}_{j}', disabled=label=='Twin Y')],
+                              key=f'y_axis_max_{i}_{j}', disabled=label == 'Twin Y')],
                     [sg.Text('')],
                     [sg.Text('Tick Marks')],
                     [sg.Radio('Automatic', f'ticks_{i}_{j}', key=f'auto_ticks_{i}_{j}',
@@ -1750,23 +1747,23 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                          sg.Spin(list(range(2, 11)),
                                  initial_value=default_inputs[f'x_major_ticks_{i}_{j}'],
                                  key=f'x_major_ticks_{i}_{j}', size=(3, 1),
-                                 disabled=label=='Twin X')],
+                                 disabled=label == 'Twin X')],
                         [sg.Text('Minor Ticks'),
                          sg.Spin(list(range(11)),
                                  initial_value=default_inputs[f'x_minor_ticks_{i}_{j}'],
                                  key=f'x_minor_ticks_{i}_{j}', size=(3, 1),
-                                 disabled=label=='Twin X')]
+                                 disabled=label == 'Twin X')]
                      ], pad=((40, 5), 3), element_justification='center'),
                      sg.Column([
                          [sg.Text('Y Axis:')],
                          [sg.Text('Major Ticks'),
                          sg.Spin(list(range(2, 11)), size=(3, 1),
                                  initial_value=default_inputs[f'y_major_ticks_{i}_{j}'],
-                                 key=f'y_major_ticks_{i}_{j}', disabled=label=='Twin Y')],
+                                 key=f'y_major_ticks_{i}_{j}', disabled=label == 'Twin Y')],
                          [sg.Text('Minor Ticks'),
                          sg.Spin(list(range(11)), size=(3, 1),
                                  initial_value=default_inputs[f'y_minor_ticks_{i}_{j}'],
-                                 key=f'y_minor_ticks_{i}_{j}', disabled=label=='Twin Y')]
+                                 key=f'y_minor_ticks_{i}_{j}', disabled=label == 'Twin Y')]
                      ], pad=((40, 5), 3), element_justification='center')]
                 ]
             }
@@ -1785,9 +1782,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         sg.Input(default_inputs[f'secondary_x_label_offset_{i}_{j}'],
                                  key=f'secondary_x_label_offset_{i}_{j}',
                                  disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
-                        [sg.Text('    Expression, using "x" as the variable (eg. x + 200):'),
+                        [sg.Text('    Forward Expression, using "x" as the variable (eg. x + 200):'),
                         sg.Input(default_text=default_inputs[f'secondary_x_expr_{i}_{j}'],
                                  key=f'secondary_x_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
+                        [sg.Text('    Backward Expression, using "x" as the variable (eg. x - 200):'),
+                        sg.Input(default_text=default_inputs[f'secondary_x_expr_backward_{i}_{j}'],
+                                 key=f'secondary_x_expr_backward_{i}_{j}', size=(15, 1),
                                  disabled=not default_inputs[f'secondary_x_{i}_{j}'])],
                         [sg.Check('Y Axis Label:', default=default_inputs[f'secondary_y_{i}_{j}'],
                                   key=f'secondary_y_{i}_{j}', enable_events=True,
@@ -1799,9 +1800,13 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                         sg.Input(default_inputs[f'secondary_y_label_offset_{i}_{j}'],
                                  key=f'secondary_y_label_offset_{i}_{j}',
                                  disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
-                        [sg.Text('    Expression, using "y" as the variable (eg. y - 50):'),
+                        [sg.Text('    Forward Expression, using "y" as the variable (eg. y - 50):'),
                         sg.Input(default_text=default_inputs[f'secondary_y_expr_{i}_{j}'],
                                  key=f'secondary_y_expr_{i}_{j}', size=(15, 1),
+                                 disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
+                        [sg.Text('    Backward Expression, using "y" as the variable (eg. y + 50):'),
+                        sg.Input(default_text=default_inputs[f'secondary_y_expr_backward_{i}_{j}'],
+                                 key=f'secondary_y_expr_backward_{i}_{j}', size=(15, 1),
                                  disabled=not default_inputs[f'secondary_y_{i}_{j}'])],
                         [sg.Text('')],
                         [sg.Text('Tick Marks')],
@@ -1857,7 +1862,7 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                     [sg.Text(section[0], key=f'-SECTION_header_{i}_{j}_{k}', relief='ridge',
                              size=(column_width, 1), justification='center')],
                     [sg.Frame('', section[1], key=f'-SECTION_{i}_{j}_{k}',
-                              border_width=0,  pad=(5, (10, 20)))]
+                              border_width=0, pad=(5, (10, 20)))]
                 ])
             label_tabs.append(
                 [sg.Tab(
@@ -1869,8 +1874,8 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
                                      justification='center')],
                             [sg.Text('')],
                             *column_layout
-                        ], scrollable=True, vertical_scroll_only=True,
-                        size=(750, plot_utils.CANVAS_SIZE[1] - 100))
+                        ], scrollable=True,
+                        size=(utils.get_min_size(750, 0.5, 'width'), plot_utils.CANVAS_SIZE[1] - 100))
                     ]],
                     key=f'label_tab_{i}_{j}')]
             )
@@ -1892,25 +1897,24 @@ def _create_plot_options_gui(data, figure, axes, user_inputs=None, old_axes=None
         ], key='menu')],
         [sg.Column([
             [sg.TabGroup(axes_tabs, key='axes_tabgroup',
-                         tab_background_color=sg.theme_background_color())],
-            [sg.Button('Back', pad=(5, 10)),
-             sg.Button('Update Figure', pad=(5, 10)),
-             sg.Button('Reset to Defaults', pad=(5, 10)),
-             sg.Button('Continue', bind_return_key=True, pad=(5, 10),
-                       button_color=utils.PROCEED_COLOR)]
+                         tab_background_color=sg.theme_background_color(), pad=(5, (5, 10)))],
+            [sg.Button('Back'),
+             sg.Button('Update Figure'),
+             sg.Button('Reset to Defaults'),
+             sg.Button('Continue', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
         ], key='options_column'),
          sg.Column([
             [sg.Canvas(key='controls_canvas', pad=(0, 0),
-                       size=(plot_utils.CANVAS_SIZE[0], 10))],
+                       size=(plot_utils.CANVAS_SIZE[0], 50))],
             [sg.Canvas(key='fig_canvas', size=plot_utils.CANVAS_SIZE, pad=(0, 0))]
-         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 50),
+         ], size=(plot_utils.CANVAS_SIZE[0] + 20, plot_utils.CANVAS_SIZE[1] + 70),
          pad=(10, 0))
         ]
     ]
 
     _plot_data(data, axes, old_axes, **default_inputs, **kwargs)
     window = sg.Window('Plot Options', layout, resizable=True,
-                       finalize=True, location=location)
+                       finalize=True, location=location, icon=utils._LOGO)
     plot_utils.draw_figure_on_canvas(window['fig_canvas'].TKCanvas, figure,
                                      window['controls_canvas'].TKCanvas, plot_utils.PlotToolbar)
     window['options_column'].expand(True, True) # expands the column when window changes size
@@ -1966,8 +1970,8 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                         x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
                         y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
-                        x_data = dataset.iloc[:, x_index].astype(float).to_numpy()
-                        y_data = dataset.iloc[:, y_index].astype(float).to_numpy()
+                        x_data = utils.series_to_numpy(dataset.iloc[:, x_index])
+                        y_data = utils.series_to_numpy(dataset.iloc[:, y_index])
 
                         nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
 
@@ -2039,8 +2043,12 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     legend.set_in_layout(False)
 
                 if 'Twin' not in label and kwargs[f'secondary_x_{i}_{j}']:
-                    if kwargs[f'secondary_x_expr_{i}_{j}']:
-                        functions = _parse_equation(kwargs[f'secondary_x_expr_{i}_{j}'])
+                    if kwargs[f'secondary_x_expr_{i}_{j}'] and kwargs[f'secondary_x_expr_backward_{i}_{j}']:
+                        functions = _parse_expressions(
+                            (kwargs[f'secondary_x_expr_{i}_{j}'],
+                             kwargs[f'secondary_x_expr_backward_{i}_{j}']),
+                            'x'
+                        )
                     else:
                         functions = None
 
@@ -2056,8 +2064,12 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_x_minor_ticks_{i}_{j}'] + 1))
 
                 if 'Twin' not in label and kwargs[f'secondary_y_{i}_{j}']:
-                    if kwargs[f'secondary_y_expr_{i}_{j}']:
-                        functions = _parse_equation(kwargs[f'secondary_y_expr_{i}_{j}'], False)
+                    if kwargs[f'secondary_y_expr_{i}_{j}'] and kwargs[f'secondary_y_expr_backward_{i}_{j}']:
+                        functions = _parse_expressions(
+                            (kwargs[f'secondary_y_expr_{i}_{j}'],
+                             kwargs[f'secondary_y_expr_backward_{i}_{j}']),
+                            'y'
+                        )
                     else:
                         functions = None
 
@@ -2073,7 +2085,7 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                         AutoMinorLocator(kwargs[f'secondary_y_minor_ticks_{i}_{j}'] + 1))
 
     except Exception as e:
-        sg.popup(f'Error creating plot:\n\n    {repr(e)}\n')
+        sg.popup(f'Error creating plot:\n\n    {repr(e)}\n', icon=utils._LOGO)
     finally:
         # Ensures that the annotations and peaks are maintained if an exception occurres
         if old_axes is not None:
@@ -2110,49 +2122,43 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
                     )
 
 
-def _parse_equation(expression, x_axis=True):
+def _parse_expressions(expressions, symbol='x'):
     """
-    Uses sympy to parse a string expression and obtain the function and its inverse.
-
-    Used to create forward and backward equations for secondary axes.
+    Parses string expressions to obtain the functions for secondary axes.
 
     Parameters
     ----------
-    expression : str
-        The string to parse and turn into a function. Must have the variable
+    expressions : tuple(str, str)
+        The strings to parse and turn into functions. Must have the variable
         'x' or 'y'. For example, 'x + 50' would mean the values of the secondary
-        x-axis would be equal to the main x-axis values + 50.
-    x_axis : bool
-        True designates that the expression is for the x-axis, in which case the
-        main variable will be 'x' in the input expression. If False, the main
-        variable in the input expression is 'y'
+        x-axis would be equal to the main x-axis values + 50. The first item in
+        the tuple is for converting the main axis values to secondary axis values,
+        and the second item is for converting secondary axis values to main axis
+        values, so the two equations should be inverse. For example
+        ('x + 50', 'x - 50') or ('x * 9 / 5 + 32', '(x - 32) * 5 / 9').
+    symbol : str, optional
+        The symbol in the expression to replace with the axis values.
+        Default is 'x'.
 
     Returns
     -------
-    equation : function
-        The function corresponding to the input expression.
-    inverse : function
-        The inverse function of the input expression.
-
-    Notes
-    -----
-    sympy is imported within the function because this function will rarely
-    be used, and sympy takes a significant time to import.
+    forward_function : function
+        The function to convert the main axis values to the secondary axis
+        values.
+    backward_function : function
+        The function to convert the secondary axis values to the main axis
+        values.
 
     """
 
-    import sympy as sp
+    kwargs = {'minimal': True, 'no_print': True, 'builtins_readonly': True}
 
-    var_a, var_b = ('x', 'y') if x_axis else ('y', 'x')
+    forward_function = lambda vals: asteval.Interpreter(
+        {symbol: vals}, **kwargs).eval(expressions[0])
+    backward_function = lambda vals: asteval.Interpreter(
+        {symbol: vals}, **kwargs).eval(expressions[1])
 
-    eqn_a = sp.parse_expr(expression)
-    equation = sp.lambdify([var_a], eqn_a, ['numpy'])
-
-    eqn_b = sp.solve([sp.Symbol(var_b) - eqn_a],
-                     [sp.Symbol(var_a)], dict=True)[0][sp.Symbol(var_a)]
-    inverse = sp.lambdify([var_b], eqn_b, ['numpy'])
-
-    return equation, inverse
+    return forward_function, backward_function
 
 
 def _add_remove_dataset(current_data, plot_details, data_list=None,
@@ -2224,7 +2230,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                    button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window('Entry Selection', layout, finalize=True)
+    window = sg.Window('Entry Selection', layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2252,7 +2258,7 @@ def _add_remove_dataset(current_data, plot_details, data_list=None,
                 break
             else:
                 window.TKroot.grab_release()
-                sg.popup('Please select an entry', title='Error')
+                sg.popup('Please select an entry', title='Error', icon=utils._LOGO)
                 window.TKroot.grab_set()
 
     window.close()
@@ -2545,7 +2551,7 @@ def _add_remove_annotations(axis, add_annotation):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window(window_text, layout, finalize=True)
+    window = sg.Window(window_text, layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2590,7 +2596,7 @@ def _add_remove_annotations(axis, add_annotation):
                 close = values['text_listbox'] or values['arrows_listbox']
                 if not close:
                     sg.popup('Please select an annotation to delete.',
-                             title='Error')
+                             title='Error', icon=utils._LOGO)
 
             if not close:
                 window.TKroot.grab_set()
@@ -2906,7 +2912,7 @@ def _add_remove_peaks(axis, add_peak):
          sg.Button('Submit', bind_return_key=True, button_color=utils.PROCEED_COLOR)]
     ]
 
-    window = sg.Window(window_text, layout, finalize=True)
+    window = sg.Window(window_text, layout, finalize=True, icon=utils._LOGO)
     window.TKroot.grab_set()
     while True:
         event, values = window.read()
@@ -2948,13 +2954,13 @@ def _add_remove_peaks(axis, add_peak):
                         close = False
                         sg.popup(
                             'The selected peak label is already a peak.\n',
-                            title='Error'
+                            title='Error', icon=utils._LOGO
                         )
                     elif not values['peak_listbox']:
                         close = False
                         sg.popup(
                             'Please select a line on which to add peak markers.\n',
-                            title='Error'
+                            title='Error', icon=utils._LOGO
                         )
 
             elif add_peak is None:
@@ -2966,13 +2972,14 @@ def _add_remove_peaks(axis, add_peak):
                     if len(labels) != len(set(labels)):
                         close = False
                         sg.popup(
-                            'There cannot be repeated peak labels.\n', title='Error'
+                            'There cannot be repeated peak labels.\n',
+                            title='Error', icon=utils._LOGO
                         )
 
             else:
                 close = values['peak_listbox']
                 if not close:
-                    sg.popup('Please select a peak to delete.\n', title='Error')
+                    sg.popup('Please select a peak to delete.\n', title='Error', icon=utils._LOGO)
 
             if not close:
                 window.TKroot.grab_set()
@@ -3154,7 +3161,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # exports the options and potentially data required to recreate the figure
                 elif event.startswith('Save Theme'):
                     window.hide()
-                    if event =='Save Theme':
+                    if event == 'Save Theme':
                         saved_data = None
                     else:
                         saved_data = data
@@ -3163,7 +3170,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 # load the options required to recreate a figure layout
                 elif event.startswith('Load Figure'):
                     window.hide()
-                    new_figure_theme = _load_figure_theme(axes, values, fig_kwargs)
+                    new_figure_theme = _load_figure_theme()
 
                     if not new_figure_theme:
                         window.un_hide()
@@ -3295,7 +3302,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                 elif event == 'Reset to Defaults':
                     reset = sg.popup_yes_no(
                         'All values will be returned to their default.\n\nProceed?\n',
-                        title='Reset to Defaults'
+                        title='Reset to Defaults', icon=utils._LOGO
                     )
                     if reset == 'Yes':
                         plt.close(_PREVIEW_NAME)
@@ -3325,7 +3332,7 @@ def _plot_options_event_loop(data_list, mpl_changes=None, input_fig_kwargs=None,
                             window[f'legend_{prop}_{index}'].update(disabled=True)
                 # toggles secondary axis options
                 elif event.startswith('secondary'):
-                    properties = ('label', 'label_offset', 'expr')
+                    properties = ('label', 'label_offset', 'expr', 'expr_backward')
                     index = '_'.join(event.split('_')[-2:])
                     if 'secondary_x' in event:
                         prefix = 'secondary_x'
@@ -3390,9 +3397,9 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     Parameters
     ----------
-    dataframes : list
-        A nested list of pandas DataFrames. Each list of DataFrames will
-        create one figure.
+    dataframes : list(list(pd.DataFrame))
+        A nested list of lists of pandas DataFrames. Each list of DataFrames
+        will create one figure.
     mpl_changes : dict
         Changes to matplotlib's rcParams file to alter the figure.
     input_fig_kwargs : dict, optional
@@ -3405,7 +3412,7 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
 
     Returns
     -------
-    figures : list
+    figures : list(list(plt.Figure, dict(str, plt.Axes)))
         A nested list of lists, with each entry containing the matplotlib Figure,
         and a dictionary containing the Axes.
 
@@ -3420,12 +3427,17 @@ def launch_plotting_gui(dataframes=None, mpl_changes=None, input_fig_kwargs=None
     if dataframes is not None:
         plot_data = dataframes
     else:
-        plot_data = [utils.open_multiple_files()]
-        for dataframe in plot_data[0]:
-            dataframe.columns = [
-                f'Column {num}' for num in range(len(dataframe.columns))
-            ]
+        data = utils.open_multiple_files()
+        if not data:
+            plot_data = []
+        else:
+            for dataframe in data:
+                dataframe.columns = [
+                    f'Column {num}' for num in range(len(dataframe.columns))
+                ]
+            plot_data = [data]
 
+    figures = []
     if plot_data:
         with plt.rc_context(rc_params):
             figures = _plot_options_event_loop(

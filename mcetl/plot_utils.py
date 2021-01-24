@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Provides utility functions, classes, and constants for plotting.
 
-Useful functions are put here in order to prevent circular importing
-within the other files.
+Separated from utils.py to reduce import load time since matplotlib imports
+are not needed for base usage. Useful functions are put here in order to
+prevent circular importing within the other files.
 
 @author: Donald Erb
 Created on Nov 11, 2020
@@ -12,7 +13,7 @@ Attributes
 CANVAS_SIZE : tuple(int, int)
     A tuple specifying the size (in pixels) of the figure canvas used in
     various GUIs for mcetl. This can be modified if the user wishes a
-    larger or smaller canvas.
+    larger or smaller canvas. The default is (800, 800).
 
 """
 
@@ -29,7 +30,7 @@ import PySimpleGUI as sg
 from . import utils
 
 
-CANVAS_SIZE = (utils.get_min_size(800, 0.70),) * 2
+CANVAS_SIZE = (800, 800)
 
 
 class PlotToolbar(NavigationToolbar2Tk):
@@ -48,13 +49,15 @@ class PlotToolbar(NavigationToolbar2Tk):
         The figure canvas on which to operate.
     canvas : tkinter.Canvas
         The Canvas element which owns this toolbar.
+    **kwargs
+        Any additional keyword arguments to pass to NavigationToolbar2Tk.
 
     """
 
     toolitems = tuple(ti for ti in NavigationToolbar2Tk.toolitems if ti[0] not in ('Subplots', 'Save'))
 
-    def __init__(self, fig_canvas, canvas):
-        super().__init__(fig_canvas, canvas)
+    def __init__(self, fig_canvas, canvas, **kwargs):
+        super().__init__(fig_canvas, canvas, **kwargs)
 
 
 class EmbeddedFigure:
@@ -79,6 +82,9 @@ class EmbeddedFigure:
     enable_keybinds : bool, optional
         If True (default), will connect the matplotlib keybind events to
         the figure.
+    toolbar_class : NavigationToolbar2Tk, optional
+        The class of the toolbar to place in the window. The default
+        is NavigationToolbar2Tk.
 
     Attributes
     ----------
@@ -105,10 +111,11 @@ class EmbeddedFigure:
         zooming on the figure does not change the size of the Ellipse.
     yaxis_limits : tuple
         The y axis limits when the figure is first created.
-    events : dict
-        A dictionary containing the events for the figure. The keys
-        are the matplotlib events, such as 'pick_event', and the values
-        are the functions to be executed for each event.
+    events : list(tuple(str, Callable))
+        A list containing the events for the figure. Each item in the list
+        is a list or tuple with the first item being the matplotlib event,
+        such as 'pick_event', and the second item is a callable (function)
+        to be executed when the event occurs.
     canvas_size : tuple(float, float)
         The size, in pixels, of the figure to be created. Default is
         (CANVAS_SIZE[0], CANVAS_SIZE[1] - 100), which is (800, 700).
@@ -128,13 +135,15 @@ class EmbeddedFigure:
 
     A typical __init__ for a subclass should create the figure and axes,
     create the window, and then place the figure within the window's canvas.
-    For example:
-        def __init__(x, y, **kwargs):
-            super().__init__(x, y, **kwargs)
-            self.figure, self.axis = plt.subplots()
-            self.axis.plot(self.x, self.y)
-            self._create_window()
-            self._place_figure_on_canvas()
+    For example (note that plt designates matplotlib.pyplot)
+
+    >>> class SimpleEmbeddedFigure(EmbeddedFigure):
+            def __init__(x, y, **kwargs):
+                super().__init__(x, y, **kwargs)
+                self.figure, self.axis = plt.subplots()
+                self.axis.plot(self.x, self.y)
+                self._create_window()
+                self._place_figure_on_canvas()
 
     The only function that should be publically available is the
     event_loop method, which should return the desired output.
@@ -145,14 +154,18 @@ class EmbeddedFigure:
     """
 
     def __init__(self, x, y, click_list=None, enable_events=True,
-                 enable_keybinds=True):
+                 enable_keybinds=True, toolbar_class=NavigationToolbar2Tk):
 
-        self.x = np.asarray(x, float)
-        self.y = np.asarray(y, float)
+        x_array = np.asarray(x, float)
+        y_array = np.asarray(y, float)
+        nan_mask = (~np.isnan(x_array)) & (~np.isnan(y_array))
+
+        self.x = x[nan_mask]
+        self.y = y[nan_mask]
         self.click_list = click_list if click_list is not None else []
         self.enable_keybinds = enable_keybinds
+        self.toolbar_class = toolbar_class
 
-        self.toolbar_class = NavigationToolbar2Tk
         self.figure = None
         self.axis = None
         self.window = None
@@ -162,6 +175,7 @@ class EmbeddedFigure:
         self.picked_object = None
         self.xaxis_limits = (0, 1)
         self.yaxis_limits = (0, 1)
+        self._cids = [] # references to connection ids for events
 
         if enable_events:
             # default events; can be edited/removed after initialization
@@ -208,7 +222,7 @@ class EmbeddedFigure:
         """
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         layout = [
@@ -218,7 +232,7 @@ class EmbeddedFigure:
         ]
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
-        self.window = sg.Window(window_title, layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window(window_title, layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def _update_plot(self):
@@ -407,7 +421,7 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
 
     toolbar = None
     packing_kwargs = {'canvas': {'side': 'top', 'anchor': 'nw'},
-                      'toolbar': {'side': 'top', 'anchor': 'nw'}}
+                      'toolbar': {'side': 'top', 'anchor': 'nw', 'fill': 'x'}}
     if kwargs is not None:
         packing_kwargs.update(kwargs)
 
@@ -419,7 +433,7 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
         sg.popup(
             ('Exception occurred during figure creation. Could be due to '
              f'incorrect Mathtext usage.\n\nError:\n    {repr(e)}\n'),
-            title='Plotting Error'
+            title='Plotting Error', icon=utils._LOGO
         )
         _clean_canvas(canvas)
         if toolbar_canvas not in (None, canvas):
@@ -431,7 +445,11 @@ def draw_figure_on_canvas(canvas, figure, toolbar_canvas=None,
             _clean_canvas(toolbar_canvas,
                           first_index=1 if canvas is toolbar_canvas else 0,
                           last_index=-1 if canvas is toolbar_canvas else None)
-            toolbar = toolbar_class(figure_canvas, toolbar_canvas)
+            try: # pack_toolbar keyword added in matplotlib v3.3.0
+                toolbar = toolbar_class(figure_canvas, toolbar_canvas, pack_toolbar=False)
+            except:
+                toolbar = toolbar_class(figure_canvas, toolbar_canvas)
+                toolbar.pack_forget()
             toolbar.pack(**packing_kwargs['toolbar'])
 
         figure_canvas.get_tk_widget().pack(**packing_kwargs['canvas'])
@@ -476,17 +494,21 @@ def get_dpi_correction(dpi):
     return dpi_correction
 
 
-def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
+def determine_dpi(fig_height, fig_width, dpi, canvas_size=CANVAS_SIZE):
     """
     Gives the correct dpi to fit the figure within the GUI canvas.
 
     Parameters
     ----------
-    fig_kwargs : dict, optional
-        Keyword arguments for creating the figure. Relevant keys
-        are 'fig_width', 'fig_height', and 'dpi'.
+    fig_height : float
+        The figure height.
+    fig_width : float
+        The figure width.
+    dpi : float
+        The desired figure dpi.
     canvas_size : tuple(int, int), optional
         The size of the canvas that the figure will be placed on.
+        Defaults to CANVAS_SIZE.
 
     Returns
     -------
@@ -508,14 +530,6 @@ def determine_dpi(fig_kwargs=None, canvas_size=CANVAS_SIZE):
     The final dpi when not saving is equal to dpi * size_scale * dpi_scale.
 
     """
-
-    kwargs = fig_kwargs if fig_kwargs is not None else {}
-
-    dpi = float(kwargs.get('dpi', plt.rcParams['figure.dpi']))
-    fig_width = float(kwargs.get('fig_width',
-                                 plt.rcParams['figure.figsize'][0] * plt.rcParams['figure.dpi']))
-    fig_height = float(kwargs.get('fig_height',
-                                  plt.rcParams['figure.figsize'][1] * plt.rcParams['figure.dpi']))
 
     dpi_scale = get_dpi_correction(dpi)
     size_scale = min(canvas_size[0] / fig_width, canvas_size[1] / fig_height)

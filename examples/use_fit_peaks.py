@@ -40,7 +40,7 @@ background_type = 'PolynomialModel'
 background_kwargs = {'degree': 1}
 default_model='Gaussian'
 fit_kws = {}
-vary_Voigt=False
+vary_voigt=False
 fit_residuals=True
 num_resid_fits=5
 min_resid = 0.1
@@ -65,14 +65,14 @@ fitting_results = fitting.fit_peaks(
     subtract_background=subtract_background, x_min=x_min, x_max=x_max,
     additional_peaks=additional_peaks, background_type=background_type,
     background_kwargs=background_kwargs, min_method=min_method,
-    default_model=default_model, fit_kws=fit_kws, vary_Voigt=vary_Voigt,
+    default_model=default_model, fit_kws=fit_kws, vary_voigt=vary_voigt,
     fit_residuals=fit_residuals, num_resid_fits=num_resid_fits,
     min_resid=min_resid, debug=debug, bkg_min=bkg_min
 )
 
 print('\n\n'+'-'*8+f' {time.time()-time0:.1f} seconds '+'-'*8)
 
-# unpacks all of the data from the output of the plugNchug_fit function
+# unpacks all of the data from the output of the fit_peaks function
 output_list = [fitting_results[key] for key in fitting_results]
 resid_found, resid_accept, peaks_found, peaks_accept, initial_fit, fit_results, individual_peaks, best_values = output_list
 fit_result = fit_results[-1]

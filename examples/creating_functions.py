@@ -15,16 +15,15 @@ from mcetl import (DataSource, PreprocessFunction, CalculationFunction,
                    SummaryFunction, utils)
 
 
-def f(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
+def f(df, target_indices, calc_indices, excel_columns, first_row, **kwargs):
     """Example sample summary function."""
 
-    start_row = args[0]
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             if excel_columns is not None:
                 cols = [excel_columns[col] for col in target_indices[0][i]]
                 df[calc_col] = [
-                    f'= SUM({f"{index + start_row}, ".join(cols) + str(index + start_row)})' for index in range(len(df))
+                    f'= SUM({f"{index + first_row}, ".join(cols) + str(index + first_row)})' for index in range(len(df))
                 ]
 
             else:
@@ -33,20 +32,19 @@ def f(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
     return df
 
 
-def f2(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
+def f2(df, target_indices, calc_indices, excel_columns, first_row, **kwargs):
     """Example dataset summary function."""
 
     targets = []
     for i, sample in enumerate(calc_indices):
         targets.extend([target for target in target_indices[0][i]])
 
-    start_row = args[0]
     #only use the last list since that is the dataset summary list
     for calc_col in calc_indices[-1]:
         if excel_columns is not None:
             cols = [excel_columns[col] for col in targets]
             df[calc_col] = [
-                f'= SUM({f"{index + start_row}, ".join(cols) + str(index + start_row)})' for index in range(len(df))
+                f'= SUM({f"{index + first_row}, ".join(cols) + str(index + first_row)})' for index in range(len(df))
             ]
 
         else:
@@ -68,7 +66,7 @@ def split(df, target_indices, **kwargs):
     return np.array_split(df, mask)
 
 
-def func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
+def func(df, target_indices, calc_indices, excel_columns=None, first_row=0, offset=None):
     """Example CalculationFunction with named kwargs"""
 
     for i, sample in enumerate(calc_indices):
@@ -79,7 +77,7 @@ def func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offs
                 x_col = excel_columns[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[1][i][j]]
                 calc = [
-                    f'= {x_col}{k + start_row} + {y_col}{k + start_row} + {offset}' for k in range(len(x))
+                    f'= {x_col}{k + first_row} + {y_col}{k + first_row} + {offset}' for k in range(len(x))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(x), calc, '')
@@ -94,10 +92,10 @@ def func(df, target_indices, calc_indices, excel_columns=None, start_row=0, offs
     return df
 
 
-def func2(df, target_indices, calc_indices, excel_columns=None, start_row=0, offset=None):
+def func2(df, target_indices, calc_indices, excel_columns=None, first_row=0, offset=None):
     """Example CalculationFunction with named kwargs"""
-    print(target_indices)
-    print(calc_indices)
+    print('target columns', target_indices)
+    print('calculation columns', calc_indices)
     for i, sample in enumerate(calc_indices):
         for j, calc_col in enumerate(sample):
             if excel_columns is not None:
@@ -105,7 +103,7 @@ def func2(df, target_indices, calc_indices, excel_columns=None, start_row=0, off
                 x_col = excel_columns[target_indices[0][i][j]]
                 y_col = excel_columns[target_indices[1][i][j]]
                 calc = [
-                    f'= {x_col}{k + start_row} + {y_col}{k + start_row} + {offset}' for k in range(len(x))
+                    f'= {x_col}{k + first_row} + {y_col}{k + first_row} + {offset}' for k in range(len(x))
                 ]
 
                 df[calc_col] = np.where(~np.isnan(x), calc, '')
@@ -120,7 +118,7 @@ def func2(df, target_indices, calc_indices, excel_columns=None, start_row=0, off
     return df
 
 
-def func3(df, target_indices, calc_indices, excel_columns=None, *args, **kwargs):
+def func3(df, target_indices, calc_indices, excel_columns=None, **kwargs):
     """Example CalculationFunction using *args and **kwargs to swallow additional keyword arguments."""
 
     for i, sample in enumerate(calc_indices):
@@ -178,11 +176,11 @@ for i, dataset in enumerate(dataframes):
             sample[k] = utils.optimize_memory(measurement)
 
 #perform separation calcs
-dataframes, import_vals = data_source.do_preprocessing(
+dataframes, import_vals = data_source._do_preprocessing(
     dataframes, import_vals
 )
 #assign reference indices for all relevant columns
-data_source.set_references(dataframes, import_vals)
+data_source._set_references(dataframes, import_vals)
 references = data_source.references
 
 #merge dfs for each dataset
@@ -192,11 +190,19 @@ merged_dataframes = data_source.merge_datasets(dataframes)
 merged_dataframes2 = [df.copy() for df in merged_dataframes]
 
 #doing excel formulas
-merged_dataframes = data_source.do_excel_functions(merged_dataframes)
+merged_dataframes = data_source._do_excel_functions(merged_dataframes)
 
 #doing python formulas
-merged_dataframes2 = data_source.do_python_functions(merged_dataframes2)
+merged_dataframes2 = data_source._do_python_functions(merged_dataframes2)
 
+lengths = data_source.lengths.copy()
 #split data back into individual dataframes
 output_dfs = data_source.split_into_entries(merged_dataframes)
+
+# manually set some DataSource attributes in order to split the other copied dataframe
+# since the attributes are reset after splitting a merged dataframe
+data_source._added_separators = True
+data_source.lengths = lengths
+
+#split data back into individual dataframes
 output_dfs2 = data_source.split_into_entries(merged_dataframes2)

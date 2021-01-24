@@ -4,7 +4,6 @@
 @author: Donald Erb
 Created on Jul 31, 2020
 
-#TODO need to update all docstrings
 """
 
 
@@ -14,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from . import utils
+from .excel_writer import ExcelWriterHandler
 from .functions import CalculationFunction, PreprocessFunction, SummaryFunction
 
 
@@ -25,32 +25,46 @@ class DataSource:
     ----------
     name : str
         The name of the DataSource. Used when displaying the DataSource in a GUI.
-    column_labels : TYPE, optional
-        DESCRIPTION. The default is None.
-    functions : TYPE, optional
-        DESCRIPTION. The default is None.
-    column_numbers : TYPE, optional
-        DESCRIPTION. The default is None.
-    start_row : TYPE, optional
-        DESCRIPTION. The default is 0.
-    end_row : TYPE, optional
-        DESCRIPTION. The default is 0.
-    separator : TYPE, optional
-        DESCRIPTION. The default is None.
-    unique_variable_indices : TYPE, optional
-        DESCRIPTION. The default is None.
-    xy_plot_indices : TYPE, optional
-        DESCRIPTION. The default is None.
-    file_type : TYPE, optional
-        DESCRIPTION. The default is None.
-    num_files : TYPE, optional
-        DESCRIPTION. The default is 1.
-    unique_variables : TYPE, optional
-        DESCRIPTION. The default is None.
-    figure_rcParams : dict, optional
-        A dictionary containing any changes to matplotlib's rcParams.
-        The default is None.
-    excel_writer_formats : dict(dict or openpyxl.style.NamedStyle), optional
+    functions : list or tuple, optional
+        A list or tuple of various Function objects (:class:`.CalculationFunction` or
+        :class:`.PreprocessFunction` or :class:`.SummaryFunction`) that will be used to
+        process data for the DataSource. The order the Functions are performed in is
+        as follows: PreprocessFunctions, CalculationFunctions, SummaryFunctions,
+        with functions of the same type being performed in the same order as input.
+    column_labels : tuple(str) or list(str), optional
+        A list/tuple of strings that will be used to label columns in the
+        Excel output, and to label the pandas DataFrame columns for the data.
+    column_numbers : tuple(int) or list(int), optional
+        The indices of the columns to import from raw data files.
+    start_row : int, optional
+        The first row of data to use when importing from raw data files.
+    end_row : int, optional
+        The last row of data to use when importing from raw data files.
+        Counts up from the last row, so the last row is 0, the second
+        to last row is 1, etc.
+    separator : str, optional
+        The separator or delimeter to use to separate data columns when
+        importing from raw data files. For example, ',' for csv files.
+    file_type : str, optional
+        The file extension associated with the data files for the DataSource.
+        For example, 'txt' or 'csv'.
+    num_files : int, optional
+        The number of data files per sample for the DataSource. Only used
+        when using keyword search for files.
+    unique_variables : list(str) or tuple(str), optional
+        The names of all columns from the imported raw data that are
+        needed for calculations. For example, if importing thermogravimetric
+        analysis (TGA) data, the unique_variables could be ['temperature', 'mass'].
+    unique_variable_indices : list(int) or tuple(int), optional
+        The indices of the columns within column_numbers that correspond with
+        each of the input unique_variables.
+    xy_plot_indices : list(int, int) or tuple(int, int), optional
+        The indices of the columns after processing that will be the default
+        columns for plotting in Excel.
+    figure_rcparams : dict, optional
+        A dictionary containing any changes to Matplotlib's rcParams to
+        use if fitting or plotting.
+    excel_writer_styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle), optional
         A dictionary of styles used to format the output Excel workbook.
         The following keys are used when writing data from files to Excel:
             'header_even', 'header_odd', 'subheader_even', 'subheader_odd',
@@ -62,16 +76,28 @@ class DataSource:
         The values for the dictionaries must be either dictionaries, with
         keys corresponding to keyword inputs for openpyxl's NamedStyle, or NamedStyle
         objects.
-    sample_separation : TYPE, optional
-        DESCRIPTION. The default is 0.
-    entry_separation : TYPE, optional
-        DESCRIPTION. The default is 0.
+    excel_row_offset : int, optional
+        The first row to use when writing to Excel. A value of 0 would start
+        at row 1 in Excel, 1 would start at row 2, etc.
+    excel_column_offset : int, optional
+        The first column to use when writing to Excel. A value of 0 would
+        start at column 'A' in Excel, 1 would start at column 'B', etc.
+    entry_separation : int, optional
+        The number of blank columns to insert between data entries when writing
+        to Excel.
+    sample_separation : int, optional
+        The number of blank columns to insert between samples when writing
+        to Excel.
     label_entries : bool, optional
         If True, will add a number to the column labels for each
-        entry in a sample if there is more than one entry.
+        entry in a sample if there is more than one entry. For example, the
+        column label 'data' would become 'data, 1', 'data, 2', etc.
 
     Attributes
     ----------
+    excel_styles : dict(dict)
+        A nested dictionary of dictionaries, used to create openpyxl
+        NamedStyle objects to format the output Excel file.
     lengths : list
         A list of lists of lists of integers, corresponding to the number of columns
         in each individual entry in the total dataframes for the DataSource.
@@ -84,7 +110,7 @@ class DataSource:
 
     """
 
-    excel_formats = {
+    excel_styles = {
         'header_even': {
             'font': dict(size=12, bold=True),
             'fill': dict(fill_type='solid', start_color='F9B381', end_color='F9B381'),
@@ -118,12 +144,14 @@ class DataSource:
             'fill': dict(fill_type='solid', start_color='DBEDFF', end_color='DBEDFF'),
             'alignment': dict(horizontal='center', vertical='center'),
             'number_format': '0.00'
-        }
+        },
+        **ExcelWriterHandler.styles
     }
 
     def __init__(
             self,
             name,
+            *,
             functions=None,
             column_labels=None,
             column_numbers=None,
@@ -135,8 +163,8 @@ class DataSource:
             unique_variables=None,
             unique_variable_indices=None,
             xy_plot_indices=None,
-            figure_rcParams=None,
-            excel_writer_formats=None,
+            figure_rcparams=None,
+            excel_writer_styles=None,
             excel_row_offset=0,
             excel_column_offset=0,
             entry_separation=0,
@@ -165,8 +193,8 @@ class DataSource:
         # attributes that will be set later
         self.lengths = None # used for splitting merged datasets
         self.references = None # used to reference columns within a dataframe
-        # signifies that entry and sample separation columns were added to the
-        # merged dataset and will need to be removed in split_into_entries method
+        # _added_separators signifies that entry and sample separation columns were added
+        # to the merged dataset and will need to be removed in split_into_entries method
         self._added_separators = False
 
         self.start_row = start_row
@@ -177,7 +205,7 @@ class DataSource:
         self.entry_separation = entry_separation
         self.label_entries = label_entries
         self.column_labels = column_labels if column_labels is not None else []
-        self.figure_rcParams = figure_rcParams if figure_rcParams is not None else {}
+        self.figure_rcparams = figure_rcparams if figure_rcparams is not None else {}
         self.separator = separator
 
         # Ensures excel_row_offset and excel_column_offset are >= 0
@@ -258,7 +286,7 @@ class DataSource:
             self.y_plot_index = 1
 
         # sets styles for writing to Excel
-        self.excel_formats = self._create_excel_writer_formats(excel_writer_formats)
+        self.excel_styles = self._create_excel_writer_styles(excel_writer_styles)
 
 
     def __str__(self):
@@ -266,25 +294,27 @@ class DataSource:
 
 
     @classmethod
-    def _create_excel_writer_formats(cls, styles=None):
+    def _create_excel_writer_styles(cls, styles=None):
         """
-        Sets the excel_formats attribute for the DataSource.
+        Sets the styles for the ouput Excel file.
+
+        Ensures that at least cls.excel_styles are included in the style dictionary.
 
         Parameters
         ----------
         styles : dict, optional
-            The input dictionary to override the default formats.
+            The input dictionary to override the default styles.
 
         Returns
         -------
         format_kwargs : dict
             The input styles dictionary with any missing keys from
-            DataSource.excel_formats added.
+            DataSource.excel_styles added.
 
         """
 
         format_kwargs = styles if styles is not None else {}
-        for key, value in cls.excel_formats.items():
+        for key, value in cls.excel_styles.items():
             if key not in format_kwargs:
                 format_kwargs[key] = value
 
@@ -310,14 +340,15 @@ class DataSource:
                         'the correct unique_variables specified.')
 
         unique_keys = set(self.unique_variables)
-        for function in (self.preprocess_functions + self.calculation_functions
+        for function in (self.preprocess_functions
+                         + self.calculation_functions
                          + self.sample_summary_functions
                          + self.dataset_summary_functions):
             # ensure function names are unique
             if function.name in unique_keys:
                 raise ValueError((
-                    f'The name "{function.name}" is associated with two different '
-                    f'Function objects in the DataSource "{self.name}", which is not allowed.'
+                    f'The name "{function.name}" is associated with two '
+                    f'different objects for {self}, which is not allowed.'
                 ))
             # ensure targets exist
             for target in function.target_columns:
@@ -464,7 +495,7 @@ class DataSource:
         return merged_references
 
 
-    def set_references(self, dataframes, import_values):
+    def _set_references(self, dataframes, import_values):
         """
         Creates a dictionary to reference the column indices for calculations.
 
@@ -509,7 +540,7 @@ class DataSource:
         self._added_separators = True
 
 
-    def do_preprocessing(self, dataframes, import_values):
+    def _do_preprocessing(self, dataframes, import_values):
         """
         Performs the function for all PreprocessFunctions.
 
@@ -537,18 +568,18 @@ class DataSource:
         new_import_values = []
         for i, dataset in enumerate(dataframes):
             for function in self.preprocess_functions:
-                dataset, import_values[i] = function.preprocess_data(
+                dataset, import_values[i] = function._preprocess_data(
                     dataset, import_values[i]
                 )
             new_dataframes.append(dataset)
             new_import_values.append(import_values[i])
 
-        self.remove_unneeded_variables()
+        self._remove_unneeded_variables()
 
         return new_dataframes, new_import_values
 
 
-    def remove_unneeded_variables(self):
+    def _remove_unneeded_variables(self):
         """Removes unique variables that are not needed for processing."""
 
         for function in self.preprocess_functions:
@@ -618,7 +649,7 @@ class DataSource:
 
         Returns
         -------
-        processed_dataframes : list(pd.DataFrame)
+        dataframes : list(pd.DataFrame)
             The list of dataframes after processing.
 
         Notes
@@ -627,26 +658,33 @@ class DataSource:
         and there are two header rows. The start column is also set to
         self.excel_column_offset + 1 since openpyxl is 1-based.
 
+        All dataframes are overwritten for each processing step so that no copies
+        are made.
+
         """
 
         functions = (self.calculation_functions + self.sample_summary_functions
                      + self.dataset_summary_functions)
+        first_column = self.excel_column_offset + 1
 
-        processed_dataframes = []
         for i, dataset in enumerate(dataframes):
+            if index == 1:
+                excel_columns = None
+            else:
+                excel_columns = [
+                    utils.excel_column_name(num) for num in range(first_column, len(dataset.columns) + first_column)
+                ]
+
             for function in functions:
-                dataset = function.do_function(
-                    dataset, self.references[i], index,
-                    self.excel_column_offset + 1, self.excel_row_offset + 3
+                dataset = function._do_function(
+                    dataset, self.references[i], index, excel_columns, self.excel_row_offset + 3
                 )
+            dataframes[i] = dataset
 
-            # Optimizes memory usage after calculations
-            processed_dataframes.append(utils.optimize_memory(dataset, bool(index)))
-
-        return processed_dataframes
+        return dataframes
 
 
-    def do_excel_functions(self, dataframes):
+    def _do_excel_functions(self, dataframes):
         """
         Will perform the Excel function for each CalculationFunctions and SummaryFunctions.
 
@@ -667,7 +705,7 @@ class DataSource:
         return self._do_functions(dataframes, 0)
 
 
-    def do_python_functions(self, dataframes):
+    def _do_python_functions(self, dataframes):
         """
         Will perform the python function for each CalculationFunctions and SummaryFunctions.
 
@@ -732,13 +770,17 @@ class DataSource:
                     else:
                         separation_cols = 0
 
-                    sample[j] = entry.astype(dtypes
-                        ).drop(range(len(entry.columns) - separation_cols, len(entry.columns)), axis=1)
+                    sample[j] = entry.astype(
+                        dtypes).drop(range(len(entry.columns) - separation_cols, len(entry.columns)), axis=1)
+
+        # reset internal attributes
+        self._added_separators = False
+        self.lengths = None
 
         return split_dataframes
 
 
-    def _create_imported_data_labels(self, df_length=None):
+    def _create_data_labels(self, df_length=None, processing=True):
         """
         Calculates the necessary column labels for imported data.
 
@@ -748,11 +790,17 @@ class DataSource:
         ----------
         df_length : int, optional
             The number of columns in the imported dataframe.
+        processing : bool, optional
+            If True, designates that the imported data will be processed
+            and only assigns the minimum column labels for the imported
+            data. If False, assumes that the data already contains the columns
+            from calculations and will fill as many columns as possible with
+            self.column_labels.
 
         Returns
         -------
         imported_data_labels : list(str)
-            A list of strings
+            A list of strings corresponding to the labels for the imported data.
 
         """
 
@@ -764,14 +812,15 @@ class DataSource:
             if df_length <= len(self.column_numbers) - self._deleted_columns:
                 imported_data_labels = imported_data_labels[:df_length]
             else:
+                filler = itertools.cycle(['']) if processing else specified_labels
                 imported_data_labels.extend(
-                    '' for _ in range(df_length - len(self.column_numbers) + self._deleted_columns)
+                    next(filler) for _ in range(df_length - len(self.column_numbers) + self._deleted_columns)
                 )
 
         return imported_data_labels
 
 
-    def _create_calculation_labels(self):
+    def _create_function_labels(self):
         """
         Calculates the necessary column labels for the DataSource's Functions.
 
@@ -779,7 +828,7 @@ class DataSource:
 
         Returns
         ----------
-        calculation_labels : list(list(str))
+        function_labels : list(list(str))
             A list with three lists, containing all the needed column labels
             for functions: index 0 is for CalculationFunctions labels, index 1
             is for sample SummaryFunctions labels, and index 2 is for dataset
@@ -789,16 +838,17 @@ class DataSource:
 
         specified_labels = itertools.chain(self.column_labels, itertools.cycle(['']))
         # discard the column labels that correspond to imported data
-        unneeded = [next(specified_labels) for _ in range(len(self.column_numbers) - self._deleted_columns)]
+        for _ in range(len(self.column_numbers) - self._deleted_columns):
+            next(specified_labels)
 
-        calculation_labels = [[], [], []]
+        function_labels = [[], [], []]
         functions = (self.calculation_functions, self.sample_summary_functions, self.dataset_summary_functions)
         for i, function_type in enumerate(functions):
             for function in function_type:
                 if isinstance(function.added_columns, int):
-                    calculation_labels[i].extend(next(specified_labels) for _ in range(function.added_columns))
+                    function_labels[i].extend(next(specified_labels) for _ in range(function.added_columns))
 
-        return calculation_labels
+        return function_labels
 
 
     def print_column_labels_template(self):
@@ -809,9 +859,15 @@ class DataSource:
         columns added by CalculationFunctions, and the columns added by
         SummaryFunctions.
 
+        Returns
+        -------
+        label_template : list(str)
+            The list of strings that serves as a template for the necessary input
+            for column_labels for the DataSource.
+
         """
 
-        labels = [self._create_imported_data_labels(), *self._create_calculation_labels()]
+        labels = [self._create_data_labels(), *self._create_function_labels()]
         label_template = list(itertools.chain.from_iterable(labels))
 
         print((
@@ -821,3 +877,34 @@ class DataSource:
             f'Dataset summary labels: {len(labels[3])}\n\n'
             f'column_labels template for {self} = {label_template}'
         ))
+
+        return label_template
+
+
+    @staticmethod
+    def test_excel_styles(styles):
+        """
+        Tests whether the input styles create valid Excel styles with openpyxl.
+
+        Parameters
+        ----------
+        styles : dict(str, None or dict or str or openpyxl.styles.named_styles.NamedStyle)
+            The dictionary of styles to test. Values in the dictionary can
+            either be None, a nested dictionary with the necessary keys and values
+            to create an openpyxl NamedStyle, a string (which would refer to another
+            NamedStyle.name), or openpyxl.styles.NamedStyle objects.
+
+        Returns
+        -------
+        bool
+            Returns True if all input styles successfully create openpyxl
+            NamedStyle objects; otherwise, returns False.
+
+        Notes
+        -----
+        This is just a wrapper of :meth:`.ExcelWriterHandler.test_excel_styles`,
+        and is included because DataSource is the main-facing object of
+        mcetl and will be used more often.
+
+        """
+        return ExcelWriterHandler.test_excel_styles(styles)

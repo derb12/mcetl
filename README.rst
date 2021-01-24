@@ -2,146 +2,208 @@
 mcetl
 =====
 
-.. image:: https://github.com/derb12/mcetl/raw/master/docs/images/logo.png
-   :align: center
-
+.. image:: https://github.com/derb12/mcetl/raw/main/docs/images/logo.png
+    :alt: mcetl Logo
+    :align: center
 
 .. image:: https://img.shields.io/pypi/v/mcetl.svg
-        :target: https://pypi.python.org/pypi/mcetl
+    :target: https://pypi.python.org/pypi/mcetl
+    :alt: Most Recent Version
 
 .. image:: https://readthedocs.org/projects/mcetl/badge/?version=latest
-        :target: https://mcetl.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
+    :target: https://mcetl.readthedocs.io
+    :alt: Documentation Status
+
+.. image:: https://img.shields.io/pypi/pyversions/mcetl.svg
+    :target: https://pypi.python.org/pypi/mcetl
+    :alt: Supported Python versions
 
 .. image:: https://img.shields.io/badge/license-BSD%203--Clause-blue.svg
-        :target: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
+    :target: https://github.com/derb12/mcetl/tree/main/LICENSE.txt
+    :alt: BSD 3-clause license
 
 
+mcetl is a small-scale Extract-Transform-Load framework focused on materials characterization.
 
-mcetl is an Extract-Transform-Load framework focused on materials characterization.
-
-* For python 3.7+
-* Open Source: BSD 3-clause license
-* Documentation available at: https://mcetl.readthedocs.io.
-
-
-mcetl is focused on easing the time required to process data files. It does this
-by allowing the user to define DataSource objects which contain the information
-for reading files specfic to that DataSource, the calculations that will be performed on
-the data, and the options for writing the data to Excel.
-
-In addition, mcetl provides peak fitting and plotting user interfaces that
-can be used without creating any DataSource objects. Peak fitting is done using
-lmfit, and plotting is done with matplotlib.
+* For Python 3.7+
+* Open Source: BSD 3-Clause License
+* Source Code: https://github.com/derb12/mcetl
+* Documentation: https://mcetl.readthedocs.io.
 
 
-.. contents:: **Table of Contents**
+mcetl is focused on easing the time required to process data files and write the
+results to Excel. It does this by allowing the user to define DataSource objects
+for each separate source of data. Each DataSource contains information such as the
+options needed to import data from files, the calculations that will be performed
+on the data, and the options for writing the data to Excel.
+
+In addition, mcetl provides fitting and plotting user interfaces that
+can be used without any prior setup.
+
+
+.. contents:: **Contents**
     :depth: 1
 
 
-Description
------------
+Introduction
+------------
 
 Purpose
 ~~~~~~~
 
 The aim of mcetl is to ease the repeated processing of data files. Contrary to its name, mcetl
-can process any tabulated files (txt, csv, tsv, etc.), and does not require that the files originate
+can process any tabulated files (txt, csv, tsv, xlsx, etc.), and does not require that the files originate
 from materials characterization. However, the focus on materials characterization was selected because:
 
 * Most data files from materials characterization are relatively small in size (a few kB or MB).
 * Materials characterization files are typically cleanly tabulated and do not require handling
   messy or missing data.
-* Shamelessly improving my SEO :)
+* It was the author's area of usage and naming things is hard...
 
-
-mcetl requires only a very basic understanding of python to use, and allows a single person to
+mcetl requires only a very basic understanding of Python to use, and allows a single person to
 create a tool that their entire group can use to process data and produce Excel files with a
 consistent style. mcetl can create new Excel files when processing data or saving peak fitting
 results, or it can append to an existing Excel file to easily work with already created files.
 
-
 Limitations
 ~~~~~~~~~~~
 
-* Since mcetl uses the pandas library to load files into memory for processing, it is not suited
-  for processing files whose total memory size is large. mcetl attempts to reduce the required
-  memory by downcasting types to their smallest representation (eg. converting float64 to float32),
-  but this can only do so much.
-
-* mcetl does not provide any built-in resources for cleaning data, although the user can easily
-  manually implement this into the processing pipeline for a DataSource.
-
-* mcetl does not provide any resources for processing data files directly from characterization equipment (such as
-  .XRDML, .PAR, etc.). Other libraries such as xylib already exist and are capable of converting many such files
-  to a format mcetl can use (txt, csv, etc.).
-
-* The peak fitting and plotting modules in mcetl are not as feature-complete as other alternatives such as
-  Origin, fityk, SciDAVis, etc. The modules are included in mcetl in case those better alternatives are not
+* Since mcetl uses the `pandas <https://pandas.pydata.org>`_ library to load data
+  from files into memory for processing, it is not suited for processing files whose
+  total memory size is large (e.g. cannot load a 10 GB file on a computer with
+  only 8 GB of RAM).
+* mcetl does not provide any resources for processing data files directly from
+  characterization equipment (such as .XRDML, .PAR, etc.). Other libraries such
+  as `xylib <https://github.com/wojdyr/xylib>`_ already exist and are capable of
+  converting many such files to a format mcetl can use (txt, csv, etc.).
+* The peak fitting and plotting modules in mcetl are not as feature-complete as
+  other alternatives such as `Origin <https://originlab.com>`_,
+  `fityk <https://fityk.nieto.pl>`_, `SciDAVis <https://sourceforge.net/projects/scidavis/>`_,
+  etc. The modules are included in mcetl in case those better alternatives are not
   available, and the author highly recommends using those alternatives over mcetl if available.
 
 
 Installation
 ------------
 
+Dependencies
+~~~~~~~~~~~~
+
+mcetl requires `Python <https://python.org>`_ version 3.7 or later and the following libraries:
+
+* `asteval <https://github.com/newville/asteval>`_
+* `lmfit <https://lmfit.github.io/lmfit-py/>`_ (>= 1.0)
+* `Matplotlib <https://matplotlib.org>`_ (>= 3.1)
+* `NumPy <https://numpy.org>`_ (>= 1.8)
+* `openpyxl <https://openpyxl.readthedocs.io/en/stable/>`_ (>= 2.4)
+* `pandas <https://pandas.pydata.org>`_ (>= 0.25)
+* `PySimpleGUI <https://github.com/PySimpleGUI/PySimpleGUI>`_ (>= 4.29)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_
+
+
+All of the required libraries should be automatically installed when installing mcetl
+using either of the two installation methods below.
+
+Additionally, mcetl can optionally use `Pillow <https://python-pillow.org/>`_
+to allow for additional options when saving figures in the plotting GUI.
+
+
 Stable Release
 ~~~~~~~~~~~~~~
 
-To install mcetl, run this command in your terminal:
+mcetl is easily installed using `pip <https://pip.pypa.io>`_, simply by running
+the following command in your terminal:
 
 .. code-block:: console
 
-    $ pip install --upgrade mcetl
+    pip install --upgrade mcetl
 
-This is the preferred method to install mcetl, as it will always install the most recent stable release.
+This is the preferred method to install mcetl, as it will always install the
+most recent stable release.
 
 
-From Github
-~~~~~~~~~~~
+Development Version
+~~~~~~~~~~~~~~~~~~~
 
 The sources for mcetl can be downloaded from the `Github repo`_.
 
-You can clone the public repository:
+The public repository can be cloned using:
 
 .. code-block:: console
 
-    $ git clone git://github.com/derb12/mcetl
+    git clone https://github.com/derb12/mcetl.git
 
 
-Once you have a copy of the source, you can install it with:
+Once the repository is downloaded, it can be installed with:
 
 .. code-block:: console
 
-    $ python setup.py install
+    cd mcetl
+    python setup.py install
 
 
 .. _Github repo: https://github.com/derb12/mcetl
 
 
-Usage
------
+Quick Start
+-----------
 
-To use mcetl in a project:
+The sections below give a quick introduction to using mcetl, requiring no setup.
+For a more detailed introduction, refer to the `tutorials section`_ of mcetl's
+documentation.
+
+.. _tutorials section: https://mcetl.readthedocs.io/en/latest/tutorials.html
+
+Note: on Windows operating systems, the GUIs can appear blurry due to how dpi
+scaling is handled. To fix, simply do:
+
+.. code-block:: python
+
+    import mcetl
+    mcetl.set_dpi_awareness()
+
+The above code **must** be called before opening any GUIs, or else the dpi scaling
+will be incorrect.
+
+
+Main GUI
+~~~~~~~~
+
+The main GUI for mcetl contains options for processing data, fitting, plotting,
+writing data to Excel, and moving files.
+
+Before using the main GUI, DataSource objects must be created. Each DataSource
+contains the information for reading files for that DataSource (such as what
+separator to use, which rows and columns to use, labels for the columns, etc.),
+the calculations that will be performed on the data, and the options for writing
+the data to Excel (formatting, placement in the worksheet, etc.).
+
+The following will create a DataSource named 'tutorial' with the default settings,
+and will then open the main GUI.
 
 .. code-block:: python
 
     import mcetl
 
+    simple_datasource = mcetl.DataSource(name='tutorial')
+    mcetl.launch_main_gui([simple_datasource])
 
-Peak Fitting
+
+Fitting Data
 ~~~~~~~~~~~~
 
-To use the peak fitting module in mcetl, simply do:
+To use the fitting module in mcetl, simply do:
 
 .. code-block:: python
 
-    mcetl.launch_peak_fitting_gui()
+    from mcetl import fitting
+    fitting.launch_peak_fitting_gui()
 
 
 A window will then appear to select the data file(s) to be fit and the Excel file for saving the results.
-No other setup is required for doing peak fitting.
+No other setup is required for doing fitting.
 
-After doing peak fitting, the peak fitting results and plots will be saved to Excel.
+After doing the fitting, the fit results and plots will be saved to Excel.
 
 
 Plotting
@@ -151,54 +213,30 @@ To use the plotting module in mcetl, simply do:
 
 .. code-block:: python
 
-    mcetl.launch_plotting_gui()
+    from mcetl import plotting
+    plotting.launch_plotting_gui()
 
 
-Similar to peak fitting, a window will appear to select the data file(s) to be plotted, and no other setup
-is required for doing plotting.
+Similar to fitting, a window will then appear to select the data file(s) to be plotted,
+and no other setup is required for doing plotting.
 
-When plotting, the image of the figure can be saved to all formats supported by matplotlib,
-including tiff, jpg, png, svg, and pdf.
+When plotting, the image of the plots can be saved to all formats supported by
+`Matplotlib <https://matplotlib.org>`_, including tiff, jpg, png, svg, and pdf.
 
-In addition, the layout of the figure can be saved to apply to other figures later, and the data for the figure
-can be saved so that the entire figure can be recreated.
+In addition, the layout of the plots can be saved to apply to other figures later, and the data
+for the plots can be saved so that the entire plot can be recreated.
 
 To reopen a figure saved through mcetl, do:
 
 .. code-block:: python
 
-    mcetl.load_previous_figure()
-
-
-Main GUI
-~~~~~~~~
-
-The main GUI for mcetl contains options for processing data, peak fitting, plotting, writing data to Excel,
-and moving files.
-
-Before using the main GUI, DataSource objects must be created. Each DataSource object contains the information
-for reading files for that DataSource (such as what separator to use, which rows and columns to use, labels
-for the columns, etc.), the calculations that will be performed on the data, and the options for writing the
-data to Excel (formatting, placement in the worksheet, etc.).
-
-For more information on creating a DataSource object, refer to the `example program`_ that shows how to use
-the main gui. Once DataSource objects are created, simply put them into a list or tuple and do:
-
-.. code-block:: python
-
-    mcetl.launch_main_gui(list_of_DataSources)
-
-
-which will run the main GUI and allow selection of all the processing steps to perform.
-
-
-.. _example program: https://github.com/derb12/mcetl/tree/master/examples
+    plotting.load_previous_figure()
 
 
 Generating Example Data
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Example raw data files for various characterization techniques can be created using:
+Files for example data from characterization techniques can be created using:
 
 .. code-block:: python
 
@@ -225,42 +263,17 @@ Example Programs
 
 * Generating raw data
 * Using the main GUI
-* Using the peak fitting GUI
+* Using the fitting GUI
 * Using the plotting GUI
 * Reopening a figure saved with the plotting GUI
 
 
-The example program for using the main GUI contains all necessary inputs for processing the example raw
-data generated by the generate_raw_data function as described above and is an excellent resource for
-creating new DataSource objects.
+The example program for using the main GUI contains all necessary inputs for processing the
+example raw data generated by the generate_raw_data function as described above and is an
+excellent resource for creating new DataSource objects.
 
 
-.. _Example programs: https://github.com/derb12/mcetl/tree/master/examples
-
-
-Changing GUI Colors
-~~~~~~~~~~~~~~~~~~~
-
-All user interfaces are created using PySimpleGUI, which allows easily changing the theme of the GUIs.
-For example, the following code will change the GUI theme to use PySimpleGUI's 'darkblue10' theme:
-
-.. code-block:: python
-
-    import PySimpleGUI as sg
-    sg.theme('darkblue10')
-
-
-Additionally, mcetl uses a unique coloring for the button that advances to the next window.
-To change this button's colors (for example to use white text on a green background), do:
-
-.. code-block:: python
-
-    from mcetl import utils
-    utils.PROCEED_COLOR = ('white', 'green')
-
-
-Valid inputs for PROCEED_COLOR are color strings supported by PySimpleGUI, such as 'green',
-or hex colors such as '#F9B381'.
+.. _Example programs: https://github.com/derb12/mcetl/tree/main/examples
 
 
 Future Plans
@@ -268,20 +281,12 @@ Future Plans
 
 Planned features for later releases:
 
-Short Term
-~~~~~~~~~~
-
 * Develop tests for all modules in the package.
 * Switch from print statements to logging.
-* Transfer documentation from PDF/Word files to automatic documentation with Sphinx.
-* Improve usage when opening existing Excel files.
-
-
-Long Term
-~~~~~~~~~
-
+* Switch GUI backend from PySimpleGUI to wxPython or something web-based.
 * Add more plot types to the plotting gui, including bar charts, categorical plots, and 3d plots.
-* Make peak fitting more flexible by allowing more options or user inputs.
+* Make fitting more flexible by allowing more options or user inputs.
+* Potentially add support for importing data from more file types.
 * Improve overall look and usability of all GUIs.
 
 
@@ -291,7 +296,7 @@ Contributing
 Contributions are welcomed and greatly appreciated. For information on submitting bug reports,
 pull requests, or general feedback, please refer to the `contributing guide`_.
 
-.. _contributing guide: https://github.com/derb12/mcetl/tree/master/docs/contributing.rst
+.. _contributing guide: https://github.com/derb12/mcetl/tree/main/docs/contributing.rst
 
 
 Changelog
@@ -299,15 +304,16 @@ Changelog
 
 Refer to the changelog_ for information on mcetl's changes.
 
-.. _changelog: https://github.com/derb12/mcetl/tree/master/CHANGELOG.rst
+.. _changelog: https://github.com/derb12/mcetl/tree/main/CHANGELOG.rst
 
 
 License
 -------
 
-mcetl is available under the BSD 3-clause license. For more information, refer to the license_.
+mcetl is open source and available under the BSD 3-clause license.
+For more information, refer to the license_.
 
-.. _license: https://github.com/derb12/mcetl/tree/master/LICENSE.txt
+.. _license: https://github.com/derb12/mcetl/tree/main/LICENSE.txt
 
 
 Author
@@ -316,68 +322,10 @@ Author
 * Donald Erb <donnie.erb@gmail.com>
 
 
-Credits
+Gallery
 -------
 
-The layout of this package was initially created with Cookiecutter_ and the
-`audreyr/cookiecutter-pypackage`_ project template.
+Images of the various GUIs can be found on the `gallery section`_ of
+mcetl's documentation.
 
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
-
-
-Screenshots
------------
-
-Main GUI
-~~~~~~~~
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/main_menu.png
-   :align: center
-   :width: 1600 px
-   :height: 632 px
-   :scale: 45 %
-
-   Selection of processing steps and DataSource.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/excel_output.png
-   :align: center
-   :width: 1630 px
-   :height: 588 px
-   :scale: 40 %
-
-   The output Excel file after processing all the raw data files.
-
-
-Peak Fitting
-~~~~~~~~~~~~
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_1.png
-   :align: center
-   :width: 1644 px
-   :height: 755 px
-   :scale: 35 %
-
-   Peak fitting GUI and manual selection of peaks.
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/fitting_2.png
-   :align: center
-   :width: 1737 px
-   :height: 628 px
-   :scale: 35 %
-
-   Fit results with best fit and individual peaks.
-
-
-Plotting
-~~~~~~~~
-
-.. figure:: https://github.com/derb12/mcetl/raw/master/docs/images/plotting_gui.png
-   :align: center
-   :width: 1692 px
-   :height: 870 px
-   :scale: 40 %
-
-   The plotting GUI.
+.. _gallery section: https://mcetl.readthedocs.io/en/latest/gallery.html

@@ -15,12 +15,7 @@ Created on Jul 31, 2020
 """
 
 
-import itertools
-
-from .utils import excel_column_name
-
-
-class FunctionBase:
+class _FunctionBase:
     """
     Base class for all other Function classes.
 
@@ -63,7 +58,7 @@ class FunctionBase:
         return f'{self.__class__.__name__}(name={self.name})'
 
 
-class PreprocessFunction(FunctionBase):
+class PreprocessFunction(_FunctionBase):
     """
     Function for processing data before performing any calculations.
 
@@ -74,10 +69,10 @@ class PreprocessFunction(FunctionBase):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
-    function : function
+    function : Callable
         The function that this object uses to process data. The function
         should take args of dataframe and target indices (a list of numbers,
         corresponding to the column index in the dataframe for each of the
@@ -105,7 +100,7 @@ class PreprocessFunction(FunctionBase):
             self.deleted_columns = ()
 
 
-    def preprocess_data(self, dataset, column_reference):
+    def _preprocess_data(self, dataset, column_reference):
         """
         Calls self.function to process each dataframe for each sample in the dataset.
 
@@ -187,7 +182,7 @@ class PreprocessFunction(FunctionBase):
         return {key: columns.index(val) for key, val in reference.items() if val in columns}
 
 
-class CalculationFunction(FunctionBase):
+class CalculationFunction(_FunctionBase):
     """
     Function that performs a calculation for every entry in each sample.
 
@@ -195,10 +190,10 @@ class CalculationFunction(FunctionBase):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
-    functions : function or (list(function)/tuple(function))
+    functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
         The functions that this object uses to process data. If only one function
         is given, it is assumed that the same function is used for both calculations
         for the data to be written to Excel and the data to be used in python.
@@ -215,18 +210,27 @@ class CalculationFunction(FunctionBase):
         of the first row of data in Excel, eg 3). The function should output
         a list of lists of pd.DataFrames. The Excel columns and first row values
         are meant to ease the writing of formulas for Excel.
-    added_columns : int or str/list(str)/tuple(str)
+    added_columns : int or str or list(str) or tuple(str)
         The columns that will be acted upon by this object's functions. If
         the input is an integer, then it denotes that the functions act on
-        columns that are currently empty, with the number of columns affected
+        columns that need to be added, with the number of columns affected
         by the functions being equal to the input integer. If the input is a string
         or list/tuple of strings, it denotes that the functions will change the
         contents of an existing column(s), whose column names are the inputs.
-    function_kwargs : dict, optional
-        A dictionary of keywords and values to be passed to the function.
-        The default is None.
+    function_kwargs : dict or list(dict, dict), optional
+        A dictionary or a list of two dictionaries containing keyword arguments
+        to be passed to the functions. If a list of two dictionaries is given,
+        the first and second dictionaries will be the keyword arguments to pass
+        to the function for processing the data to write to Excel and the function
+        for processing the data to be used in python, respectively. If a single
+        dictionary is given, then it is used for both functions. The default is
+        None, which passes an empty dictionary to both functions.
 
     """
+
+
+    _forbidden_keys = {'excel_columns', 'first_row'}
+
 
     def __init__(self, name, target_columns, functions,
                  added_columns, function_kwargs=None):
@@ -234,7 +238,8 @@ class CalculationFunction(FunctionBase):
         Raises
         ------
         ValueError
-            Raised if there is an issue with added_columns or target_columns.
+            Raised if there is an issue with added_columns or target_columns, or
+            if any key in the input function_kwargs is within self._forbidden_keys.
 
         """
 
@@ -263,9 +268,14 @@ class CalculationFunction(FunctionBase):
             self.function_kwargs = (function_kwargs, function_kwargs)
         else:
             self.function_kwargs = function_kwargs
+        for kwarg_dict in self.function_kwargs:
+            if any(key in self._forbidden_keys for key in kwarg_dict.keys()):
+                raise ValueError(
+                    f'function_kwargs cannot have the following keys: {self._forbidden_keys}'
+                )
 
 
-    def do_function(self, dataset, reference, index, first_column, first_row):
+    def _do_function(self, dataset, reference, index, excel_columns, first_row):
         """
         Calls self.functions[index] to process each dataframe for each sample in the dataset.
 
@@ -281,9 +291,9 @@ class CalculationFunction(FunctionBase):
             dataframe as values.
         index : int
             Either 0 or 1. If 0, do Excel formulas; if 1, do python formulas.
-        first_column : int
-            The first Excel column to use; corresponds to the actual column
-            number in Excel (ie is 1-based rather than 0-based), so 1 denotes 'A'.
+        excel_columns : list(str) or None
+            A list of the Excel column names (eg. ['A', 'B', 'C']) that cover
+            the columns of the dataset if index is 0. Is None if index is 1.
         first_row : int
             The first Excel row to use; corresponds to the actual row number
             in Excel (ie is 1-based rather than 0-based), so 1 denotes the
@@ -296,19 +306,12 @@ class CalculationFunction(FunctionBase):
 
         """
 
-        if index == 1:
-            excel_columns = None
-        else:
-            excel_columns = [
-                excel_column_name(num) for num in range(first_column, len(dataset.columns) + first_column)
-            ]
-
         target_columns = [reference[target] for target in self.target_columns]
         added_columns = reference[self.name]
 
         dataset = self.functions[index](
-            dataset, target_columns, added_columns, excel_columns, first_row,
-            **self.function_kwargs[index]
+            dataset, target_columns, added_columns, excel_columns=excel_columns,
+            first_row=first_row, **self.function_kwargs[index]
         )
 
         return dataset
@@ -322,10 +325,10 @@ class SummaryFunction(CalculationFunction):
     ----------
     name : str
         The string representation for this object.
-    target_columns : str or (list(str), tuple(str))
+    target_columns : str or list(str) or tuple(str)
         A string or list/tuple of strings designating the target columns
         for this object.
-    functions : function or (list(function)/tuple(function))
+    functions : Callable or list(Callable, Callable) or tuple(Callable, Callable)
         The functions that this object uses to process data. If only one function
         is given, it is assumed that the same function is used for both calculations
         for the data to be written to Excel and the data to be used in python.
@@ -342,18 +345,22 @@ class SummaryFunction(CalculationFunction):
         of the first row of data in Excel, eg 3). The function should output
         a list of lists of pd.DataFrames. The Excel columns and first row values
         are meant to ease the writing of formulas for Excel.
-    added_columns : int or str/list(str)/tuple(str)
+    added_columns : int or str or list(str) or tuple(str)
         The columns that will be acted upon by this object's functions. If
         the input is an integer, then it denotes that the functions act on
-        columns that are currently empty, with the number of columns affected
+        columns that need to be added, with the number of columns affected
         by the functions being equal to the input integer. If the input is a string
         or list/tuple of strings, it denotes that the functions will change the
         contents of an existing column(s), whose column names are the inputs. Further,
         SummaryFunctions can only modify other SummaryFunction columns with matching
         sample_summary attributes.
-    function_kwargs : dict, optional
-        A dictionary of keywords and values to be passed to the function.
-        The default is None.
+    function_kwargs : dict or list(dict, dict), optional
+        A dictionary or a list of two dictionaries containing keyword arguments
+        to be passed to the functions. If a list of two dictionaries is given,
+        the first and second dictionaries will be the keyword arguments to pass
+        to the function for processing the data to write to Excel and the function
+        for processing the data to be used in python, respectively. The default is
+        None, which passes an empty dictionary to both functions.
     sample_summary : bool, optional
         If True (default), denotes that the SummaryFunction summarizes a sample;
         if False, denotes that the SummaryFunction summarizes a dataset.

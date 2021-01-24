@@ -30,18 +30,17 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
+    #'sphinx.ext.autodoc',
+    #'sphinx.ext.autosummary',
     'autoapi.extension',
+    'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode'
+    'sphinx.ext.todo',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
 ]
 
-# Settings for autoapi extension
-# autoapi gets the docstrings for all public modules in the package
-autoapi_type = 'python'
-autoapi_dirs = ['../mcetl']
-#autoapi_root = '/api'
-autoapi_options = ['private_members']
-#autoapi_add_toctree_entry = False
+#autosummary_generate = True # enables autosummary extension
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -57,7 +56,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'mcetl'
-copyright = "2020, Donald Erb"
+copyright = "2020-2021, Donald Erb"
 author = "Donald Erb"
 
 # The version info for the project you're documenting, acts as replacement
@@ -65,7 +64,7 @@ author = "Donald Erb"
 # the built documents.
 #
 # The short X.Y version.
-version = '0.3.0'
+version = '0.4.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -75,6 +74,16 @@ release = version
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
 language = None
+
+# smartquotes converts quotes and dashes to typographically correct entities
+# but I think it's been messing up my html documentation.
+smartquotes = False
+
+# used for generator .po and/or .pot files, for translating to other languages
+gettext_compact = False
+
+# used for version tracking in the generated .po and/or .pot files
+gettext_uuid = True
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -87,6 +96,40 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
+# outside documentation references for the intersphinx extension
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    'lmfit': ('https://lmfit.github.io/lmfit-py/', None),
+    'matplotlib': ('https://matplotlib.org', None),
+    'openpyxl': ('https://openpyxl.readthedocs.io/en/stable', None),
+    'pandas': ('https://pandas.pydata.org/docs', None)
+}
+
+# cache remote doc inventories for 14 days
+intersphinx_cache_limit = 14
+
+# -- Settings for autoapi extension ----------------------------
+
+# autoapi gets the docstrings for all public modules in the package
+autoapi_type = 'python'
+autoapi_dirs = ['../mcetl']
+autoapi_template_dir = '_templates/autoapi'
+autoapi_root = 'api'
+autoapi_options = [
+    'members',
+    'inherited-members',
+    #'undoc-members', # show objects that do not have doc strings
+    #'private_members', # show private objects (_variable)
+    'show-inheritance',
+    'show-module-summary',
+    #'special-members', # show things like __str__
+    #'imported-members', # document things imported within each module
+]
+autoapi_member_order = 'groupwise' # groups into classes, functions, etc.
+autoapi_python_class_content = 'both' # include class docstring from both class and __init__
+#autoapi_keep_files = True # keep the files after generation
+#autoapi_add_toctree_entry = False # need to manually add to toctree if False
+#autoapi_generate_api_docs = False # will not generate new docs when False
 
 # -- Options for HTML output -------------------------------------------
 
@@ -147,6 +190,25 @@ latex_documents = [
      'mcetl Documentation',
      'Donald Erb', 'manual'),
 ]
+
+#latex_logo = os.path.abspath('./images/logo.png')
+
+# For "manual" documents, if this is true, then toplevel headings are parts,
+# not chapters.
+#latex_use_parts = True
+
+# If true, show page references after internal links.
+latex_show_pagerefs = True
+
+# If true, show URL addresses after external links.
+# 'footnote' puts the URL addresses at the footnote.
+latex_show_urls = 'footnote'
+
+# Documents to append as an appendix to all manuals.
+#latex_appendices = []
+
+# If false, no module index is generated.
+latex_domain_indices = True
 
 
 # -- Options for manual page output ------------------------------------

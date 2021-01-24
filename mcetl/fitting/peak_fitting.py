@@ -20,21 +20,106 @@ import PySimpleGUI as sg
 from scipy import signal
 
 from . import fitting_utils as f_utils
-from . import models
 from .. import plot_utils, utils
 
 
-def peak_transformer():
+def _lognormal_sigma(peak_height, peak_width, mode, *args):
+    """
+    Estimates the sigma value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated sigma value for the distribution.
+
+    """
+
+    m2 = mode**2 # m2 denotes mode squared
+
+    return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
+
+
+def _lognormal_center(peak_height, peak_width, mode, *args):
+    """
+    Estimates the center (mean) value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated center of the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+
+    return np.log(max(1e-9, mode)) + sigma**2
+
+
+def _lognormal_amplitude(peak_height, peak_width, mode, *args):
+    """
+    Estimates the amplitude value of a lognormal distribution.
+
+    Parameters
+    ----------
+    peak_height : float
+        The height of the peak at its maximum.
+    peak_width : float
+        The estimated full-width-half-maximum of the peak.
+    mode : float
+        The x-position at which the peak reaches its maximum value.
+    *args
+        Further arguments will be passed; used in case other lmfit models
+        require more than these three parameters.
+
+    Returns
+    -------
+    float
+        The estimated amplitude value for the distribution.
+
+    """
+
+    sigma = _lognormal_sigma(peak_height, peak_width, mode)
+    mean = np.log(max(1e-9, mode)) + sigma**2
+
+    return (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
+
+
+def _peak_transformer():
     """
     The expressions needed to convert peak width, height, and mode to model parameters.
 
     Returns
     -------
-    dict(str: dict(str: function))
-        A dictionary containing the string for lmfit models as keys, and
-        a dictionary as the values, containing the equations to estimate
-        parameters of the model using input heights, full-width-at-half-maximums,
-        and peak mode (x-position at max y).
+    dict(str, dict(str, Callable))
+        A dictionary containing the string of the model class as keys, and
+        a dictionary as the values. The internal dictionary contains parameters
+        names of the model, and the equations to estimate them using input heights
+        (max or min y), full-width-at-half-maximums, and peak mode (x-position at
+        max or min y).
 
     Notes
     -----
@@ -134,93 +219,37 @@ def peak_transformer():
     return {key: value for key, value in sorted(models_dict.items(), key=lambda kv: kv[0])}
 
 
-def _lognormal_center(peak_height, peak_width, mode, *args):
+_PEAK_TRANSFORMS = _peak_transformer()
+
+
+def _initialize_peak(x, y, model, peak_center, peak_height, peak_width):
     """
-    Estimates the center (mean) value of a lognormal distribution.
+    Improves the built-in guess for lmfit by tweaking values for some models.
 
     Parameters
     ----------
+    x : array-like
+        The masked section of the total x-values for initializing the peak.
+    y : array-like
+        The masked section of the total y-values for initializing the peak.
+    model : str
+        The string name for the model, like 'Gaussian'.
+    peak_center : float
+        The x-value where the peak is at its max/min (would be more correct
+        to call mode, but most models refer to it as center, so that's what
+        is used).
     peak_height : float
-        The height of the peak at its maximum.
+        The estimated max/min of the peak.
     peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated center of the distribution.
+        The estimated full-width-at-half-maximum of the peak.
 
     """
 
-    sigma = _lognormal_sigma(peak_height, peak_width, mode)
 
-    return np.log(max(1e-9, mode)) + sigma**2
-
-
-def _lognormal_sigma(peak_height, peak_width, mode, *args):
-    """
-    Estimates the sigma value of a lognormal distribution.
-
-    Parameters
-    ----------
-    peak_height : float
-        The height of the peak at its maximum.
-    peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated sigma value for the distribution.
-
-    """
-
-    m2 = mode**2 # m2 denotes mode squared
-
-    return 0.85 * np.log((peak_width + mode * np.sqrt((4 * m2 + peak_width**2) / (m2))) / (2 * mode))
-
-
-def _lognormal_amplitude(peak_height, peak_width, mode, *args):
-    """
-    Estimates the amplitude value of a lognormal distribution.
-
-    Parameters
-    ----------
-    peak_height : float
-        The height of the peak at its maximum.
-    peak_width : float
-        The estimated full-width-half-maximum of the peak.
-    mode : float
-        The x-position at which the peak reaches its maximum value.
-    *args
-        Further arguments will be passed; used in case other lmfit models
-        require more than these three parameters.
-
-    Returns
-    -------
-    float
-        The estimated amplitude value for the distribution.
-
-    """
-
-    sigma = _lognormal_sigma(peak_height, peak_width, mode)
-    mean = np.log(max(1e-9, mode)) + sigma**2
-
-    return (peak_height * sigma * np.sqrt(2 * np.pi)) / (np.exp(((sigma**2) / 2) - mean))
 
 
 def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
-                      vary_Voigt=False, model_list=None,
+                      vary_voigt=False, model_list=None,
                       default_model='PseudoVoigtModel', min_sigma=0.0,
                       max_sigma=np.inf, background_y=0.0,
                       params_dict=None, debug=False, peak_heights=None):
@@ -242,7 +271,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         Value that determines the min and max parameters for
         the center of each peak. min = center - center_offset,
         max = center + center_offset.
-    vary_Voigt : bool
+    vary_voigt : bool
         If True, will allow the gamma parameter in the Voigt model
         to be varied as an additional variable; if False, gamma
         will be set equal to sigma.
@@ -344,9 +373,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         use_middles = True
 
     # finds the position between peak centers
-    minx, maxx = (np.min(x), np.max(x))
     middles = [0.0 for num in range(len(peak_centers) + 1)]
-    middles[0], middles[-1] = minx, maxx
+    middles[0], middles[-1] = (np.min(x), np.max(x))
     for i in range(len(peak_centers) - 1):
         middles[i + 1] = np.mean([peak_centers[i], peak_centers[i + 1]])
 
@@ -356,9 +384,9 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         ax1.plot(x, y)
         ax2.plot(x, y, label='data')
 
-    models_dict = peak_transformer()
-    for i, peak_center in enumerate(peak_centers, start_num):
-        prefix = f'peak_{i + 1}_'
+    models_dict = _PEAK_TRANSFORMS
+    for i, peak_center in enumerate(peak_centers):
+        prefix = f'peak_{i + start_num + 1}_'
         peak_width = peak_widths[i]
         peak_type = f_utils.get_model_name(next(peak_list))
 
@@ -401,8 +429,8 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
             param_kwargs['amplitude']['value'] = _lognormal_amplitude(peak_height, peak_width,
                                                                       peak_center)
             param_kwargs['mode'] = {'expr': f'exp({prefix}center - {prefix}sigma**2)',
-                                      'min': peak_center - center_offset,
-                                      'max': peak_center + center_offset}
+                                    'min': peak_center - center_offset,
+                                    'max': peak_center + center_offset}
             # TODO setting mode doesn't seem to constrain center and sigma...
             peak_model.set_param_hint('mode', **param_kwargs['mode'])
 
@@ -410,7 +438,7 @@ def _initialize_peaks(x, y, peak_centers, peak_width=1.0, center_offset=1.0,
         peak_model.set_param_hint(amplitude_key, **param_kwargs['amplitude'])
         peak_model.set_param_hint('sigma', **param_kwargs['sigma'])
 
-        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_Voigt:
+        if peak_type in ('VoigtModel', 'SkewedVoigtModel') and vary_voigt:
             peak_model.set_param_hint('gamma', min=min_sigma, max=max_sigma,
                                       vary=True, expr='')
 
@@ -552,6 +580,9 @@ def find_peak_centers(x, y, additional_peaks=None, height=None,
 
     """
 
+    x = np.asarray(x, float)
+    y = np.asarray(y, float)
+
     additional_peaks = np.array(additional_peaks) if additional_peaks is not None else np.empty(0)
     if additional_peaks.size > 0:
         additional_peaks = additional_peaks[(additional_peaks > np.nanmin(x))
@@ -648,7 +679,7 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
     # window has to be odd for scipy's Savitzky-Golay function
     window = int(len(x) / 20) if int(len(x) / 20) % 2 == 1 else int(len(x) / 20) + 1
     poly = 2
-    # interpolate residuals to smooth them a bit and improve signal to noise ratio
+    # smooth residuals to improve signal to noise ratio
     resid_interp = signal.savgol_filter(residuals, window, poly)
 
     resid_interp[resid_interp < 0] = 0
@@ -682,8 +713,8 @@ def _find_hidden_peaks(x, fit_result, peak_centers, peak_fwhms,
 
     if debug:
         ax = plt.subplots()[-1]
-        ax.plot(x,residuals, label='residuals')
-        ax.plot(x, resid_interp, label='interpolated residuals')
+        ax.plot(x, residuals, label='residuals')
+        ax.plot(x, resid_interp, label='smoothed residuals')
         ax.plot(x, np.array([prominence] * len(x)),
                 label='minimum height to be a peak')
         if residual_peak_centers:
@@ -768,46 +799,13 @@ def _re_sort_prefixes(params_dict):
     return new_params_dict
 
 
-def _check_background(background_model, background_value, y):
-    """
-    Ensures that the background_value and y have the same shape.
-
-    ConstantModel and ComplexConstantModel return a single value
-    rather than an array, so need to create an array for those
-    models so that issues aren't caused during plotting.
-
-    Parameters
-    ----------
-    background_model : str
-        The model used for the background, such as 'ConstantModel'.
-    background_value : array-like or float
-        The value(s) of the background.
-    y : array-like
-        The data being fit.
-
-    Returns
-    -------
-    output : array-like
-        An array of the background values, with the same size as the
-        input y array.
-
-    """
-
-    if 'Constant' in background_model:
-        output = np.full(y.size, background_value)
-    else:
-        output = background_value
-
-    return output
-
-
 def fit_peaks(
         x, y, height=None, prominence=np.inf, center_offset=1.0,
         peak_width=1.0, default_model='PseudoVoigtModel', subtract_background=False,
         bkg_min=-np.inf, bkg_max=np.inf, min_sigma=0.0, max_sigma=np.inf,
         min_method='least_squares', x_min=-np.inf, x_max=np.inf,
         additional_peaks=None, model_list=None, background_type='PolynomialModel',
-        background_kwargs=None, fit_kws=None, vary_Voigt=False, fit_residuals=False,
+        background_kwargs=None, fit_kws=None, vary_voigt=False, fit_residuals=False,
         num_resid_fits=5, min_resid=0.05, debug=False, peak_heights=None):
     """
     Takes x,y data, finds the peaks, fits the peaks, and returns all relevant information.
@@ -863,7 +861,7 @@ def fit_peaks(
         Any keyword arguments needed to initialize the background model.
     fit_kws : dict
         Keywords to be passed on to the minimizer.
-    vary_Voigt : bool
+    vary_voigt : bool
         If True, will allow the gamma parameter in the Voigt model
         to be varied as an additional variable; if False, gamma will be
         set equal to sigma.
@@ -957,8 +955,8 @@ def fit_peaks(
 
     # Creates the output dictionary and initializes two of its lists
     output = defaultdict(list)
-    output['resid_peaks_found']
-    output['resid_peaks_accepted']
+    output['resid_peaks_found'] = []
+    output['resid_peaks_accepted'] = []
 
     x_array = np.asarray(x, dtype=float)
     y_array = np.asarray(y, dtype=float)
@@ -974,7 +972,7 @@ def fit_peaks(
     bkg_min = max(bkg_min, x_min)
     bkg_max = min(bkg_max, x_max)
 
-    output['peaks_found'], output['peaks_accepted']  = find_peak_centers(
+    output['peaks_found'], output['peaks_accepted'] = find_peak_centers(
         x_array, y_array, additional_peaks=additional_peaks, height=height,
         prominence=prominence, x_min=x_min, x_max=x_max
     )
@@ -997,12 +995,12 @@ def fit_peaks(
 
         background = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
         bkg_params = background.guess(y[bkg_mask], x=x[bkg_mask])
-        initial_bkg = _check_background(background_type, background.eval(bkg_params, x=x), y)
+        initial_bkg = f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y)
 
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
-            vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
+            vary_voigt=vary_voigt, model_list=model_list, min_sigma=min_sigma,
             max_sigma=max_sigma, background_y=initial_bkg,
             debug=debug, peak_heights=peak_heights
         )
@@ -1015,7 +1013,7 @@ def fit_peaks(
             tot_ax.plot(x, initial_bkg, label='initialization background')
             tot_ax.plot(
                 x,
-                _check_background(background_type, background.eval(bkg_params, x=x), y),
+                f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y),
                 label='background_1'
             )
 
@@ -1026,7 +1024,7 @@ def fit_peaks(
         params_dict = _initialize_peaks(
             x, y, peak_centers=output['peaks_accepted'], peak_width=peak_width,
             default_model=default_model, center_offset=center_offset,
-            vary_Voigt=vary_Voigt, model_list=model_list, min_sigma=min_sigma,
+            vary_voigt=vary_voigt, model_list=model_list, min_sigma=min_sigma,
             max_sigma=max_sigma, debug=debug, peak_heights=peak_heights
         )
 
@@ -1042,7 +1040,8 @@ def fit_peaks(
     output['fit_results'] = [composite_model.fit(y, composite_params, x=x,
                                                  method=min_method, fit_kws=fit_kws)]
 
-    print(f'\nFit #1: {output["fit_results"][-1].nfev} evaluations')
+    if debug:
+        print(f'\nFit #1: {output["fit_results"][-1].nfev} evaluations')
 
     if fit_residuals:
         for eval_num in range(num_resid_fits):
@@ -1080,7 +1079,7 @@ def fit_peaks(
                 params_dict = _initialize_peaks(
                     x, y, peak_centers=residual_peaks[1], peak_width=avg_fwhm,
                     default_model=default_model, center_offset=center_offset,
-                    vary_Voigt=vary_Voigt, model_list=None, min_sigma=min_sigma,
+                    vary_voigt=vary_voigt, model_list=None, min_sigma=min_sigma,
                     max_sigma=max_sigma, background_y=output['fit_results'][-1].best_fit,
                     params_dict=params_dict, debug=debug
                 )
@@ -1099,7 +1098,7 @@ def fit_peaks(
                 if debug:
                     tot_ax.plot(
                         x,
-                        _check_background(background_type, background.eval(bkg_params, x=x), y),
+                        f_utils._check_if_constant(background_type, background.eval(bkg_params, x=x), y),
                         label=f'background_{eval_num + 2}'
                     )
 
@@ -1113,24 +1112,25 @@ def fit_peaks(
 
             output['initial_fits'].append(composite_model.eval(composite_params, x=x))
             output['fit_results'].append(
-                composite_model.fit(y, composite_params, x=x,method=min_method,
+                composite_model.fit(y, composite_params, x=x, method=min_method,
                                     fit_kws=fit_kws)
             )
 
             current_chisq = output['fit_results'][-1].redchi
 
             if np.abs(last_chisq - current_chisq) < 1e-9 and not residual_peaks[1]:
-                print((
-                    f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
-                    '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
-                ))
+                if debug:
+                    print((
+                        f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
+                        '\nDelta \u03c7\u00B2 < 1e-9 \nCalculation ended'
+                    ))
                 break
-            else:
+            elif debug:
                 print((
                     f'\nFit #{eval_num + 2}: {output["fit_results"][-1].nfev} evaluations'
                     f'\nDelta \u03c7\u00B2 = {np.abs(last_chisq - current_chisq):.9f}'
                     ))
-            if eval_num + 1 == num_resid_fits:
+            if eval_num + 1 == num_resid_fits and debug:
                 print('Number of residual fits exceeded.')
 
     if debug:
@@ -1141,30 +1141,12 @@ def fit_peaks(
     for fit_result in output['fit_results']:
         # list of y-values for the inidividual models
         output['individual_peaks'].append(fit_result.eval_components(x=x))
-        if subtract_background:
-            output['individual_peaks'][-1]['background_'] = _check_background(
-                background_type, output['individual_peaks'][-1]['background_'], y
-            )
-
         # gets the parameters for each model and their standard errors, if available
         output['best_values'].append([])
         for param in fit_result.params.values():
             output['best_values'][-1].append(
                 [param.name, param.value, param.stderr if param.stderr not in (None, np.nan) else 'N/A']
             )
-        # perform numeric calculations for each peak
-        for model, values in output['individual_peaks'][-1].items():
-            if 'peak' in model:
-                numeric_calcs = {
-                    'numeric area': f_utils.numerical_area(fit_result.userkws['x'], values),
-                    'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], values),
-                    'numeric extremum': f_utils.numerical_extremum(values),
-                    'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], values)
-                }
-                for calc, value in numeric_calcs.items():
-                    output['best_values'][-1].append(
-                        [model + calc, value if value is not None else 'N/A', 'None']
-                    )
 
     return output
 
@@ -1194,8 +1176,8 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         super().__init__(x, y, click_list)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
 
         self.figure, (self.axis, self.axis_2) = plt.subplots(
@@ -1233,21 +1215,21 @@ class BackgroundSelector(plot_utils.EmbeddedFigure):
         """Creates the GUI."""
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 20)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
         layout = [
             [sg.Column([
                 [sg.Text(('Create point: double left click.  Select point: single click.\n'
-                        'Delete selected point: double right click or delete key.'),
-                        justification='center')],
+                          'Delete selected point: double right click or delete key.'),
+                         justification='center')],
                 [self.canvas]], element_justification='center', pad=(0, 0))],
             [self.toolbar_canvas],
             [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR),
              sg.Button('Clear Points', key='clear')]
         ]
 
-        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Background Selector', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def event_loop(self):
@@ -1403,16 +1385,13 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                  background_kwargs=None, bkg_min=-np.inf, bkg_max=np.inf, default_model=None):
 
         super().__init__(x, y, click_list)
-        nan_mask = (~np.isnan(self.x)) & (~np.isnan(self.y))
-        self.x = self.x[nan_mask]
-        self.y = self.y[nan_mask]
 
         # reduce canvas size a little since the gui has buttons under the figure
         self.canvas_size = (self.canvas_size[0] - 50, self.canvas_size[1] - 50)
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
 
         self.figure, self.axis = plt.subplots(
@@ -1431,7 +1410,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
 
             bkg_model = f_utils.get_model_object(background_type)(prefix='background_', **bkg_kwargs)
             bkg_params = bkg_model.guess(self.y[bkg_mask], x=self.x[bkg_mask])
-            self.background = _check_background(background_type, bkg_model.eval(bkg_params, x=x), y)
+            self.background = f_utils._check_if_constant(background_type, bkg_model.eval(bkg_params, x=x), y)
 
         self.axis.plot(self.x, self.background, 'r--', lw=2, label='background')
         self.xaxis_limits = self.axis.get_xlim()
@@ -1458,10 +1437,10 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         """Creates the GUI."""
 
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
 
-        models_dict = peak_transformer()
+        models_dict = _PEAK_TRANSFORMS
         display_models = [f_utils.get_gui_name(model) for model in models_dict.keys()]
         if f_utils.get_gui_name(peak_model) in display_models:
             initial_model = f_utils.get_gui_name(peak_model)
@@ -1471,7 +1450,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
         layout = [
             [sg.Column([
                 [sg.Text(('Create point: double left click.  Select point: single click.\n'
-                         'Delete selected point: double right click.'),
+                          'Delete selected point: double right click.'),
                          justification='center')],
                 [self.canvas]], element_justification='center', pad=(0, 0))],
             [self.toolbar_canvas],
@@ -1480,15 +1459,19 @@ class PeakSelector(plot_utils.EmbeddedFigure):
                       default_value=initial_model),
              sg.Text('    Peak FWHM:'),
              sg.Input(peak_width, key='peak_width', size=(10, 1))],
-            [sg.Column([
-                [sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
-                        bind_return_key=True, pad=(5, (15, 0))),
-                sg.Button('Clear Points', key='clear', pad=(5, (15, 0))),
-                sg.Check('Hide legend', key='hide_legend', enable_events=True)]
-            ], vertical_alignment='bottom')]
+            [sg.Column([[
+                sg.Column([[
+                    sg.Button('Finish', key='close', button_color=utils.PROCEED_COLOR,
+                              bind_return_key=True),
+                    sg.Button('Clear Points', key='clear'),
+                ]], pad=(0, 0)),
+                sg.Column([[
+                    sg.Check('Hide legend', key='hide_legend', enable_events=True)
+                ]], pad=(0, 0))
+            ]], vertical_alignment='center', pad=(5, (15, 0)))]
         ]
 
-        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Peak Selector', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
 
 
     def event_loop(self):
@@ -1538,7 +1521,7 @@ class PeakSelector(plot_utils.EmbeddedFigure):
             # resets the color cycle to start at 0
             self.axis.set_prop_cycle(plt.rcParams['axes.prop_cycle'])
 
-            models_dict = peak_transformer()
+            models_dict = _PEAK_TRANSFORMS
             y_tot = 0 * self.x
             for i, peak in enumerate(sorted(self.click_list, key=lambda cl: cl[3])):
                 height = peak[1]
@@ -1713,8 +1696,8 @@ def plot_peaks_for_model(x, y, x_min, x_max, peaks_found, peaks_accepted,
         ax.axvline(peak, 0, 0.9, c='red', linestyle='--')
     for peak in peaks_accepted:
         ax.axvline(peak, 0, 0.9, c='green', linestyle='--')
-    for peak in np.array(additional_peaks)[(np.array(additional_peaks)>x_min)
-                                           & (np.array(additional_peaks)<x_max)]:
+    for peak in np.array(additional_peaks)[(np.array(additional_peaks) > x_min)
+                                           & (np.array(additional_peaks) < x_max)]:
         ax.axvline(peak, 0, 0.9, c='purple', linestyle='--')
     for i in range(3):
         plt.text(0.1 + 0.35 * i, 0.95, legend[i], ha='left', va='center',
@@ -1844,7 +1827,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
     y = fit_result.data
 
     # Creates a color cycle to override matplotlib's to prevent color clashing
-    COLORS = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b','#e377c2',
+    colors = ['#ff7f0e', '#2ca02c', '#d62728', '#8c564b', '#e377c2',
               '#bcbd22', '#17becf']
     n_col = max(1, len(individual_peaks) // 5)
 
@@ -1852,7 +1835,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
     if background_subtracted:
         if plot_subtract_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y - individual_peaks['background_'], 'o',
                     color='dodgerblue', label='data', ms=2)
             i = 1
@@ -1868,7 +1851,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
         if plot_w_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
             i = 1
             for peak in individual_peaks:
@@ -1883,7 +1866,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
         if plot_separate_background:
             fig, ax = plt.subplots()
-            color_cycle = itertools.cycle(COLORS)
+            color_cycle = itertools.cycle(colors)
             ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
             i = 1
             for peak in individual_peaks:
@@ -1898,7 +1881,7 @@ def plot_individual_peaks(fit_result, individual_peaks, background_subtracted=Fa
 
     else:
         fig, ax = plt.subplots()
-        color_cycle = itertools.cycle(COLORS)
+        color_cycle = itertools.cycle(colors)
         ax.plot(x, y, 'o', color='dodgerblue', label='data', ms=2)
         i = 1
         for peak in individual_peaks:

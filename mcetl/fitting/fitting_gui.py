@@ -12,7 +12,6 @@ and is only imported if saving fit results to Excel.
 """
 
 
-from collections import defaultdict
 import itertools
 from pathlib import Path
 import traceback
@@ -44,12 +43,12 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
     def __init__(self, dataframe, gui_values):
 
-        x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
-        y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
+        x_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['x_fit_index']])
+        y_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['y_fit_index']])
         super().__init__(x_data, y_data, enable_events=False)
 
-        x_min = max(gui_values['x_min'], min(x_data))
-        x_max = min(gui_values['x_max'], max(x_data))
+        x_min = max(gui_values['x_min'], np.nanmin(x_data))
+        x_max = min(gui_values['x_max'], np.nanmax(x_data))
         bkg_min = max(gui_values['bkg_x_min'], x_min)
         bkg_max = min(gui_values['bkg_x_max'], x_max)
 
@@ -61,8 +60,8 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
         self.figure, self.axis = plt.subplots(
             num='Fitting', tight_layout=True,
@@ -131,7 +130,7 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
             )
             self.axis.vlines(
                 bkg_min, *plot_utils.scale_axis(ax_y, 0.01, 0.03),
-                color='red',linestyle='--', lw=2
+                color='red', linestyle='--', lw=2
             )
             self.axis.vlines(
                 bkg_max, *plot_utils.scale_axis(ax_y, 0.01, 0.03),
@@ -179,8 +178,8 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
 
         desired_dpi = 150
         dpi = plot_utils.determine_dpi(
-            {'fig_width': self.canvas_size[0],'fig_height': self.canvas_size[1],
-             'dpi': desired_dpi}, canvas_size=self.canvas_size
+            fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
+            dpi=desired_dpi, canvas_size=self.canvas_size
         )
         self.figure, (self.axis, residual_ax) = plt.subplots(
             2, sharex=True, num='Fit Results', tight_layout=True,
@@ -199,23 +198,23 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         individual_models = fit_result.eval_components(x=x)
         if 'background_' in individual_models:
             background = individual_models.pop('background_')
-            if isinstance(background, float):
-                background = np.full(x.size, background)
+            if isinstance(background, (int, float)) or len(background) == 1:
+                background = np.full(self.x.shape[0], background)
         else:
             background = 0
         # Creates a color cycle to override matplotlib's to prevent color clashing
         self.axis.set_prop_cycle(color=['#ff7f0e', '#2ca02c', '#d62728', '#8c564b',
                                         '#e377c2', '#bcbd22', '#17becf'])
         for label, values in individual_models.items():
-            if isinstance(values, float):
-                model_values = np.full(self.x.size, values)
+            if isinstance(values, (int, float)) or len(values) == 1:
+                model_values = np.full(self.x.shape[0], values)
             else:
                 model_values = values
             _plot_model_component(self.axis, self.x, model_values + background, label)
 
         if isinstance(background, np.ndarray) or background != 0:
             try:
-                self.axis.plot(self.x, background, 'k-', label='background_')
+                self.axis.plot(self.x, background, 'k-', label='background')
             except:
                 self.background = None
             else:
@@ -231,22 +230,8 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
     def _create_window(self, fit_result):
         """Creates a GUI with the figure canvas and two buttons."""
 
-        # measures the font size in order to estimate the dimensions for the results element
-        try:
-            temp = sg.Window('temp', [[sg.Text('')]], alpha_channel=0, finalize=True)
-            font = sg.tk.font.Font(font=sg.DEFAULT_FONT)
-        except:
-            width = 15
-            height = 25
-        else:
-            width = font.measure('A') # 'M' is the largest, but use 'A' to get closer to average
-            height = font.metrics('linespace')
-        finally:
-            temp.close()
-            del temp
-
         self.toolbar_canvas = sg.Canvas(key='controls_canvas', pad=(0, (0, 10)),
-                                        size=(self.canvas_size[0], 10))
+                                        size=(self.canvas_size[0], 50))
         self.canvas = sg.Canvas(key='fig_canvas', size=self.canvas_size, pad=(0, 0))
         plot_tab = sg.Tab(
             'Plot', [
@@ -263,9 +248,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
                         f'adjusted R\u00B2: {r_sq_adj:.5f}\n\n{fit_result.fit_report()}')
 
         results_tab = sg.Tab(
-            'Results', [[sg.Multiline(results_text, disabled=True, pad=(0, 0),
-                                      size=(self.canvas_size[0] // width,
-                                            (self.canvas_size[1] + 20) // height))]]
+            'Results', [[sg.Multiline(results_text, disabled=True, key='results_output')]]
         )
 
         layout = [
@@ -279,7 +262,8 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
         ]
 
         # alpha_channel=0 to make the window invisible until calling self.window.reappear()
-        self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0)
+        self.window = sg.Window('Fit Results', layout, finalize=True, alpha_channel=0, icon=utils._LOGO)
+        self.window['results_output'].expand(expand_x=True, expand_y=True)
 
 
     def event_loop(self):
@@ -312,7 +296,7 @@ class ResultsPlot(plot_utils.EmbeddedFigure):
                 else:
                     for line in self.axis.get_lines():
                         line.set_ydata(line.get_ydata() + self.background)
-                    self.axis.plot(self.x, self.background, 'k-', label='background_')
+                    self.axis.plot(self.x, self.background, 'k-', label='background')
 
                 self.axis.legend(ncol=max(1, len(self.axis.lines) // 4))
                 if values['hide_legend']:
@@ -343,12 +327,14 @@ def _plot_model_component(axis, x, y, label):
     y : array-like
         The y-value(s) for the model.
     label : str
-        The label to place on the plot for the
+        The label to place on the plot for the component. Any '_' in
+        the name is replace by ' ' and any leading or trailing whitespace
+        is removed, to make the label appear nice.
 
     """
 
     try:
-        axis.plot(x, y, label=label)
+        axis.plot(x, y, label=label.replace('_', ' ').strip())
     except:
         print((f'Issue plotting the model result for component {label},'
                ' so it was not placed onto the figure.'))
@@ -373,11 +359,11 @@ def _find_peaks(dataframe, gui_values):
 
     """
 
-    x_data = dataframe.iloc[:, gui_values['x_fit_index']].astype(float).to_numpy()
-    y_data = dataframe.iloc[:, gui_values['y_fit_index']].astype(float).to_numpy()
+    x_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['x_fit_index']])
+    y_data = utils.series_to_numpy(dataframe.iloc[:, gui_values['y_fit_index']])
     nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
-    x_min = max(gui_values['x_min'], min(x_data))
-    x_max = min(gui_values['x_max'], max(x_data))
+    x_min = max(gui_values['x_min'], np.nanmin(x_data))
+    x_max = min(gui_values['x_max'], np.nanmax(x_data))
 
     additional_peaks = np.array(gui_values['peak_list'])
     additional_peaks = additional_peaks[(additional_peaks > x_min)
@@ -420,24 +406,28 @@ def _get_background_kwargs(gui_values):
     return kwargs
 
 
-def _create_peak_fitting_gui(dataframe, default_inputs):
+def _create_peak_fitting_gui(default_inputs):
     """
-    [summary]
+    Creates the peak fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type]
-        [description]
+    user_inputs : dict
+        A dictionary of values to construct the GUI.
+
+    Returns
+    -------
+    layout : list(list(sg.Element))
+        A list of lists of elements for the peak fitting portion
+        of the fitting GUI.
 
     """
 
-    disable_vary_Voigt = True
+    disable_vary_voigt = True
     for model in itertools.chain(default_inputs['model_list'], default_inputs['default_model']):
         try:
             if f_utils.get_model_name(model) in ('VoigtModel', 'SkewedVoigtModel'):
-                disable_vary_Voigt = False
+                disable_vary_voigt = False
                 break
         except KeyError:
             pass
@@ -476,11 +466,11 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
                      sg.Combo(values[1], default_inputs[f'bkg_kwarg_{model}'],
                               key=f'bkg_kwarg_{model}', readonly=True)]
                 ], pad=(0, 0), key=f'bkg_col_{model}',
-                visible=default_inputs['bkg_type'] == model)
+                visible=f_utils.get_model_name(default_inputs['bkg_type']) == model)
             )
 
     all_models = sorted(f_utils._GUI_MODELS.keys())
-    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting.peak_transformer()]
+    peak_models = [f_utils.get_gui_name(model) for model in peak_fitting._PEAK_TRANSFORMS]
     auto_bkg_layout = [
         [sg.Text('Model'),
          sg.Combo(all_models, default_inputs['bkg_type'], key='bkg_type',
@@ -509,8 +499,8 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
         [sg.Text('Default peak model:'),
          sg.Combo(peak_models, key='default_model', readonly=True,
                     default_value=default_inputs['default_model'], enable_events=True)],
-        [sg.Check('Vary Voigt gamma parameter', key='vary_Voigt', disabled=disable_vary_Voigt,
-                    default=default_inputs['vary_Voigt'],
+        [sg.Check('Vary Voigt gamma parameter', key='vary_voigt', disabled=disable_vary_voigt,
+                    default=default_inputs['vary_voigt'],
                     tooltip='if True, will allow the gamma parameter in the Voigt model'\
                             ' to be varied as an additional variable')],
         [sg.Text('Peak full-width at half-maximum:'),
@@ -550,35 +540,41 @@ def _create_peak_fitting_gui(dataframe, default_inputs):
     return layout
 
 
-def _create_general_fitting_gui(dataframe, user_inputs):
+def _create_general_fitting_gui(user_inputs):
     """
-    [summary]
+    Creates the general fitting portion of the fitting GUI.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type]
-        [description]
+    user_inputs : dict
+        A dictionary of values to construct the GUI.
+
+    Returns
+    -------
+    layout : list(list(sg.Element))
+        A list of lists of elements for the general fitting portion
+        of the fitting GUI.
 
     """
 
 
 def _create_fitting_gui(dataframe, user_inputs=None):
     """
-    [summary]
+    Creates the fitting gui.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type], optional
-        [description], by default None
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict, optional
+        A dictionary of values to override the default inputs for the GUI.
 
     Returns
     -------
-    [type]
-        [description]
+    window : sg.Window
+        The fitting GUI.
+    default_inputs : dict
+        A dictionary of the values used to create the window.
 
     """
 
@@ -592,14 +588,13 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         'x_min': '-inf',
         'x_max': 'inf',
         'min_method': 'least_squares',
-        'show_plots': False,
         'batch_fit': False,
         'peak_list': [],
         'prominence': 'inf',
         'height': '-inf',
         'model_list': [],
         'default_model': 'Gaussian',
-        'vary_Voigt': False,
+        'vary_voigt': False,
         'peak_width': '',
         'center_offset': '',
         'max_sigma': 'inf',
@@ -626,8 +621,8 @@ def _create_fitting_gui(dataframe, user_inputs=None):
     if user_inputs is not None:
         default_inputs.update(user_inputs)
 
-    tab1 = _create_peak_fitting_gui(dataframe, default_inputs)
-    #tab2 = _create_general_fitting_gui(dataframe, user_inputs) #TODO this is for later
+    tab1 = _create_peak_fitting_gui(default_inputs)
+    #tab2 = _create_general_fitting_gui(user_inputs) #TODO this is for later
 
     column_layout = [
         [sg.Text('Raw Data', relief='ridge', size=(60, 1),
@@ -650,7 +645,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
         [sg.Text('    x max:', size=(8, 1)),
             sg.Input(default_inputs['x_max'], key='x_max', size=(5, 1))],
         [sg.Text('Minimization method:'),
-            sg.Combo(['least_squares','leastsq'], key='min_method', readonly=False,
+            sg.Combo(['least_squares', 'leastsq'], key='min_method', readonly=False,
                     default_value=default_inputs['min_method'])],
         [sg.Text('Fitting Options', relief='ridge', size=(60, 1),
                     pad=(5, (20, 10)), justification='center')],
@@ -662,8 +657,6 @@ def _create_fitting_gui(dataframe, user_inputs=None):
             [sg.Column(column_layout, scrollable=True,
                        vertical_scroll_only=True, size=(700, 500))]
             ])],
-        [sg.Check('Show Plots After Fitting', default_inputs['show_plots'],
-                    key='show_plots')],
         [sg.Check('Batch Fit', default_inputs['batch_fit'], key='batch_fit')],
         [sg.Check('Confirm Fit Results', default_inputs['confirm_results'],
                     key='confirm_results')],
@@ -677,7 +670,7 @@ def _create_fitting_gui(dataframe, user_inputs=None):
          sg.Button('Skip Fitting')]
     ]
 
-    window = sg.Window('Fitting', layout, finalize=True)
+    window = sg.Window('Fitting', layout, finalize=True, icon=utils._LOGO)
     if default_inputs['manual_peaks']:
         window['manual_tab'].select()
         window['automatic_tab'].update(visible=False)
@@ -688,16 +681,121 @@ def _create_fitting_gui(dataframe, user_inputs=None):
     return window, default_inputs
 
 
+def _process_fit_results(fit_result):
+    """
+    Gets the individual models and parameters from a fit result.
+
+    Parameters
+    ----------
+    fit_result : lmfit.ModelResult
+        The ModelResult object from the fitting.
+
+    Returns
+    -------
+    params_dataframe : pd.DataFrame
+        The dataframe containing the parameter values and standard errors
+        for each model.
+    models_data : list(pd.DataFrame)
+        The list of dataframes containing the values for each individual
+        model within the fit result.
+
+    """
+
+    # Creation of dataframe for best values of all model parameters
+    individual_models = {}
+    best_values = {}
+    for (prefix, model_values), model in zip(fit_result.eval_components().items(), fit_result.components):
+        model_name = model.__class__.__name__
+        # use the GUI name for built-in models
+        try:
+            best_values[prefix] = {'Model': f_utils.get_gui_name(model_name)}
+        except KeyError:
+            best_values[prefix] = {'Model': model_name}
+        individual_models[prefix] = f_utils._check_if_constant(
+            model_name, model_values, fit_result.data
+        )
+        for param in model.param_names:
+            param_ = fit_result.params[param]
+            best_values[prefix][f'{param[len(prefix):]}__VALUE__'] = param_.value
+            best_values[prefix][f'{param[len(prefix):]}__STDERR__'] = (
+                param_.stderr if param_.stderr not in (None, np.nan) else 'N/A')
+
+        if f_utils.get_is_peak(model_name):
+            numeric_calcs = {
+                'numeric area': f_utils.numerical_area(fit_result.userkws['x'], model_values),
+                'numeric fwhm': f_utils.numerical_fwhm(fit_result.userkws['x'], model_values),
+                'numeric extremum': f_utils.numerical_extremum(model_values),
+                'numeric mode': f_utils.numerical_mode(fit_result.userkws['x'], model_values)
+            }
+            for calc, calc_value in numeric_calcs.items():
+                best_values[prefix][f'{calc}__VALUE__'] = calc_value if calc_value is not None else 'N/A'
+                best_values[prefix][f'{calc}__STDERR__'] = 'None'
+
+    params_dataframe = pd.DataFrame(best_values).transpose().fillna('-')
+    params_dataframe.index = [index.replace('_', ' ').strip() for index in params_dataframe.index]
+
+    # Creation of dataframe for model values
+    models_data = []
+    bkg_term = ' + background' if 'background_' in individual_models else ''
+    bkg = individual_models.get('background_', 0)
+    for term, value in individual_models.items():
+        key = term.replace('_', ' ').strip()
+        if term != 'background_':
+            key += bkg_term
+            data = value + bkg
+        else:
+            data = value
+        try:
+            models_data.append(pd.DataFrame({key: data}))
+        except ValueError: # data is scalar or np.array with size == 1
+            models_data.append(pd.DataFrame({key: [data]}))
+    models_data.append(pd.DataFrame({'total fit': fit_result.best_fit}))
+
+    return params_dataframe, models_data
+
+
 def _process_fitting_kwargs(dataframe, values):
+    """
+    Processes the values from the fitting GUI to fit data and output the results.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    values : dict
+        A dictionary of values determining the processing steps from the fitting GUI.
+
+    Returns
+    -------
+    fit_result : lmfit.model.ModelResult or None
+        A lmfit.ModelResult object, which gives information for the fit
+        done on the dataset. Is None if fitting was skipped.
+    values_df : pd.DataFrame or None
+        The dataframe containing the x and y data, the y data
+        for every individual model, the summed y data of all models,
+        and the background, if present. Is None if fitting was skipped.
+    params_df : pd.DataFrame or None
+        The dataframe containing the value and standard error
+        associated with all of the parameters in the fitting
+        (eg. coefficients for the baseline, areas and sigmas for each peak).
+        Is None if fitting was skipped.
+    descriptors_df : pd.DataFrame or None
+        The dataframe which contains some additional information about the
+        fitting. Currently has the adjusted r squared, reduced chi squared,
+        the Akaike information criteria, the Bayesian information criteria,
+        and the minimization method used for fitting. Is None if fitting was
+        skipped.
+
+    """
 
     x_label = values['x_label']
     y_label = values['y_label'] if values['y_label'] != x_label else values['y_label'] + '_1'
-    x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-    y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
+    x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+    y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
     x_min = values['x_min']
     x_max = values['x_max']
     default_model = values['default_model']
-    vary_Voigt = values['vary_Voigt']
+    vary_voigt = values['vary_voigt']
     center_offset = values['center_offset']
     min_method = values['min_method']
     subtract_bkg = values['subtract_bkg']
@@ -731,83 +829,52 @@ def _process_fitting_kwargs(dataframe, values):
 
     if subtract_bkg and values['manual_bkg']:
         subtract_bkg = False
-        y_subtracted = y_data.copy()
-        if len(values['selected_bkg']) > 1:
-            points = sorted(values['selected_bkg'], key=lambda x: x[0])
-            for i in range(len(points) - 1):
-                x_points, y_points = zip(*points[i:i + 2])
-                boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                y_line = y_data[boundary]
-                y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
+        y_data = f_utils.subtract_linear_background(x_data, y_data, values['selected_bkg'])
 
-        y_data = y_subtracted
-
+    #TODO make all but x_data and y_data into keyword arguments
     fitting_results = peak_fitting.fit_peaks(
         x_data, y_data, height, prominence, center_offset, peak_width, default_model,
         subtract_bkg, bkg_min, bkg_max, 0, max_sigma, min_method, x_min, x_max,
         additional_peaks, model_list, background_type, background_kwargs, None,
-        vary_Voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
+        vary_voigt, fit_residuals, num_resid_fits, min_resid, debug, peak_heights
     )
 
-    fit_result = fitting_results['fit_results']
-    individual_models = fitting_results['individual_peaks']
-    best_values = fitting_results['best_values']
-
-    # Creation of dataframe for best values of all peak parameters
-    vals = defaultdict(dict)
-    std_err = defaultdict(dict)
-    for term in best_values[-1]:
-        if 'peak' in term[0]:
-            key = ' '.join(term[0].split('_')[:2])
-            param_key = '_'.join(term[0].split('_')[2:])
-        else:
-            key = term[0].split('_')[0]
-            param_key = '_'.join(term[0].split('_')[1:])
-        vals[key][param_key] = term[1]
-        std_err[key][param_key] = term[2]
-    vals_df = pd.DataFrame(vals).transpose()
-    std_err_df = pd.DataFrame(std_err).transpose()
-
-    df_1 = pd.DataFrame()
-    for name in vals_df.columns:
-        df_1[f'{name}_val'] = vals_df[name]
-        df_1[f'{name}_sterr'] = std_err_df[name]
-    df_1 = df_1.fillna('-')
-
-    model_names = [component.__class__.__name__ for component in fit_result[-1].components]
-    df_0 = pd.DataFrame(model_names, columns=['model'], index=vals.keys())
-    params_df = pd.concat([df_0, df_1], axis=1)
+    # only take the last fit from the list
+    fit_result = fitting_results['fit_results'][-1]
+    params_df, models_data = _process_fit_results(fit_result)
 
     # Creation of dataframe for raw data and peak values
-    peaks_df = pd.DataFrame({x_label: fit_result[-1].userkws['x'],
-                             y_label: fit_result[-1].data})
+    # Raw data
+    total_data = [pd.DataFrame({
+        x_label: dataframe.iloc[:, values['x_fit_index']],
+        y_label: dataframe.iloc[:, values['y_fit_index']]
+    })]
+    # Data used for fitting
+    total_data.extend([
+        pd.DataFrame({x_label: fit_result.userkws['x']}),
+        pd.DataFrame({y_label: fit_result.data})
+    ])
+    total_data.extend(models_data)
 
-    bkg_term = ' + background' if subtract_bkg else ''
-    bkg = individual_models[-1]['background_'] if subtract_bkg else 0
-    for term in individual_models[-1]:
-        if 'peak' in term:
-            key = ' '.join(term.split('_')[:2]) + bkg_term
-            peaks_df[key] = individual_models[-1][term] + bkg
-        else:
-            key = term.split('_')[0]
-            peaks_df[key] = individual_models[-1][term]
-    peaks_df['total fit'] = fit_result[-1].best_fit
+    # use concat with DataFrames to ensure that the sizing is correct
+    # even if the sizes of individual components do not match; also
+    # allows columns to have repeated names
+    values_df = pd.concat(total_data, axis=1)
 
     # Creation of dataframe for descriptions of the fitting
-    r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result[-1])
+    r_sq, adj_r_sq = f_utils.r_squared_model_result(fit_result)
     # use fit_result.data.size for data points b/c when a fit fails, fit_result.ndata is
     # set to 1; same reason the degrees of freedom is not set to fit_result.nfree
     descriptors_df = pd.DataFrame(
-        [fit_result[-1].success, r_sq, adj_r_sq, fit_result[-1].chisqr,
-         fit_result[-1].redchi, fit_result[-1].aic, fit_result[-1].bic, min_method,
-         fit_result[-1].data.size, fit_result[-1].nvarys,
-         fit_result[-1].data.size - fit_result[-1].nvarys],
-        index=['Fit converged', 'R\u00B2', 'adjusted R\u00B2', '\u03c7\u00B2',
-               'reduced \u03c7\u00B2', 'A.I.C.',  'B.I.C.', 'Minimization method',
-               'Data points', 'Independant variables', 'Degrees of freedom']
+        [fit_result.success, r_sq, adj_r_sq, fit_result.chisqr,
+         fit_result.redchi, fit_result.aic, fit_result.bic, min_method,
+         fit_result.data.size, fit_result.nvarys],
+        index=['Fit converged', 'R\u00B2', 'Adjusted R\u00B2', '\u03c7\u00B2',
+               'Reduced \u03c7\u00B2', 'A.I.C.', 'B.I.C.', 'Minimization method',
+               'Data points', 'Independant variables']
     )
 
-    return individual_models, fit_result, peaks_df, params_df, descriptors_df
+    return fit_result, values_df, params_df, descriptors_df
 
 
 def fit_dataframe(dataframe, user_inputs=None):
@@ -823,12 +890,12 @@ def fit_dataframe(dataframe, user_inputs=None):
 
     Returns
     -------
-    fit_result : list or None
-        A list of lmfit.ModelResult objects, which give information for each
-        of the fits done on the dataset. Is None if fitting was skipped.
-    peaks_df : pd.DataFrame or None
+    fit_result : lmfit.model.ModelResult or None
+        A lmfit.ModelResult object, which gives information for the fit
+        done on the dataset. Is None if fitting was skipped.
+    values_df : pd.DataFrame or None
         The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
+        for every individual model, the summed y data of all models,
         and the background, if present. Is None if fitting was skipped.
     params_df : pd.DataFrame or None
         The dataframe containing the value and standard error
@@ -853,43 +920,38 @@ def fit_dataframe(dataframe, user_inputs=None):
     else:
         gui_values = _fitting_gui_event_loop(dataframe, user_inputs)
 
-    fit_results = (None, None, None, None)
+    fit_result = values_df = params_df = descriptors_df = None
     while gui_values is not None:
         try:
-            individual_models, *fit_results = _process_fitting_kwargs(dataframe, gui_values)
-        except: # error during fitting
-            sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n')
+            fit_result, values_df, params_df, descriptors_df = _process_fitting_kwargs(dataframe, gui_values)
+        except Exception:
+            sg.popup(f'Error occurred during fitting:\n{traceback.format_exc()}\n', icon=utils._LOGO)
             gui_values = _fitting_gui_event_loop(dataframe, gui_values)
         else:
-            if gui_values['confirm_results'] and not ResultsPlot(fit_results[0][-1]).event_loop():
+            if gui_values['confirm_results'] and not ResultsPlot(fit_result).event_loop():
                 gui_values = _fitting_gui_event_loop(dataframe, gui_values)
             else:
                 break
 
-    if gui_values is not None and gui_values['show_plots']:
-        peak_fitting.plot_fit_results(fit_results[0], True, True)
-        peak_fitting.plot_individual_peaks(fit_results[0][-1], individual_models[-1],
-                                           gui_values['subtract_bkg'], plot_w_background=True)
-        plt.pause(0.01)
-
-    return (*fit_results, gui_values)
+    return fit_result, values_df, params_df, descriptors_df, gui_values
 
 
 def _fitting_gui_event_loop(dataframe, user_inputs):
     """
-    [summary]
+    Handles the event loop for the fitting gui.
 
     Parameters
     ----------
-    dataframe : [type]
-        [description]
-    user_inputs : [type], optional
-        [description], by default None
+    dataframe : pd.DataFrame
+        The dataframe with the data to fit.
+    user_inputs : dict, optional
+        A dictionary of inputs , by default None
 
     Returns
     -------
-    values : dict
-        [description]
+    values : dict or None
+        A dictionary of values from the GUI after the event loop. If
+        fitting for the dataframe was skipped, values is None.
 
     """
 
@@ -950,7 +1012,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         'integers': validations['peak_fitting']['integers'][:2],
     }
 
-    peak_models = peak_fitting.peak_transformer()
+    peak_models = peak_fitting._PEAK_TRANSFORMS
     voigt_models = [f_utils.get_gui_name(model) for model in ('VoigtModel', 'SkewedVoigtModel')]
 
     window, default_inputs = _create_fitting_gui(dataframe, user_inputs)
@@ -965,26 +1027,39 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
         elif event == 'Skip Fitting':
             skip = sg.popup_yes_no(
                 'Peak fitting will be skipped for this entry.\n\nProceed?\n',
-                title='Skip Fitting'
+                title='Skip Fitting', icon=utils._LOGO
             )
             if skip == 'Yes':
                 values = None
                 break
 
         elif event == 'Reset to Default':
-            window.fill(default_inputs)
-            peak_list = []
-            bkg_points = []
+            reset = sg.popup_yes_no(
+                        'All values will be returned to their default.\n\nProceed?\n',
+                        title='Reset to Defaults', icon=utils._LOGO
+                    )
+            if reset == 'Yes':
+                defaults = {
+                    key: vals for key, vals in default_inputs.items()
+                    if key not in {'selected_peaks', 'selected_bkg', 'bkg_tabs', 'tab'}
+                }
+                window.fill(defaults)
+                peak_list = []
+                bkg_points = []
 
         elif (event == 'Test Plot'
                 and utils.validate_inputs(values, **validations['plotting'])):
             window.hide()
-            SimpleEmbeddedFigure(dataframe, values).event_loop()
+            try:
+                SimpleEmbeddedFigure(dataframe, values).event_loop()
+            except Exception as e:
+                sg.popup(f'Error creating plot:\n    {repr(e)}', icon=utils._LOGO)
+
             window.un_hide()
 
         elif event == 'Show Data':
             data_window = utils.show_dataframes(dataframe)
-            if data_window is not None:
+            if data_window is not None: #TODO check if this is still needed
                 data_window.finalize().TKroot.grab_set()
                 data_window.read(close=True)
                 data_window = None
@@ -993,10 +1068,13 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['bkg_selector'])):
             window.hide()
 
-            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
-            bkg_points = peak_fitting.BackgroundSelector(
-                x_data, y_data, bkg_points).event_loop()
+            x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+            y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
+            try:
+                bkg_points = peak_fitting.BackgroundSelector(
+                    x_data, y_data, bkg_points).event_loop()
+            except Exception as e:
+                sg.popup(f'Error launching Background Selector:\n    {repr(e)}', icon=utils._LOGO)
 
             window.un_hide()
 
@@ -1004,8 +1082,8 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 and utils.validate_inputs(values, **validations['peak_selector'])):
             window.hide()
 
-            x_data = dataframe.iloc[:, values['x_fit_index']].astype(float).to_numpy()
-            y_data = dataframe.iloc[:, values['y_fit_index']].astype(float).to_numpy()
+            x_data = utils.series_to_numpy(dataframe.iloc[:, values['x_fit_index']])
+            y_data = utils.series_to_numpy(dataframe.iloc[:, values['y_fit_index']])
             x_min = values['x_min']
             x_max = values['x_max']
             bkg_min = values['bkg_x_min']
@@ -1020,18 +1098,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
 
             if subtract_bkg and values['manual_bkg']:
                 subtract_bkg = False
-                y_subtracted = y_data.copy()
-                if len(bkg_points) > 1:
-                    points = sorted(bkg_points, key=lambda x: x[0])
-                    for i in range(len(points) - 1):
-                        x_points, y_points = zip(*points[i:i + 2])
-                        boundary = (x_data >= x_points[0]) & (x_data <= x_points[1])
-                        y_line = y_data[boundary]
-                        y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.size)
+                y_data = f_utils.subtract_linear_background(x_data, y_data, bkg_points)
 
-                y_data = y_subtracted
-
-            domain_mask = (x_data > x_min) & (x_data < x_max)
+            domain_mask = (x_data >= x_min) & (x_data <= x_max)
             try:
                 peak_list = peak_fitting.PeakSelector(
                     x_data[domain_mask], y_data[domain_mask], peak_list,
@@ -1039,7 +1108,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                     background_kwargs, bkg_min, bkg_max, default_model
                 ).event_loop()
             except Exception as e:
-                sg.popup(f'Error creating plot:\n    {repr(e)}')
+                sg.popup(f'Error launching Peak Selector:\n    {repr(e)}', icon=utils._LOGO)
             else:
                 # updates values in the window from the peak selector plot
                 sorted_peaks = [[val[0], val[3]] for val in sorted(peak_list, key=lambda x: x[3])]
@@ -1050,9 +1119,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 )
 
                 if any(model in voigt_models for model in temp_model_list):
-                    window['vary_Voigt'].update(disabled=False)
+                    window['vary_voigt'].update(disabled=False)
                 elif values['default_model'] not in voigt_models:
-                    window['vary_Voigt'].update(disabled=True, value=False)
+                    window['vary_voigt'].update(disabled=True, value=False)
 
             window.un_hide()
         # toggle auto/manual peak selection
@@ -1085,7 +1154,7 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['manual_bkg'].update(disabled=False)
                 window['bkg_selector'].update(disabled=False)
             else:
-                # set bkg to 'Gaussian' b/c it has no init kwargs and its GUI name will not change
+                # set bkg to 'Constant' b/c it has no init kwargs and its GUI name will not change
                 window['bkg_type'].update(visible=False, value='Constant')
                 window['bkg_x_min'].update(visible=False, value='-inf')
                 window['bkg_x_max'].update(visible=False, value='inf')
@@ -1114,9 +1183,9 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                         pass
             if (any(model in voigt_models for model in temp_model_list)
                     or values['default_model'] in voigt_models):
-                window['vary_Voigt'].update(disabled=False)
+                window['vary_voigt'].update(disabled=False)
             else:
-                window['vary_Voigt'].update(disabled=True, value=False)
+                window['vary_voigt'].update(disabled=True, value=False)
 
         elif event == 'fit_residuals':
             if values['fit_residuals']:
@@ -1126,29 +1195,29 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
                 window['min_resid'].update(visible=False, value=0.05)
                 window['num_resid_fits'].update(visible=False, value=5)
 
-        elif event =='Fit' and utils.validate_inputs(values, **validations['peak_fitting']):
+        elif event == 'Fit' and utils.validate_inputs(values, **validations['peak_fitting']):
             bad_models = []
             for entry in values['model_list']:
                 try:
-                   if f_utils.get_model_name(entry) not in peak_models:
-                       bad_models.append(entry)
+                    if f_utils.get_model_name(entry) not in peak_models:
+                        bad_models.append(entry)
                 except KeyError:
                     bad_models.append(entry)
             if bad_models:
                 sg.popup(
                     f'Need to correct terms in the model list:\n  {", ".join(bad_models)}\n',
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             elif values['automatic_peaks'] and not _find_peaks(dataframe, values):
                 sg.popup(
                     ('No peaks found in fitting range. Either manually enter \n'
                         'peak positions or change peak finding options.\n'),
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             elif values['manual_peaks'] and not peak_list:
                 sg.popup(
                     'Please manually select peaks or change peak finding to automatic.\n',
-                    title='Error'
+                    title='Error', icon=utils._LOGO
                 )
             else:
                 break
@@ -1163,16 +1232,16 @@ def _fitting_gui_event_loop(dataframe, user_inputs):
     return values
 
 
-def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
-                 excel_writer, sheet_name=None, plot_excel=False):
+def fit_to_excel(values_dataframe, params_dataframe, descriptors_dataframe,
+                 excel_writer_handler, sheet_name=None, plot_excel=False):
     """
     Outputs the relevant data from peak fitting to an Excel file.
 
     Parameters
     ----------
-    peaks_dataframe : pd.DataFrame
+    values_dataframe : pd.DataFrame
         The dataframe containing the x and y data, the y data
-        for every individual peak, the summed y data of all peaks,
+        for every individual model, the summed y data of all models,
         and the background, if present.
     params_dataframe : pd.DataFrame
         The dataframe containing the value and standard error
@@ -1183,9 +1252,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         Currently has the adjusted r squared, reduced chi squared, the Akaike
         information criteria, the Bayesian information criteria, and the minimization
         method used for fitting.
-    excel_writer : pd.ExcelWriter
-        The pandas ExcelWriter object that contains all of the
-        information about the Excel file being created.
+    excel_writer_handler : mcetl.excel_writer.ExcelWriterHandler
+        The ExcelWriterHandler that contains the pandas ExcelWriter object for
+        writing to Excel, and the styles for styling the cells in Excel.
     sheet_name: str, optional
         The Excel sheet name.
     plot_excel : bool, optional
@@ -1198,6 +1267,9 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
     from openpyxl.chart import Reference, Series, ScatterChart
     from openpyxl.utils.dataframe import dataframe_to_rows
 
+    excel_writer = excel_writer_handler.writer
+    style_cache = excel_writer_handler.style_cache
+
     # Ensures that the sheet name is unique so it does not overwrite data;
     # not needed for openpyxl, but just a precaution
     current_sheets = [sheet.title.lower() for sheet in excel_writer.book.worksheets]
@@ -1208,72 +1280,77 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
         sheet_base = 'Sheet'
         sheet_name = 'Sheet_1'
     num = 1
-    while True:
-        if sheet_name.lower() not in current_sheets:
-            break
-        else:
-            sheet_name = f'{sheet_base}_{num}'
-            num += 1
+    while sheet_name.lower() in current_sheets:
+        sheet_name = f'{sheet_base}_{num}'
+        num += 1
+
+    lengths = {
+        'params': len(params_dataframe.columns),
+        'values': len(values_dataframe.columns),
+        'descriptors': len(descriptors_dataframe.columns)
+    }
+    lengths['total'] = sum(lengths.values()) + 1
 
     # use dict.fromkeys rather than a set to preserve order
     param_names = dict.fromkeys([
         '',
-        *[name.replace('_sterr', '').replace('_val', '') for name in params_dataframe.columns]
+        *[name.replace('__STDERR__', '').replace('__VALUE__', '') for name in params_dataframe.columns]
     ])
-    total_width = (len(peaks_dataframe.columns) + len(params_dataframe.columns)
-                   + len(descriptors_dataframe.columns) + 1)
 
     # Easier to just write params and descriptors using pandas rather than using
     # openpyxl; will not cost significant time since there are only a few cells
     params_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=3,
-        startcol=len(peaks_dataframe.columns), header=False, index=True
+        startcol=lengths['values'], header=False, index=True
     )
     descriptors_dataframe.to_excel(
         excel_writer, sheet_name=sheet_name, startrow=1,
-        startcol=len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1,
+        startcol=lengths['values'] + lengths['params'] + 1,
         header=False, index=True
     )
     worksheet = excel_writer.book[sheet_name]
 
     # Write and format all headers
     headers = (
-        {'name': 'Values', 'start': 1, 'end': len(peaks_dataframe.columns)},
-        {'name': 'Peak Parameters', 'start': len(peaks_dataframe.columns) + 1,
-         'end': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 1},
+        {'name': 'Values', 'start': 1, 'end': lengths['values']},
+        {'name': 'Model Parameters', 'start': lengths['values'] + 1,
+         'end': lengths['values'] + lengths['params'] + 1},
         {'name': 'Fit Description',
-         'start': len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2,
-         'end': total_width + 1}
+         'start': lengths['values'] + lengths['params'] + 2,
+         'end': lengths['total'] + 1}
     )
     suffix = itertools.cycle(['even', 'odd'])
     for header in headers:
         cell = worksheet.cell(row=1, column=header['start'], value=header['name'])
-        cell.style = 'fitting_header_' + next(suffix)
+        setattr(cell, *style_cache['fitting_header_' + next(suffix)])
         worksheet.merge_cells(
             start_row=1, start_column=header['start'], end_row=1, end_column=header['end']
         )
 
-    # Subheaders for peaks_dataframe
+    # Subheaders for values_dataframe
     cell = worksheet.cell(row=2, column=1, value='Raw Data')
-    cell.style = 'fitting_header_odd'
-    cell = worksheet.cell(row=2, column=3, value='Fit Data')
-    cell.style = 'fitting_header_even'
+    setattr(cell, *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
-    worksheet.merge_cells(start_row=2, start_column=3, end_row=2,
-                          end_column=len(peaks_dataframe.columns))
+    cell = worksheet.cell(row=2, column=3, value='Fit Data')
+    setattr(cell, *style_cache['fitting_header_even'])
+    worksheet.merge_cells(start_row=2, start_column=3, end_row=2, end_column=4)
+    cell = worksheet.cell(row=2, column=5, value='Fit Output')
+    setattr(cell, *style_cache['fitting_header_odd'])
+    worksheet.merge_cells(start_row=2, start_column=5, end_row=2,
+                          end_column=lengths['values'])
 
-    # Formatting for peaks_dataframe
+    # Formatting for values_dataframe
     suffix = itertools.cycle(['even', 'odd'])
-    for i, peak_name in enumerate(peaks_dataframe.columns, 1):
+    for i, peak_name in enumerate(values_dataframe.columns, 1):
         cell = worksheet.cell(row=3, column=i, value=peak_name)
-        cell.style = 'fitting_subheader_' + next(suffix)
+        setattr(cell, *style_cache['fitting_subheader_' + next(suffix)])
 
-    rows = dataframe_to_rows(peaks_dataframe, index=False, header=False)
+    rows = dataframe_to_rows(values_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
             cell = worksheet.cell(row=row_index, column=column_index, value=value)
-            cell.style = 'fitting_columns_' + next(suffix)
+            setattr(cell, *style_cache['fitting_columns_' + next(suffix)])
 
     # Formatting for params_dataframe
     for index, subheader in enumerate(param_names):
@@ -1281,59 +1358,58 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
 
         if index < 2:
             prefix = 'fitting_columns_' if index == 0 else 'fitting_subheader_'
-            column = len(peaks_dataframe.columns) + 1 + index
+            column = lengths['values'] + 1 + index
             cell = worksheet.cell(row=2, column=column, value=subheader)
-            cell.style = prefix + style_suffix
+            setattr(cell, *style_cache[prefix + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=3, end_column=column
             )
             prefix = 'fitting_descriptors_' if index == 0 else 'fitting_columns_'
             for row in range(len(params_dataframe)):
                 cell = worksheet.cell(row=4 + row, column=column)
-                cell.style = prefix + style_suffix
+                setattr(cell, *style_cache[prefix + style_suffix])
         else:
-            column = len(peaks_dataframe.columns) + 1 + (2 * (index - 1))
+            column = lengths['values'] + 1 + (2 * (index - 1))
             cell = worksheet.cell(row=2, column=column, value=subheader)
-            cell.style = 'fitting_subheader_' + style_suffix
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=2, end_column=column + 1
             )
-            cell = worksheet.cell(row=3, column=column, value='value')
-            cell.style = 'fitting_subheader_' + style_suffix
-            cell = worksheet.cell(row=3, column=column + 1, value='standard error')
-            cell.style = 'fitting_subheader_' + style_suffix
+            cell = worksheet.cell(row=3, column=column, value='Value')
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
+            cell = worksheet.cell(row=3, column=column + 1, value='Standard Error')
+            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
 
             for row in range(len(params_dataframe)):
                 cell = worksheet.cell(row=4 + row, column=column)
-                cell.style = 'fitting_columns_' + style_suffix
+                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
                 cell = worksheet.cell(row=4 + row, column=column + 1)
-                cell.style = 'fitting_columns_' + style_suffix
+                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
 
     # Formatting for descriptors_dataframe
     for column in range(2):
         style = 'fitting_descriptors_' + next(suffix)
-        for row in range(len(descriptors_dataframe)):
+        for row in range(len(descriptors_dataframe.index)):
             cell = worksheet.cell(
-                row=2 + row,
-                column=column + len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2
+                row=2 + row, column=column + lengths['values'] + lengths['params'] + 2
             )
-            cell.style = style
+            setattr(cell, *style_cache[style])
 
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
-    for column in range(1, len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2):
+    for column in range(1, lengths['values'] + lengths['params'] + 2):
         worksheet.column_dimensions[utils.excel_column_name(column)].width = 12.5
-    for column in range(len(peaks_dataframe.columns) + len(params_dataframe.columns) + 2, total_width + 2):
+    for column in range(lengths['values'] + lengths['params'] + 2, lengths['total'] + 2):
         worksheet.column_dimensions[utils.excel_column_name(column)].width = 20
 
     if plot_excel:
         axis_attributes = {
             'x_axis': {
-                'title': peaks_dataframe.columns[0],
+                'title': values_dataframe.columns[0],
                 'crosses': 'min'
             },
             'y_axis': {
-                'title': peaks_dataframe.columns[1],
+                'title': values_dataframe.columns[1],
                 'crosses': 'min'
             }
         }
@@ -1342,13 +1418,13 @@ def fit_to_excel(peaks_dataframe, params_dataframe, descriptors_dataframe,
             for axis_attribute, value in attribute.items():
                 setattr(getattr(chart, axis), axis_attribute, value)
 
-        for i, peak_name in enumerate(peaks_dataframe.columns[1:], 2):
-            legend_name = ' '.join(peak_name.split(' ')[0:2]) if i !=2 else 'raw data'
+        # plot everything but the raw data
+        for i, peak_name in enumerate(values_dataframe.columns[3:], 4):
             chart.append(
                 Series(
-                    Reference(worksheet, i, 4, i, len(peaks_dataframe) + 3),
-                    xvalues=Reference(worksheet, 1, 4, 1, len(peaks_dataframe) + 3),
-                    title=legend_name
+                    Reference(worksheet, i, 3, i, len(values_dataframe.index) + 3),
+                    xvalues=Reference(worksheet, 3, 4, 3, len(values_dataframe.index) + 3),
+                    title_from_data=True
                 )
             )
 
@@ -1388,14 +1464,14 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
             'fitting_subheader_odd', 'fitting_columns_even', 'fitting_columns_odd',
             'fitting_descriptors_even', 'fitting_descriptors_odd'
         The values for each key must be a dictionary, with keys in this internal
-        dictionary representing keyword arguments for openpyxl's NamedStyle. See
-        DEFAULT_FITTING_FORMATS in mcetl.utils as an example.
-
+        dictionary representing keyword arguments for openpyxl's NamedStyle or
+        openpyxl.styles.NamedStyle objects. See
+        mcetl.excel_writer.ExcelWriterHandler.styles as an example for the dictionary.
 
     Returns
     -------
-    fit_results : list
-        A list of lists of lmfit.ModelResult objects, which give information
+    fit_results : list(lmfit.models.ModelResult)
+        A list of lmfit.ModelResult objects, which give information
         for each of the fits done on the dataframes.
     gui_values : dict, optional
         A dictionary containing the default gui values to pass to fit_dataframe.
@@ -1427,7 +1503,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
     if save_excel and fit_dataframes:
         if excel_writer is not None:
-            writer_handler = ExcelWriterHandler(writer=excel_writer)
+            writer_handler = ExcelWriterHandler(writer=excel_writer, styles=excel_formats)
         else:
             layout = [
                 [sg.Text('File name for peak fitting results')],
@@ -1441,7 +1517,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
                 sg.Check('New File', key='new_file')]
             ]
 
-            window = sg.Window('File Selection', layout)
+            window = sg.Window('File Selection', layout, icon=utils._LOGO)
             while True:
                 event, values = window.read()
                 if event == sg.WIN_CLOSED:
@@ -1461,7 +1537,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
                 if not file_path.suffix or file_path.suffix.lower() != '.xlsx':
                     values['file'] = str(Path(file_path.parent, file_path.stem + '.xlsx'))
 
-                writer_handler = ExcelWriterHandler(values['file'], values['new_file'])
+                writer_handler = ExcelWriterHandler(values['file'], values['new_file'], excel_formats)
 
     fit_results = []
     proceed = True
@@ -1485,7 +1561,7 @@ def launch_fitting_gui(dataframe=None, gui_values=None, excel_writer=None,
 
             if save_excel:
                 fit_to_excel(peak_df, params_df, descriptors_df,
-                             writer_handler.writer, gui_values['sample_name'], plot_excel)
+                             writer_handler, gui_values['sample_name'], plot_excel)
 
     if save_excel and save_when_done and not all(entry is None for entry in fit_results):
         writer_handler.save_excel_file()

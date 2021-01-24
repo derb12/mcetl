@@ -34,7 +34,7 @@ _INIT_MODELS = {
 }
 
 
-def _create_model_directory():
+def _create_model_cache():
     """
     Builds a dictionary of models that are available through lmfit.models and mcetl.models.
 
@@ -44,6 +44,7 @@ def _create_model_directory():
         A dictionary of models available through lmfit and mcetl. Keys are the
         model class name, such as 'GaussianModel', and the values are a dictionary
         containing the following items:
+
             'display_name' : str
                 The name to use in GUIs, such as 'Gaussian'.
             'model' : lmfit.Model
@@ -131,13 +132,13 @@ def _create_model_directory():
 
                 available_models[name] = {
                     'display_name': replaced_names.get(name, name.replace('Model', '')),
-                    'model': obj, 'init_kwargs': {}, 'parameters': {}, 'is_peak': False
+                    'class': obj, 'init_kwargs': {}, 'parameters': {}, 'is_peak': False
                 }
 
                 model_sig = inspect.signature(obj)
                 for param in model_sig.parameters.values():
                     if param.name not in ('independent_vars', 'prefix', 'nan_policy',
-                                        'name', 'kwargs'):
+                                          'name', 'kwargs'):
                         # set initial values in order to temporarily initialize the model
                         available_models[name]['init_kwargs'][param.name] = (
                             param.default if param.default != param.empty else 0)
@@ -150,7 +151,7 @@ def _create_model_directory():
                     if (param.name not in available_models[name]['init_kwargs']
                             and param.default != param.empty):
                         # all built-in models take floats as parameters
-                        available_models[name]['parameters'][param.name] =  [param.default, float]
+                        available_models[name]['parameters'][param.name] = [param.default, float]
 
                 # THE CODE BELOW CAN BE USED TO CHECK IF A MODEL IS A "PEAK",
                 # BUT COULD EASILY CHANGE IN LATER lmfit VERSIONS, SO THE
@@ -171,7 +172,7 @@ def _create_model_directory():
                             key: [value, type(value)] for key, value in available_models[name]['init_kwargs'].items()
                         }
 
-            except:
+            except Exception:
                 pass # avoid any models that do not work; none for lmfit version 1.0.1
 
     # DoniachModel was misspelled as DonaichModel until lmfit v1.0.1
@@ -184,9 +185,24 @@ def _create_model_directory():
 
 
 # for use within code
-_TOTAL_MODELS = _create_model_directory()
+_TOTAL_MODELS = _create_model_cache()
 # for use with GUIs; convert gui names to names in _TOTAL_MODELS
 _GUI_MODELS = {vals['display_name']: key for key, vals in _TOTAL_MODELS.items()}
+
+
+def print_available_models():
+    """
+    Prints out a dictionary of all models supported by mcetl.
+
+    Also prints out details for each model, including its class,
+    the name used when displaying in GUIs, its parameters, and
+    whether it is considered a peak function.
+
+    """
+    for model_name, model_values in _TOTAL_MODELS.items():
+        print(f'\n"{model_name}"')
+        for key, value in model_values.items():
+            print(f'    "{key}": {value}')
 
 
 def get_model_name(model):
@@ -252,8 +268,7 @@ def get_model_object(model):
         The class corresponding to the input model name.
 
     """
-
-    return _TOTAL_MODELS[get_model_name(model)]['model']
+    return _TOTAL_MODELS[get_model_name(model)]['class']
 
 
 def get_gui_name(model):
@@ -277,8 +292,108 @@ def get_gui_name(model):
     use this function.
 
     """
-
     return _TOTAL_MODELS[get_model_name(model)]['display_name']
+
+
+def get_is_peak(model):
+    """
+    Determines if the input model is registered as a peak function.
+
+    Parameters
+    ----------
+    model : str
+        The name of the model. Can either be the GUI name (eg. 'Gaussian')
+        or the class name (eg. 'GaussianModel').
+
+    Returns
+    -------
+    is_peak : bool
+        True if the input model is within _TOTAL_MODELS and _TOTAL_MODELS[model]['is_peak']
+        is True. If the model cannot be found, or if _TOTAL_MODELS[model]['is_peak']
+        is False, then returns False.
+
+    """
+
+    try:
+        is_peak = _TOTAL_MODELS[get_model_name(model)]['is_peak']
+    except KeyError:
+        is_peak = False
+
+    return is_peak
+
+
+def _check_if_constant(model_name, model_values, fit_data):
+    """
+    Changes the shape of the data to match the fit data if 'Constant' in model name.
+
+    ConstantModel and ComplexConstantModel return a single value
+    rather than an array, so need to create an array for those
+    models so that issues aren't caused during plotting.
+
+    Parameters
+    ----------
+    model_name : str
+        The model used for the background, such as 'ConstantModel'.
+    model_values : array-like or float
+        The value(s) of the background.
+    fit_data : array-like
+        The data that was used for fitting.
+
+    Returns
+    -------
+    output : array-like
+        An array of the background values, with the same size as the
+        input y array.
+
+    """
+
+    try:
+        actual_model_name = get_model_name(model_name)
+    except KeyError:
+        actual_model_name = '' # won't change any unknown models
+
+    if actual_model_name in ('ConstantModel', 'ComplexConstantModel'):
+        output = np.full(len(fit_data), model_values)
+    else:
+        output = model_values
+
+    return output
+
+
+def r_squared(y_data, y_fit, num_variables=1):
+    """
+    Calculates r^2 and adjusted r^2 for a fit.
+
+    Parameters
+    ----------
+    y_data : array-like
+        The experimental y data.
+    y_fit : array-like
+        The calculated y from fitting.
+    num_variables : int, optional
+        The number of variables used by the fitting model.
+
+    Returns
+    -------
+    r_sq : float
+        The r squared value for the fitting.
+    r_sq_adj : float
+        The adjusted r squared value for the fitting, which takes into
+        account the number of variables in the fitting model.
+
+    """
+
+    y = np.asarray(y_data)
+    y_calc = np.asarray(y_fit)
+
+    n = y.shape[0]
+    sum_sq_tot = np.sum((y - np.mean(y))**2)
+    sum_sq_res = np.sum((y - y_calc)**2)
+
+    r_sq = 1 - (sum_sq_res / sum_sq_tot)
+    r_sq_adj = 1 - (sum_sq_res / (n - num_variables - 1)) / (sum_sq_tot / (n - 1))
+
+    return r_sq, r_sq_adj
 
 
 def r_squared_model_result(fit_result):
@@ -298,42 +413,6 @@ def r_squared_model_result(fit_result):
     """
 
     return r_squared(fit_result.data, fit_result.best_fit, fit_result.nvarys)
-
-
-def r_squared(y, y_calc, num_variables=1):
-    """
-    Calculates r^2 and adjusted r^2 for a fit.
-
-    Parameters
-    ----------
-    y : array-like
-        The experimental y data.
-    y_calc : array-like
-        The calculated y from fitting.
-    num_variables : int, optional
-        The number of variables used by the fitting model.
-
-    Returns
-    -------
-    r_sq : float
-        The r squared value for the fitting.
-    r_sq_adj : float
-        The adjusted r squared value for the fitting, which takes into
-        account the number of variables in the fitting model.
-
-    """
-
-    y = np.asarray(y)
-    y_calc = np.asarray(y_calc)
-
-    n = y.shape[0]
-    SS_tot = np.sum((y - np.mean(y))**2)
-    SS_res = np.sum((y - y_calc)**2)
-
-    r_sq = 1 - (SS_res / SS_tot)
-    r_sq_adj = 1 - (SS_res / (n - num_variables - 1)) / (SS_tot / (n - 1))
-
-    return r_sq, r_sq_adj
 
 
 def numerical_extremum(y):
@@ -493,235 +572,3 @@ def subtract_linear_background(x, y, background_points):
             y_subtracted[boundary] = y_line - np.linspace(*y_points, y_line.shape[0])
 
     return y_subtracted
-
-
-def constrain_input(value, iterable):
-    """
-    Ensures that an input item is within a given iterable range.
-
-    Parameters
-    ----------
-    value : str
-        The user-input value from a GUI.
-    iterable : list or tuple
-        The iterable containing the values that the input value must
-        be within. For example, (0, 1.5, 3), ['dog', 'cat'], or range(10).
-        The value is converted to the appropriate type depending on
-        the contents of the iterable. *Note*: If the input value needs to
-        be a float, ensure that at least one item within the iterable is
-        a float. Also, mixing strings and numbers within the iterable
-        will cause issues since the desired type cannot be known.
-
-    Returns
-    -------
-    output : str, float, or int
-        The input value converted to the appropriate type.
-
-    Raises
-    ------
-    ValueError
-        Raised if the input value, after type conversion, is not
-        within the iterable. Also raised if conversion of the input
-        value to float or int errors.
-
-    """
-
-    if any(isinstance(val, str) for val in iterable):
-        output = value.lower()
-        iterable = [val.lower() for val in iterable]
-    elif any(isinstance(val, float) for val in iterable):
-        output = float(value)
-    else:
-        output = int(value)
-
-    if not output in iterable:
-        if len(iterable) < 50:
-            msg = '  '.join(str(val) for val in iterable)
-        else:
-            left = '  '.join(str(val) for val in iterable[:10])
-            right = '  '.join(str(val) for val in iterable[-10:])
-            msg = left + ' ... ' + right
-        raise ValueError(f'The input value must be within [{msg}].')
-
-    return output
-
-
-class ModelHandler:
-    """
-    A class to ease the use of lmfit Model subclasses within GUIs.
-
-    Parameters
-    ----------
-
-
-    Notes
-    -----
-    The input model can be a subclass of lmfit.Model, or an instance of a
-    subclass.
-
-
-    Examples
-    --------
-
-
-    """
-
-    forbidden_prefixes = {'', 'background'}
-
-    def __init__(self, model, parameters=None, init_kwargs=None, prefix='model',
-                 is_peak=False, bounds=(-np.inf, np.inf)):
-
-        self.is_peak = is_peak
-        self.bounds = bounds
-        self.prefix = prefix
-
-        # set parameters and init_kwargs
-        self._parse_params(parameters, init_kwargs)
-        # set model and model_type
-        self.model_type = model
-
-        self._guess = 0
-        try:
-            self.model.guess(np.array((0, 1, 2, 4)), np.array((0, 1, 2, 4)))
-        except: # guess may only take 1 positional argument
-            try:
-                self.model.guess(np.array((0, 1, 2, 4)))
-            except:
-                pass
-            else:
-                self._guess = 1
-        else:
-            self._guess = 2
-
-
-    def __str__(self):
-        expr = '{}(prefix={}, model_type={})'
-        return expr.format(self.__class__.__name__, self.prefix, self.model_type)
-
-
-    @property
-    def model_type(self):
-        return self._model_type
-
-
-    @model_type.setter
-    def model_type(self, model):
-        """
-        Sets the model type, and potentially
-
-        Parameters
-        ----------
-        model : lmfit.Model
-            Either a subclass of an lmfit.Model, or an instance of a subclass.
-
-        Raises
-        ------
-        TypeError
-            Raised if the input model_type is not a subclass of lmfit.Model.
-
-        """
-
-        if isinstance(model, lmfit.Model):
-            self._model_type = type(model)
-            self.prefix = model.prefix
-            self.model = model
-        elif issubclass(model, lmfit.Model):
-            self._model_type = model
-            self.model = model(prefix=self.prefix, **self.init_kwargs)
-        else:
-            raise TypeError(f'{model} is not a valid lmfit Model.')
-
-        if self._model_type.__name__ in _TOTAL_MODELS:
-            if self.parameters is None:
-                self.parameters = {}
-            for param, value in _TOTAL_MODELS[self._model_type.__name__]['parameters'].items():
-                if param not in self.parameters:
-                    self.parameters[param] = value
-
-        elif self.parameters is None:
-            raise AttributeError(
-                f'Need to include parameters for {self} since it is not a built-in model.'
-            )
-
-
-    @property
-    def bounds(self):
-        return self._bounds
-
-
-    @bounds.setter
-    def bounds(self, values):
-        self._bounds = (min(values), max(values))
-
-
-    @property
-    def prefix(self):
-        return self._prefix
-
-
-    @prefix.setter
-    def prefix(self, new_prefix):
-        """
-        Check that the input prefix is a valid name.
-
-        Parameters
-        ----------
-        new_prefix : str
-            The desired prefix for the model.
-
-        Raises
-        ------
-        ValueError
-            Raised if the given prefix is not a valid name.
-
-        """
-
-        if new_prefix not in self.forbidden_prefixes:
-            if lmfit.parameter.valid_symbol_name(new_prefix): #TODO valid_symbol_name is from asteval, use that module rather than calling from lmfit
-                self._prefix = new_prefix
-                if self.model is not None:
-                    self.model.prefix = self._prefix
-            elif lmfit.parameter.valid_symbol_name(new_prefix.replace(' ', '_')):
-                self.prefix = new_prefix.replace(' ', '_')
-            else:
-                raise ValueError(f'"{new_prefix}" is not an allowable prefix.')
-        else:
-            raise ValueError(f'"{new_prefix}" is not an allowable prefix.')
-
-
-    def _parse_params(self, params, init_params):
-        if init_params is None:
-            self.init_kwargs = {}
-        else:
-            for param, value in init_params.items():
-                self.init_kwargs[param] = value[0]
-
-        if params is None:
-            self.parameters = None
-        else:
-            self.parameters = {}
-            for param, value in params.items():
-                self.parameters[param] = value[0]
-
-
-    def guess_params(self, x, y, **kwargs):
-
-        if not self._guess:
-            raise AttributeError(f'guess() is not available for {self._model_type}.')
-
-        mask = (x >= self.bounds[0]) & (x <= self.bounds[1])
-        if self.is_peak and 'negative' not in kwargs:
-            kwargs['negative'] = numerical_extremum(y[mask]) < 0
-
-        if self._guess == 2:
-            args = (x[mask],)
-        else:
-            args = ()
-
-        self.params = self.model.guess(y[mask], *args, **kwargs)
-
-        return self.params
-
-
-    def optimize_params(self, x, y, **kwargs):
-        pass

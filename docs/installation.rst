@@ -5,41 +5,59 @@ Installation
 ============
 
 
-Stable release
---------------
+Dependencies
+~~~~~~~~~~~~
 
-To install mcetl, run this command in your terminal:
+mcetl requires `Python <https://python.org>`_ version 3.7 or later and the following libraries:
 
-.. code-block:: console
-
-    $ pip install --upgrade mcetl
-
-This is the preferred method to install mcetl, as it will always install the most recent stable release.
-
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
-
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
+* `asteval <https://github.com/newville/asteval>`_
+* `lmfit <https://lmfit.github.io/lmfit-py/>`_ (>= 1.0)
+* `Matplotlib <https://matplotlib.org>`_ (>= 3.1)
+* `NumPy <https://numpy.org>`_ (>= 1.8)
+* `openpyxl <https://openpyxl.readthedocs.io/en/stable/>`_ (>= 2.4)
+* `pandas <https://pandas.pydata.org>`_ (>= 0.25)
+* `PySimpleGUI <https://github.com/PySimpleGUI/PySimpleGUI>`_ (>= 4.29)
+* `SciPy <https://www.scipy.org/scipylib/index.html>`_
 
 
-From Github
------------
+All of the required libraries should be automatically installed when installing mcetl
+using either of the two installation methods below.
 
-The sources for mcetl can be downloaded from the `Github repo`_.
-
-You can clone the public repository:
-
-.. code-block:: console
-
-    $ git clone git://github.com/derb12/mcetl
+Additionally, mcetl can optionally use `Pillow <https://python-pillow.org/>`_
+to allow for additional options when saving figures in the plotting GUI.
 
 
-Once you have a copy of the source, you can install it with:
+Stable Release
+~~~~~~~~~~~~~~
+
+mcetl is easily installed from `pypi <https://pypi.org/project/mcetl>`_
+using `pip <https://pip.pypa.io>`_, simply by running the following command in your terminal:
 
 .. code-block:: console
 
-    $ python setup.py install
+    pip install --upgrade mcetl
+
+This is the preferred method to install mcetl, as it will always install the most
+recent stable release. Note that the ``--upgrade`` tag is used to ensure that the
+most recent version of mcetl is downloaded and installed, even if an older version
+is currently installed.
 
 
-.. _Github repo: https://github.com/derb12/mcetl
+Development Version
+~~~~~~~~~~~~~~~~~~~
+
+The sources for mcetl can be downloaded from the `Github repo <https://github.com/derb12/mcetl>`_.
+
+The public repository can be cloned using:
+
+.. code-block:: console
+
+    git clone https://github.com/derb12/mcetl.git
+
+
+Once the repository is downloaded, it can be installed with:
+
+.. code-block:: console
+
+    cd mcetl
+    python setup.py install
