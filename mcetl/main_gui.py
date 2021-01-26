@@ -894,7 +894,7 @@ def _collect_column_labels(label_values, plot_options, data_source, options):
                 if key.startswith(f'column_name_{i}')
             ])
             for j in range(entries):
-                columns = len([key for key in label_dict.keys() if key.startswith(f'column_name_{i}_{j}')])
+                columns = len([key for key in label_dict.keys() if key.startswith(f'column_name_{i}_{j}_')])
                 labels[num]['column_names'].extend([
                     label_dict[f'column_name_{i}_{j}_{k}'] for k in range(columns)
                 ])

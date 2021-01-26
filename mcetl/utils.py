@@ -865,7 +865,7 @@ def raw_data_import(window_values, file, show_popup=True):
         row_end = window_values['row_end']
         column_numbers = window_values['columns']
         if window_values['separator'].lower() not in ('', 'none'):
-            separator = window_values['separator']
+            separator = string_to_unicode(window_values['separator'])
         else:
             separator = None
 

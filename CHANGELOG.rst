@@ -3,6 +3,18 @@ Changelog
 =========
 
 
+Version 0.4.1 (2021-01-26)
+--------------------------
+
+This is a minor patch with bug fixes.
+
+Bug Fixes
+~~~~~~~~~
+
+* Fixed grouping of column labels for the main GUI when there are more than
+  9 entries for a sample.
+* Fixed processing of regex separators, such as ``\s+`` when importing data.
+
 Version 0.4.0 (2021-01-24)
 --------------------------
 
