@@ -2,11 +2,22 @@
 Changelog
 =========
 
+Version 0.4.2 (2021-02-02)
+--------------------------
+
+This is a minor patch with a critical bug fix.
+
+Bug Fixes
+~~~~~~~~~
+
+* Fixed a crash when merging styled cells due to a change in openpyxl v3.0.6. Now
+  cells are merged first, and then styled. The fix is fully compatible with all
+  covered versions of openpyxl (any >= v2.4).
 
 Version 0.4.1 (2021-01-26)
 --------------------------
 
-This is a minor patch with bug fixes.
+This is a minor patch with critical bug fixes.
 
 Bug Fixes
 ~~~~~~~~~

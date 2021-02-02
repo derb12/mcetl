@@ -1321,36 +1321,46 @@ def fit_to_excel(values_dataframe, params_dataframe, descriptors_dataframe,
     )
     suffix = itertools.cycle(['even', 'odd'])
     for header in headers:
-        cell = worksheet.cell(row=1, column=header['start'], value=header['name'])
-        setattr(cell, *style_cache['fitting_header_' + next(suffix)])
+        style_suffix = next(suffix)
         worksheet.merge_cells(
             start_row=1, start_column=header['start'], end_row=1, end_column=header['end']
         )
+        worksheet.cell(row=1, column=header['start'], value=header['name'])
+        for col in range(header['start'], header['end'] + 1):
+            setattr(
+                worksheet.cell(row=1, column=col),
+                *style_cache['fitting_header_' + style_suffix]
+            )
 
     # Subheaders for values_dataframe
-    cell = worksheet.cell(row=2, column=1, value='Raw Data')
-    setattr(cell, *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=2)
-    cell = worksheet.cell(row=2, column=3, value='Fit Data')
-    setattr(cell, *style_cache['fitting_header_even'])
+    setattr(worksheet.cell(row=2, column=1, value='Raw Data'), *style_cache['fitting_header_odd'])
+    setattr(worksheet.cell(row=2, column=2), *style_cache['fitting_header_odd'])
     worksheet.merge_cells(start_row=2, start_column=3, end_row=2, end_column=4)
-    cell = worksheet.cell(row=2, column=5, value='Fit Output')
-    setattr(cell, *style_cache['fitting_header_odd'])
+    setattr(worksheet.cell(row=2, column=3, value='Fit Data'), *style_cache['fitting_header_even'])
+    setattr(worksheet.cell(row=2, column=4), *style_cache['fitting_header_even'])
     worksheet.merge_cells(start_row=2, start_column=5, end_row=2,
                           end_column=lengths['values'])
+    worksheet.cell(row=2, column=5, value='Fit Output')
+    for col in range(5, lengths['values'] + 1):
+        setattr(worksheet.cell(row=2, column=col), *style_cache['fitting_header_odd'])
 
     # Formatting for values_dataframe
     suffix = itertools.cycle(['even', 'odd'])
     for i, peak_name in enumerate(values_dataframe.columns, 1):
-        cell = worksheet.cell(row=3, column=i, value=peak_name)
-        setattr(cell, *style_cache['fitting_subheader_' + next(suffix)])
+        setattr(
+            worksheet.cell(row=3, column=i, value=peak_name),
+            *style_cache['fitting_subheader_' + next(suffix)]
+        )
 
     rows = dataframe_to_rows(values_dataframe, index=False, header=False)
     for row_index, row in enumerate(rows, 4):
         suffix = itertools.cycle(['even', 'odd'])
         for column_index, value in enumerate(row, 1):
-            cell = worksheet.cell(row=row_index, column=column_index, value=value)
-            setattr(cell, *style_cache['fitting_columns_' + next(suffix)])
+            setattr(
+                worksheet.cell(row=row_index, column=column_index, value=value),
+                *style_cache['fitting_columns_' + next(suffix)]
+            )
 
     # Formatting for params_dataframe
     for index, subheader in enumerate(param_names):
@@ -1359,41 +1369,66 @@ def fit_to_excel(values_dataframe, params_dataframe, descriptors_dataframe,
         if index < 2:
             prefix = 'fitting_columns_' if index == 0 else 'fitting_subheader_'
             column = lengths['values'] + 1 + index
-            cell = worksheet.cell(row=2, column=column, value=subheader)
-            setattr(cell, *style_cache[prefix + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=3, end_column=column
             )
+            setattr(
+                worksheet.cell(row=2, column=column, value=subheader),
+                *style_cache[prefix + style_suffix]
+            )
+            setattr(
+                worksheet.cell(row=3, column=column),
+                *style_cache[prefix + style_suffix]
+            )
             prefix = 'fitting_descriptors_' if index == 0 else 'fitting_columns_'
             for row in range(len(params_dataframe)):
-                cell = worksheet.cell(row=4 + row, column=column)
-                setattr(cell, *style_cache[prefix + style_suffix])
+                setattr(
+                    worksheet.cell(row=4 + row, column=column),
+                    *style_cache[prefix + style_suffix]
+                )
         else:
             column = lengths['values'] + 1 + (2 * (index - 1))
-            cell = worksheet.cell(row=2, column=column, value=subheader)
-            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
             worksheet.merge_cells(
                 start_row=2, start_column=column, end_row=2, end_column=column + 1
             )
-            cell = worksheet.cell(row=3, column=column, value='Value')
-            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
-            cell = worksheet.cell(row=3, column=column + 1, value='Standard Error')
-            setattr(cell, *style_cache['fitting_subheader_' + style_suffix])
+            setattr(
+                worksheet.cell(row=2, column=column, value=subheader),
+                *style_cache['fitting_subheader_' + style_suffix]
+            )
+            setattr(
+                worksheet.cell(row=2, column=column + 1),
+                *style_cache['fitting_subheader_' + style_suffix]
+            )
+            setattr(
+                worksheet.cell(row=3, column=column, value='Value'),
+                *style_cache['fitting_subheader_' + style_suffix]
+            )
+            setattr(
+                worksheet.cell(row=3, column=column + 1, value='Standard Error'),
+                *style_cache['fitting_subheader_' + style_suffix]
+            )
 
             for row in range(len(params_dataframe)):
-                cell = worksheet.cell(row=4 + row, column=column)
-                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
-                cell = worksheet.cell(row=4 + row, column=column + 1)
-                setattr(cell, *style_cache['fitting_columns_' + style_suffix])
+                setattr(
+                    worksheet.cell(row=4 + row, column=column),
+                    *style_cache['fitting_columns_' + style_suffix]
+                )
+                setattr(
+                    worksheet.cell(row=4 + row, column=column + 1),
+                    *style_cache['fitting_columns_' + style_suffix]
+                )
 
     # Formatting for descriptors_dataframe
     for column in range(2):
         style = 'fitting_descriptors_' + next(suffix)
         for row in range(len(descriptors_dataframe.index)):
-            cell = worksheet.cell(
-                row=2 + row, column=column + lengths['values'] + lengths['params'] + 2
+            setattr(
+                worksheet.cell(
+                    row=2 + row,
+                    column=column + lengths['values'] + lengths['params'] + 2
+                ),
+                *style_cache[style]
             )
-            setattr(cell, *style_cache[style])
 
     # Adjust column and row dimensions
     worksheet.row_dimensions[1].height = 18
