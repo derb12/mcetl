@@ -121,7 +121,6 @@ def _write_to_excel(dataframes, data_source, labels,
     from openpyxl.chart.series import SeriesLabel, StrRef
     from openpyxl.utils.dataframe import dataframe_to_rows
 
-
     excel_writer = excel_writer_handler.writer
     style_cache = excel_writer_handler.style_cache
 
@@ -144,31 +143,39 @@ def _write_to_excel(dataframes, data_source, labels,
         # Header values and formatting
         for j, header in enumerate(labels[i]['sample_names']):
             suffix = 'even' if j % 2 == 0 else 'odd'
-            cell = worksheet.cell(
-                row=first_row,
-                column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
-                value=header
-            )
-            setattr(cell, *style_cache['header_' + suffix])
             worksheet.merge_cells(
                 start_row=first_row,
                 start_column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
                 end_row=first_row,
                 end_column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j + 1]) - 1
             )
-
+            worksheet.cell(
+                row=first_row,
+                column=first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
+                value=header
+            )
+            for col in range(
+                first_column + sum(sum(entry) for entry in data_source.lengths[i][:j]),
+                first_column + sum(sum(entry) for entry in data_source.lengths[i][:j + 1])
+            ):
+                setattr(
+                    worksheet.cell(row=first_row, column=col),
+                    *style_cache['header_' + suffix]
+                )
         # Subheader values and formatting
         flattened_lengths = list(itertools.chain.from_iterable(data_source.lengths[i]))
         subheaders = itertools.chain(labels[i]['column_names'], itertools.cycle(['']))
         for j, entry in enumerate(flattened_lengths):
             suffix = 'even' if j % 2 == 0 else 'odd'
             for col_index in range(entry):
-                cell = worksheet.cell(
-                    row=first_row + 1,
-                    column=first_column + col_index + sum(flattened_lengths[:j]),
-                    value=next(subheaders)
+                setattr(
+                    worksheet.cell(
+                        row=first_row + 1,
+                        column=first_column + col_index + sum(flattened_lengths[:j]),
+                        value=next(subheaders)
+                    ),
+                    *style_cache['subheader_' + suffix]
                 )
-                setattr(cell, *style_cache['subheader_' + suffix])
 
         # Dataset values and formatting
         rows = dataframe_to_rows(dataset, index=False, header=False)
@@ -180,8 +187,10 @@ def _write_to_excel(dataframes, data_source, labels,
                 if (column_index + 1 - first_column) > sum(flattened_lengths[:entry]):
                     suffix = next(cycle)
                     entry += 1
-                cell = worksheet.cell(row=row_index, column=column_index, value=value)
-                setattr(cell, *style_cache['columns_' + suffix])
+                setattr(
+                    worksheet.cell(row=row_index, column=column_index, value=value),
+                    *style_cache['columns_' + suffix]
+                )
 
         worksheet.row_dimensions[first_row].height = 18
         worksheet.row_dimensions[first_row + 1].height = 30
