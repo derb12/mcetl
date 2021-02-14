@@ -171,6 +171,69 @@ def split_entry(message, separator=','):
     return [entry.strip() for entry in message.split(separator) if entry.strip()]
 
 
+def string_to_unicode(input_value):
+    r"""
+    Converts strings to unicode by replacing ``'\\'`` with ``'\'``.
+
+    Necessary because user input from text elements in GUIs are raw strings and
+    will convert any ``'\'`` input by the user to ``'\\'``, which will not
+    be converted to the desired unicode. If the string already has unicode
+    characters, it will be left alone.
+
+    Also converts things like ``'\\n'`` and ``'\\t'`` to ``'\n'`` and ``'\t'``,
+    respectively, so that inputs are correctly interpreted.
+
+    Parameters
+    ----------
+    input_value : (list, tuple) or str
+        A container of strings or a single string.
+
+    Returns
+    -------
+    output : (list, tuple) or str
+        A container of strings or a single string, depending on the input,
+        with the unicode correctly converted.
+
+    Notes
+    -----
+    Uses raw_unicode_escape encoding to ensure that any existing unicode is
+    correctly decoded; otherwise, it would translate incorrectly.
+
+    Note that not all valid backspace characters are included. All valid backspace
+    characters are ``\\``[abfnNrtuUvx] or ``\\``[0-7][0-7][0-7] (hex digits), but
+    a, b, v, x, and the hex digits are not really useful and are thus not covered.
+
+    If using mathtext in matplotlib and want to do something like ``$\nu$``,
+    input ``$\\nu$`` in the GUI, which gets converted to ``$\\\\nu$`` by the GUI,
+    and in turn will be converted back to ``$\\nu$`` by this fuction, which
+    matplotlib considers equivalent to ``$\nu$``.
+
+    """
+    if isinstance(input_value, str):
+        input_value = [input_value]
+        return_list = False
+    else:
+        return_list = True
+
+    output = []
+    for entry in input_value:
+        if '\\' in entry:
+            # Replace any \\ with \\\\ unless it's followed by an escape character
+            # in (fnNrtuU). Also replaces any lone \\ since it failes the regex
+            # otherwise. Also replaces any \\\\\\ with \\\\, since
+            # the regex doesn't account for odd numbers of backslashes.
+            # Have to do the replacements before the encode and decode since
+            # invalid escapes will cause a SyntaxError in later python versions.
+            entry = re.sub(
+                r'\\(?=[^fnNrtuU])(.)|\\(?!.)',
+                lambda x: f"\\{x.group()}".replace('\\\\\\', '\\\\'),
+                entry
+            )
+            entry = entry.encode('raw_unicode_escape').decode('unicode_escape')
+        output.append(entry)
+
+    return output if return_list else output[0]
+
 
 def validate_sheet_name(sheet_name):
     r"""
