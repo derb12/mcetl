@@ -218,7 +218,7 @@ def _generate_FTIR_data(directory, num_data=12, show_plots=True):
         else:
             sample_name = f'PE-{(i - int(np.ceil(num_data / 2))) * 10}Ti-Air'
 
-        noise = 0.002 * np.random.randn(x.size)
+        noise = 0.001 * np.random.randn(x.size)
         data['y'], param_dict[sample_name]  = _generate_peaks(
             x, background + noise, lineshapes.gaussian, params, param_var
         )

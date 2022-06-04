@@ -16,6 +16,7 @@ import itertools
 from pathlib import Path
 import traceback
 
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -63,10 +64,10 @@ class SimpleEmbeddedFigure(plot_utils.EmbeddedFigure):
             fig_width=self.canvas_size[0], fig_height=self.canvas_size[1],
             dpi=desired_dpi, canvas_size=self.canvas_size
         )
-        self.figure, self.axis = plt.subplots(
-            num='Fitting', tight_layout=True,
-            figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
+        self.figure = Figure(
+            tight_layout=True, figsize=np.array(self.canvas_size) / desired_dpi, dpi=dpi
         )
+        self.axis = self.figure.add_subplot(111)
         self.axis.plot(x_data, y_data)
         ax_y = self.axis.get_ylim()
         self.axis.set_ylim(plot_utils.scale_axis(ax_y, 0.15, 0.15))

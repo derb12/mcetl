@@ -834,16 +834,16 @@ def get_dpi_correction(dpi):
     return dpi_correction
 
 
-def determine_dpi(fig_height, fig_width, dpi, canvas_size=CANVAS_SIZE):
+def determine_dpi(fig_width, fig_height, dpi, canvas_size=CANVAS_SIZE):
     """
     Gives the correct dpi to fit the figure within the GUI canvas.
 
     Parameters
     ----------
-    fig_height : float
-        The figure height.
     fig_width : float
         The figure width.
+    fig_height : float
+        The figure height.
     dpi : float
         The desired figure dpi.
     canvas_size : tuple(int, int), optional

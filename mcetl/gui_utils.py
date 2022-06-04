@@ -21,6 +21,7 @@ import re
 import pandas as pd
 import wx
 import wx.grid
+from wx.lib import colourdb
 
 
 # the btyes representation of a png file used for the logo
@@ -539,6 +540,30 @@ class Controller:
             keys = (keys,)
         self.subgroups[subgroup_key] = {key: self.items[key] for key in keys}
 
+    def remove_item(self, key, subgroup_key=None):
+        """
+        Removes a key from self.items and all subgroups or a single subgroup.
+
+        Parameters
+        ----------
+        key : str
+            The key to remove from the Controller's item dictionary and all
+            subgroups or a single subgroup.
+        subgroup_key : str, optional
+            The key for the subgroup. If None (default) will remove the specified
+            key from the Controller's item dictionary and all subgroups. If a subgroup
+            key is given, will remove the key from only the specified subgroup, and
+            the Controller's item dictionary and other subgroups will be unchanged.
+
+        """
+        if subgroup_key is not None:
+            self.subgroups[subgroup_key].pop(key, None)
+        else:
+            self.items.pop(key, None)
+            for subgroup_key, subgroup_dict in self.subgroups.items():
+                if key in subgroup_dict:
+                    self.subgroups[subgroup_key].pop(key)
+
     def validate(self, subgroup_key=None):
         """
         Validates each item in either self.items or self.subgroups[subgroup_key].
@@ -909,6 +934,14 @@ class ColorButton(UtilityButton):
         selected value from the ColourDialog, in the desired output format.
     output_format : {'hex', 'rgb', 'rgba'}
         The output format to use when updating the target widget.
+    set_color : bool, optional
+        If True (default), the button's background color will be updated
+        to the selected color from the popup.
+    initial_color : str or tuple(int, ...) or wx.Colour, optional
+        The initial color for the button. Valid string inputs include html
+        ('#000000') or names ('blue'). Valid tuple inputs are either 3 or 4
+        integers, like (red, blue, green) or (red, blue, green, alpha). Default
+        is None, which will not set background color.
     **kwargs
         Any additional keyword arguments for initializing wx.Button.
 
@@ -926,12 +959,32 @@ class ColorButton(UtilityButton):
         'rgba': '{0}, {1}, {2}, 255'
     }
 
-    def __init__(self, parent, target, set_string=True, overwrite=False, output_format='hex', **kwargs):
+    def __init__(self, parent, target, set_string=True, overwrite=False,
+                 output_format='hex', set_color=True, initial_color=None, **kwargs):
         super().__init__(parent, target, set_string, overwrite, **kwargs)
         if output_format.lower() in self.formats:
             self.output_format = self.formats[output_format.lower()]
         else:
             raise KeyError(f'output_format must be in {list(self.formats.keys())}')
+
+        self.set_color = set_color
+        if initial_color is not None:
+            self.update_color(initial_color)
+
+    def update_color(self, color):
+        """Updates the background color of the button."""
+        if not self.set_color:
+            return
+
+        bkg_color = wx.Colour(color)
+        if -1 in bkg_color:
+            # Updates the color database if the color was not recognized,
+            # ie has -1 in the color.
+            colourdb.updateColourDB()
+            bkg_color = wx.Colour(color)
+
+        self.SetBackgroundColour(bkg_color)
+        self.Refresh()
 
     def on_click(self, event):
         """Launches the dialog to select the color and updates the target."""
@@ -945,6 +998,7 @@ class ColorButton(UtilityButton):
                 color = dialog.GetColourData().GetColour().Get(includeAlpha=False)
                 self.update_method(self.output_format.format(*color))
                 self._value = color
+                self.update_color(color)
 
     def get_value(self):
         """
@@ -1318,11 +1372,13 @@ class _NumBase:
 
     def __init__(self, min_value=None, max_value=None, equal_min=True,
                  equal_max=True, num_type=int):
-        self._min = min_value if min_value is not None else float('-inf')
-        self._max = max_value if max_value is not None else float('inf')
+        min_val = min_value if min_value is not None else float('-inf')
+        max_val = max_value if max_value is not None else float('inf')
+        self._min = min(min_val, max_val)
+        self._max = max(min_val, max_val)
         self._equal_min = equal_min
         self._equal_max = equal_max
-        self._error_message = bounds_error(min_value, max_value, equal_min, equal_max)
+        self._error_message = bounds_error(self._min, self._max, equal_min, equal_max)
         self._type = num_type
 
     @property
@@ -1420,8 +1476,11 @@ class NumCtrl(BaseCtrl, _NumBase):
 
     def __init__(self, parent, allow_empty=False, min_value=None, max_value=None,
                  equal_min=True, equal_max=True, num_type=int, **kwargs):
+        if kwargs.get('value', None) is not None:
+            kwargs['value'] = str(kwargs['value'])
         BaseCtrl.__init__(self, parent, allow_empty, **kwargs)
         _NumBase.__init__(self, min_value, max_value, equal_min, equal_max, num_type)
+
         error_prefix = {int: 'an integer', float: 'a float'}[self._type]
         self._error_message = f'must be {error_prefix} and ' + self._error_message
 
@@ -1481,7 +1540,7 @@ class IterCtrl(BaseCtrl):
 
     def __init__(self, parent, allow_empty=False, separator=', ', **kwargs):
         self._separator = separator
-        if kwargs.get('value', None):
+        if kwargs.get('value', None) is not None:
             kwargs['value'] = self._convert_iterable(kwargs['value'])
         super().__init__(parent, allow_empty, **kwargs)
 
@@ -1868,6 +1927,10 @@ class DataFrameViewer(BaseDialog):
     """
 
     def __init__(self, parent, dataframes, allow_edit=False, **kwargs):
+        kwargs['style'] = (
+            kwargs.get('style', 0) | wx.DEFAULT_DIALOG_STYLE | wx.MAXIMIZE_BOX
+            | wx.MINIMIZE_BOX | wx.RESIZE_BORDER
+        )
         super().__init__(parent, **kwargs)
         self.grids = []
 

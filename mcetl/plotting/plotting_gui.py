@@ -1970,13 +1970,10 @@ def _plot_data(data, axes, old_axes=None, **kwargs):
 
                         x_index = int(kwargs[f'x_col_{i}_{j}_{k}'])
                         y_index = int(kwargs[f'y_col_{i}_{j}_{k}'])
-                        x_data = utils.series_to_numpy(dataset.iloc[:, x_index])
+
+                        x = utils.series_to_numpy(dataset.iloc[:, x_index])
                         y_data = utils.series_to_numpy(dataset.iloc[:, y_index])
-
-                        nan_mask = (~np.isnan(x_data)) & (~np.isnan(y_data))
-
-                        x = x_data[nan_mask]
-                        y = y_data[nan_mask] + float(kwargs[f'offset_{i}_{j}_{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}_{j}'])
+                        y = y_data + float(kwargs[f'offset_{i}_{j}_{k}']) #TODO put the scale multiplier here, would be like * float(kwargs[f'y_axis_scale_{i}_{j}'])
 
                         axis.plot(
                             x, y,

@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """Provides additional models for fitting data.
 
-@author  : Donald Erb
+@author: Donald Erb
 Created on Nov 29, 2020
 
 """
-
 
 import lmfit
 import numpy as np
@@ -19,7 +18,6 @@ def breit_wigner_fano_alt(x, height=1.0, center=0.0, sigma=1.0, q=-3.0):
         height * (1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
 
     """
-
     return height * (1 + (x - center) / (q * sigma))**2 / (1 + ((x - center) / sigma)**2)
 
 
@@ -46,19 +44,24 @@ class BreitWignerFanoModel(lmfit.model.Model):
         super().__init__(breit_wigner_fano_alt, **kwargs)
         self._set_paramhints_prefix()
 
-
     def _set_paramhints_prefix(self):
         self.set_param_hint('sigma', min=0.0)
         self.set_param_hint(
             'fwhm',
-            expr=f'2 * {self.prefix}sigma * (1 + {self.prefix}q**2) / max({lmfit.models.tiny}, abs(-1 + {self.prefix}q**2))')
-        self.set_param_hint('mode', expr=f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center + {self.prefix}sigma/(2*{self.prefix}q)')
-        self.set_param_hint('extremum', expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))')
-
+            expr=(f'2 * {self.prefix}sigma * (1 + {self.prefix}q**2) / '
+                  f'max({lmfit.models.tiny}, abs(-1 + {self.prefix}q**2))'))
+        self.set_param_hint(
+            'mode',
+            expr=(f'UNDEFINED if {self.prefix}q == 0 else {self.prefix}center '
+                  f'+ {self.prefix}sigma / (2 * {self.prefix}q)')
+        )
+        self.set_param_hint(
+            'extremum',
+            expr=f'{self.prefix}height * (1 + 1 / max({lmfit.models.tiny}, {self.prefix}q**2))'
+        )
 
     def guess(self, data, x=None, negative=False, **kwargs):
         """Estimate initial model parameter values from data."""
-
         if x is not None:
             pars = lmfit.models.guess_from_peak(self, data, x, negative)
             y = np.array(data)[np.argsort(x)]

@@ -155,7 +155,7 @@ def _peak_transformer():
         'VoigtModel': {
             'sigma': lambda h, w, *args: w / 3.6013,
             'gamma': lambda h, w, *args: w / 3.6013,
-            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'amplitude': lambda h, w, *args: (h * w * 0.531 * np.sqrt(2 * np.pi)),
             'center': lambda h, w, m, *args: m
         },
         # lmfit.models.PseudoVoigtModel
@@ -186,7 +186,7 @@ def _peak_transformer():
         'SkewedVoigtModel': {
             'sigma': lambda h, w, *args: w / 3.6013,
             'gamma': lambda h, w, *args: w / 3.6013,
-            'amplitude': lambda h, w, *args: (h * w  * 0.531 * np.sqrt(2 * np.pi)),
+            'amplitude': lambda h, w, *args: (h * w * 0.531 * np.sqrt(2 * np.pi)),
             'center': lambda h, w, m, *args: m
         },
         # lmfit.models.SplitLorentzianModel
@@ -203,13 +203,13 @@ def _peak_transformer():
             'center': _lognormal_center
         },
         # lmfit.models.BreitWignerModel
-        'BreitWignerModel': { # assumes q = 1 at init
-            'sigma': lambda h, w, *args: w, # leave alone since fwhm=inf for q=1
+        'BreitWignerModel': {  # assumes q = 1 at init
+            'sigma': lambda h, w, *args: w,  # leave alone since fwhm=inf for q=1
             'amplitude': lambda h, w, *args: h / 2,
             'center': lambda h, w, m, *args: m - w / 2,
         },
         # mcetl.fitting.models.BreitWignerFanoModel
-        'BreitWignerFanoModel': { # assumes q = -3 at init
+        'BreitWignerFanoModel': {  # assumes q = -3 at init
             'sigma': lambda h, w, *args: w * 4 / 10,
             'height': lambda h, w, *args: h / (1 + 1 / 3**2),
             'center': lambda h, w, m, *args: m - (w * 4 / 10) / (-3),

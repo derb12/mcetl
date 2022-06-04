@@ -6,7 +6,6 @@ Created on 2020-12-29 11:32:26
 
 """
 
-
 import argparse
 from pathlib import Path
 import subprocess
@@ -44,8 +43,7 @@ def create_git_log(start_date=None, log_file='git_log.txt', branch='development'
     any commits after the specified start date.
 
     """
-
-    if log_file[0].startswith('"') or log_file[0].startswith("'"): # input was a nested string
+    if log_file[0].startswith('"') or log_file[0].startswith("'"):  # input was a nested string
         log_file = log_file[1:-1]
 
     if start_date is None or start_date.lower() == 'none':
@@ -60,7 +58,7 @@ def create_git_log(start_date=None, log_file='git_log.txt', branch='development'
         elif result.stdout:
             print('The git command gave output:', result.stdout.decode())
         success = True
-    except:
+    except Exception:
         print('git log generation failed')
         print(traceback.format_exc())
         success = False
@@ -68,9 +66,9 @@ def create_git_log(start_date=None, log_file='git_log.txt', branch='development'
     return success
 
 
-def parse_changes(log_file=None, keep_log=False):
+def parse_changes(log_file=None, keep_log=False, keep_maint_section=False):
     """
-    Parses the output of git log and groups the commits.
+    Parses the output of the git log and groups the commits into a changelog.
 
     Outputs the grouped messages to 'new_changes.rst' in
     the same directory as the log file.
@@ -82,12 +80,14 @@ def parse_changes(log_file=None, keep_log=False):
     keep_log : bool, optional
         If False (default), will delete the log file when done if no
         errors are raised.
+    keep_maint_section : bool, optional
+        If False (default), will delete the section of the changelog dealing
+        with maintenance items (refactors, tests, styling, etc.).
 
     """
-
     if log_file is None:
         log_file = input('Input git log file path: ')
-    if log_file[0].startswith('"') or log_file[0].startswith("'"): # input was a nested string
+    if log_file[0].startswith('"') or log_file[0].startswith("'"):  # input was a nested string
         log_file = log_file[1:-1]
 
     if isinstance(keep_log, str):
@@ -110,7 +110,7 @@ def parse_changes(log_file=None, keep_log=False):
     add_line = True
     lines = []
     for i, line in enumerate(total_lines):
-        if not line.strip(): # a blank line
+        if not line.strip():  # a blank line
             add_line = True
             continue
         elif not add_line:
@@ -151,7 +151,8 @@ def parse_changes(log_file=None, keep_log=False):
         ('OTH'): ([], 'Other Changes'),
         ('DEP', 'BRK', 'BREAK'): ([], 'Deprecations/Breaking Changes'),
         ('DOC', 'EXA'): ([], 'Documentation/Examples'),
-        ('MAINT'): ([], 'Maintenance') # MAINT will be removed, only for internal usage
+        # All maintenance items will be removed, only for internal usage
+        ('MAINT', 'CI', 'TEST', 'TST'): ([], 'Maintenance')
     }
     for line in range(0, len(lines), 2):
         try:
@@ -163,11 +164,12 @@ def parse_changes(log_file=None, keep_log=False):
             if signature.upper().startswith(key):
                 keys[key][0].append([message.strip(), lines[line + 1]])
                 break
-        else: # no break
+        else:  # no break
             unfiled.append([lines[line], lines[line + 1]])
 
     # remove the maintenance items, since they are not needed in the changelog
-    keys.pop(('MAINT'))
+    if not keep_maint_section:
+        keys.pop(('MAINT', 'CI', 'TEST', 'TST'))
     changelog = Path(log_path.parent, 'new_changes.rst')
     with changelog.open('w') as fp:
         for commits, header in keys.values():
@@ -223,9 +225,16 @@ if __name__ == '__main__':
         '--keep-log', '-K', action='store_true',
         help='If specified, will keep the git log file after parsing it, rather than deleting it.'
     )
+    parser.add_argument(
+        '--keep-maint', '-M', action='store_true',
+        help=(
+            'If specfied, will keep the maintenance section'
+            ' of the changelog rather than deleting it.'
+        )
+    )
 
     args = parser.parse_args()
-    if args.log_file.startswith('F='): # input was a copied file path
+    if args.log_file.startswith('F='):  # input was a copied file path
         if args.verbose:
             print(f'Corrected log file input from "{args.log_file}" to "{args.log_file[2:]}"')
         args.log_file = args.log_file[2:]
@@ -234,4 +243,4 @@ if __name__ == '__main__':
         print(f'The input arguments were: {args}')
 
     if create_git_log(args.start_date, args.log_file, args.branch):
-        parse_changes(args.log_file, args.keep_log)
+        parse_changes(args.log_file, args.keep_log, args.keep_maint)

@@ -76,7 +76,6 @@ def _create_model_cache():
     function, respectively.
 
     """
-
     # repeated or unwanted models from lmfit
     unwanted_models = ('Model', 'ParabolicModel', 'ExpressionModel')
 
@@ -156,10 +155,10 @@ def _create_model_cache():
                 # THE CODE BELOW CAN BE USED TO CHECK IF A MODEL IS A "PEAK",
                 # BUT COULD EASILY CHANGE IN LATER lmfit VERSIONS, SO THE
                 # CODE IS ONLY HERE FOR REFERENCE.
-                #guess_sig = inspect.signature(model.guess)
-                #if (any(param.name == 'negative' for param in guess_sig.parameters.values())
-                #        and name != 'ThermalDistributionModel'):
-                #    available_models[name]['is_peak'] = True
+                # guess_sig = inspect.signature(model.guess)
+                # if (any(param.name == 'negative' for param in guess_sig.parameters.values())
+                #         and name != 'ThermalDistributionModel'):
+                #     available_models[name]['is_peak'] = True
                 if name in peak_models:
                     available_models[name]['is_peak'] = True
 
@@ -167,13 +166,13 @@ def _create_model_cache():
                 if available_models[name]['init_kwargs']:
                     if name in _INIT_MODELS:
                         available_models[name]['init_kwargs'] = _INIT_MODELS[name]
-                    else: # in case other models are added in the future
+                    else:  # in case other models are added in the future
                         available_models[name]['init_kwargs'] = {
                             key: [value, type(value)] for key, value in available_models[name]['init_kwargs'].items()
                         }
 
             except Exception:
-                pass # avoid any models that do not work; none for lmfit version 1.0.1
+                pass  # avoid any models that do not work; none for lmfit version 1.0.1
 
     # DoniachModel was misspelled as DonaichModel until lmfit v1.0.1
     if 'DoniachModel' not in available_models:
@@ -233,7 +232,6 @@ def get_model_name(model):
         Raised if the input model name is not valid.
 
     """
-
     output = None
     if model in _TOTAL_MODELS:
         output = model
@@ -245,7 +243,7 @@ def get_model_name(model):
             if model.lower() in (model_name.lower(), values['display_name'].lower()):
                 output = model_name
                 break
-        else: # if there is no break
+        else:  # if there is no break
             raise KeyError((f'"{model}" is not an available model. Check the spelling,'
                             ' and may need to update lmfit and/or mcetl.'))
 
@@ -313,7 +311,6 @@ def get_is_peak(model):
         is False, then returns False.
 
     """
-
     try:
         is_peak = _TOTAL_MODELS[get_model_name(model)]['is_peak']
     except KeyError:
@@ -346,11 +343,10 @@ def _check_if_constant(model_name, model_values, fit_data):
         input y array.
 
     """
-
     try:
         actual_model_name = get_model_name(model_name)
     except KeyError:
-        actual_model_name = '' # won't change any unknown models
+        actual_model_name = ''  # won't change any unknown models
 
     if actual_model_name in ('ConstantModel', 'ComplexConstantModel'):
         output = np.full(len(fit_data), model_values)
@@ -382,7 +378,6 @@ def r_squared(y_data, y_fit, num_variables=1):
         account the number of variables in the fitting model.
 
     """
-
     y = np.asarray(y_data)
     y_calc = np.asarray(y_fit)
 
@@ -411,7 +406,6 @@ def r_squared_model_result(fit_result):
         The r^2 and adjusted r^2 values for the fitting.
 
     """
-
     return r_squared(fit_result.data, fit_result.best_fit, fit_result.nvarys)
 
 
@@ -437,7 +431,6 @@ def numerical_extremum(y):
     using the output of this function will work, even if y is a list or tuple.
 
     """
-
     min_y, max_y = np.nanmin(y), np.nanmax(y)
     if abs(min_y) > abs(max_y):
         extremum = min_y
@@ -464,7 +457,6 @@ def numerical_mode(x, y):
         The x-value at which the extremum in y occurs.
 
     """
-
     return x[np.where(y == numerical_extremum(y))[0][0]]
 
 
@@ -485,7 +477,6 @@ def numerical_area(x, y):
         The integrated area of the peak, using the trapezoidal method.
 
     """
-
     return np.trapz(y, x)
 
 
@@ -514,7 +505,6 @@ def numerical_fwhm(x, y):
     y - extremum_y / 2 = 0
 
     """
-
     # use ravel to ensure pandas Series work
     diff = np.ravel(y - numerical_extremum(y) / 2)
     roots = np.where(np.sign(diff[:-1]) != np.sign(diff[1:]))[0]
@@ -559,7 +549,6 @@ def subtract_linear_background(x, y, background_points):
     specified background points.
 
     """
-
     x_data = np.asarray(x)
     y_data = np.asarray(y)
     y_subtracted = y_data.copy()

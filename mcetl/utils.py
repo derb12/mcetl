@@ -97,7 +97,6 @@ def safely_close_window(window):
         than expected.
 
     """
-
     window.close()
     raise WindowCloseError('Window was closed earlier than expected.')
 
@@ -124,7 +123,6 @@ def doc_lru_cache(function=None, **lru_cache_kwargs):
             return arg + kwarg
 
     """
-
     if function is None:
         function = functools.partial(doc_lru_cache, **lru_cache_kwargs)
 
@@ -161,7 +159,6 @@ def set_dpi_awareness(awareness_level=1):
     of Windows have this issue anyway.
 
     """
-
     # 'nt' designates Windows operating system
     if os.name == 'nt' and ctypes is not None:
         if awareness_level not in (0, 1, 2):
@@ -236,8 +233,7 @@ def excel_column_name(index):
     64 denotes ord('A') - 1, so if remainder = 1, chr(65) = 'A'.
 
     """
-
-    if not 1 <= index <= 18278: # ensures column is between 'A' and 'ZZZ'.
+    if not 1 <= index <= 18278:  # ensures column is between 'A' and 'ZZZ'.
         raise ValueError(f'Column index {index} must be between 1 and 18278.')
 
     col_num, remainder = divmod(index, 26)
@@ -277,7 +273,6 @@ def get_min_size(default_size, scale, dimension='both'):
         and default_size.
 
     """
-
     indices = {'width': [0], 'height': [1], 'both': [0, 1]}
     screen_size = sg.Window.get_screen_size()
 
@@ -758,7 +753,6 @@ def series_to_numpy(series, dtype=float):
     well with other modules and can be difficult to convert.
 
     """
-
     # na_value added as a kwarg in pandas v1.0.0
     if int(pd.__version__.split('.')[0]) > 0:
         kwargs = {'na_value': np.nan if dtype == float else None}
@@ -769,11 +763,11 @@ def series_to_numpy(series, dtype=float):
     try:
         output = np.asarray(series.to_numpy(**kwargs), dtype)
     except (TypeError, ValueError):
-        try: # try converting to object before conversion
+        try:  # try converting to object before conversion
             output = np.asarray(series.to_numpy(object, **kwargs), dtype)
         except (TypeError, ValueError):
             if isinstance(series[0], str):
-                try: # try removing the first item if it's a string, maybe it's a header
+                try:  # try removing the first item if it's a string, maybe it's a header
                     copy = series.copy()
                     copy[0] = None
                     output = np.asarray(copy.to_numpy(object, **kwargs), dtype)
@@ -807,7 +801,6 @@ def _get_excel_engines():
     so that users can know what engine they will need to install.
 
     """
-
     excel_engines = {
         '.xls': 'xlrd',
         '.xlsx': 'openpyxl',
@@ -852,7 +845,6 @@ def raw_data_import(window_values, file, show_popup=True):
     Optimizes the memory usage of the imported data before returning.
 
     """
-
     column_error_msg = (
         'Too many columns specified. The last column in the imported'
         ' data is Column {}.'
