@@ -56,7 +56,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'mcetl'
-copyright = "2020-2021, Donald Erb"
+copyright = "2020-2022, Donald Erb"
 author = "Donald Erb"
 
 # The version info for the project you're documenting, acts as replacement
